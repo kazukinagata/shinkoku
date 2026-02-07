@@ -5,8 +5,9 @@ from shinkoku.tools.tax_calc import (
     calc_life_insurance_deduction, calc_spouse_deduction,
     calc_furusato_deduction, calc_housing_loan_credit,
     calc_depreciation_straight_line, calc_depreciation_declining_balance,
+    calc_income_tax,
 )
-from shinkoku.models import DeductionsResult
+from shinkoku.models import DeductionsResult, IncomeTaxInput, IncomeTaxResult
 from tests.helpers.assertion_helpers import assert_amount_is_integer_yen
 
 class TestBasicDeduction:
@@ -156,3 +157,177 @@ class TestDepreciationDecliningBalance:
     def test_returns_integer(self):
         result = calc_depreciation_declining_balance(777_777, 333, 80, 7)
         assert_amount_is_integer_yen(result, "declining_balance_depreciation")
+
+
+# ============================================================
+# Task 15: Salary Deduction (Reiwa 7)
+# ============================================================
+
+class TestSalaryDeduction:
+    def test_zero(self):
+        assert calc_salary_deduction(0) == 0
+    def test_low_income(self):
+        assert calc_salary_deduction(1_000_000) == 650_000
+    def test_boundary_1625000(self):
+        assert calc_salary_deduction(1_625_000) == 650_000
+    def test_1800000(self):
+        # 1,800,000 * 40% - 100,000 = 620,000
+        assert calc_salary_deduction(1_800_000) == 620_000
+    def test_3600000(self):
+        # 3,600,000 * 30% + 80,000 = 1,160,000
+        assert calc_salary_deduction(3_600_000) == 1_160_000
+    def test_6000000(self):
+        # 6,000,000 * 20% + 440,000 = 1,640,000
+        assert calc_salary_deduction(6_000_000) == 1_640_000
+    def test_8500000(self):
+        # 8,500,000 * 10% + 1,100,000 = 1,950,000
+        assert calc_salary_deduction(8_500_000) == 1_950_000
+    def test_over_8500000(self):
+        assert calc_salary_deduction(10_000_000) == 1_950_000
+    def test_returns_integer(self):
+        assert_amount_is_integer_yen(calc_salary_deduction(5_555_555), "salary_ded")
+
+
+# ============================================================
+# Task 15: Income Tax Full Calculation - 5 Scenarios
+# ============================================================
+
+class TestIncomeTaxScenario1:
+    """Salary 6M + Side business revenue 3M, blue, furusato 50K."""
+
+    def test_full_calculation(self):
+        r = calc_income_tax(IncomeTaxInput(
+            fiscal_year=2025,
+            salary_income=6_000_000,
+            business_revenue=3_000_000,
+            business_expenses=0,
+            furusato_nozei=50_000,
+            withheld_tax=466_800,
+        ))
+        assert r.salary_income_after_deduction == 4_360_000
+        assert r.business_income == 2_350_000
+        assert r.total_income == 6_710_000
+        assert r.taxable_income == 5_782_000
+        assert r.income_tax_base == 728_900
+        assert r.income_tax_after_credits == 728_900
+        assert r.reconstruction_tax == 15_306
+        assert r.total_tax == 744_200
+        assert r.tax_due == 277_400
+
+
+class TestIncomeTaxScenario2:
+    """Salary 8M + Side 2M, blue, housing loan 35M, furusato 100K, spouse."""
+
+    def test_full_calculation(self):
+        r = calc_income_tax(IncomeTaxInput(
+            fiscal_year=2025,
+            salary_income=8_000_000,
+            business_revenue=2_000_000,
+            business_expenses=0,
+            furusato_nozei=100_000,
+            housing_loan_balance=35_000_000,
+            spouse_income=0,
+            withheld_tax=720_200,
+        ))
+        assert r.salary_income_after_deduction == 6_100_000
+        assert r.business_income == 1_350_000
+        assert r.total_income == 7_450_000
+        assert r.total_income_deductions == 1_358_000
+        assert r.taxable_income == 6_092_000
+        assert r.income_tax_base == 790_900
+        assert r.total_tax_credits == 245_000
+        assert r.income_tax_after_credits == 545_900
+        assert r.reconstruction_tax == 11_463
+        assert r.total_tax == 557_300
+        assert r.tax_due == -162_900
+
+
+class TestIncomeTaxScenario3:
+    """Salary 1.8M + Side 500K, blue, low income (basic deduction 950K)."""
+
+    def test_full_calculation(self):
+        r = calc_income_tax(IncomeTaxInput(
+            fiscal_year=2025,
+            salary_income=1_800_000,
+            business_revenue=500_000,
+            business_expenses=0,
+            withheld_tax=36_700,
+        ))
+        assert r.salary_income_after_deduction == 1_180_000
+        assert r.business_income == 0  # 500K - 650K blue = negative, capped at 0
+        assert r.total_income == 1_180_000
+        assert r.taxable_income == 230_000
+        assert r.income_tax_base == 11_500
+        assert r.reconstruction_tax == 241
+        assert r.total_tax == 11_700
+        assert r.tax_due == -25_000
+
+
+class TestIncomeTaxScenario4:
+    """Salary 7M + Side 15M, blue, furusato 150K.
+
+    Taxable 18,522,000 falls in 40% bracket (>18M):
+    tax = 18,522,000 * 40% - 2,796,000 = 4,612,800
+    """
+
+    def test_full_calculation(self):
+        r = calc_income_tax(IncomeTaxInput(
+            fiscal_year=2025,
+            salary_income=7_000_000,
+            business_revenue=15_000_000,
+            business_expenses=0,
+            furusato_nozei=150_000,
+            withheld_tax=1_883_600,
+        ))
+        assert r.salary_income_after_deduction == 5_200_000
+        assert r.business_income == 14_350_000
+        assert r.total_income == 19_550_000
+        assert r.taxable_income == 18_522_000
+        assert r.income_tax_base == 4_612_800
+        assert r.reconstruction_tax == 96_868
+        assert r.total_tax == 4_709_600
+        assert r.tax_due == 2_826_000
+
+
+class TestIncomeTaxScenario5:
+    """Salary 5M + Side 1M, blue, housing loan 25M, furusato 30K."""
+
+    def test_full_calculation(self):
+        r = calc_income_tax(IncomeTaxInput(
+            fiscal_year=2025,
+            salary_income=5_000_000,
+            business_revenue=1_000_000,
+            business_expenses=0,
+            furusato_nozei=30_000,
+            housing_loan_balance=25_000_000,
+            withheld_tax=128_200,
+        ))
+        assert r.salary_income_after_deduction == 3_560_000
+        assert r.business_income == 350_000
+        assert r.total_income == 3_910_000
+        assert r.taxable_income == 3_002_000
+        assert r.income_tax_base == 202_700
+        assert r.total_tax_credits == 175_000
+        assert r.income_tax_after_credits == 27_700
+        assert r.reconstruction_tax == 581
+        assert r.total_tax == 28_200
+        assert r.tax_due == -100_000
+
+
+class TestIncomeTaxIntegerConstraints:
+    """Verify all output amounts are int."""
+
+    def test_all_amounts_integer(self):
+        r = calc_income_tax(IncomeTaxInput(
+            fiscal_year=2025,
+            salary_income=6_000_000,
+            business_revenue=3_000_000,
+        ))
+        assert isinstance(r, IncomeTaxResult)
+        for field in [
+            r.salary_income_after_deduction, r.business_income, r.total_income,
+            r.total_income_deductions, r.taxable_income, r.income_tax_base,
+            r.total_tax_credits, r.income_tax_after_credits, r.reconstruction_tax,
+            r.total_tax, r.withheld_tax, r.tax_due,
+        ]:
+            assert_amount_is_integer_yen(field)
