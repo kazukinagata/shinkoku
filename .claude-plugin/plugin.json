@@ -1,0 +1,10 @@
+{
+  "name": "shinkoku",
+  "version": "0.1.0",
+  "description": "確定申告を自動化する Claude Code Plugin。会社員＋副業（事業所得・青色申告）の所得税・消費税確定申告をエンドツーエンドで支援。",
+  "author": {
+    "name": "kazukinagata"
+  },
+  "license": "MIT",
+  "keywords": ["確定申告", "tax-filing", "bookkeeping", "blue-return", "japan-tax"]
+}
