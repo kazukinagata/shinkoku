@@ -5,9 +5,12 @@ from shinkoku.tools.tax_calc import (
     calc_life_insurance_deduction, calc_spouse_deduction,
     calc_furusato_deduction, calc_housing_loan_credit,
     calc_depreciation_straight_line, calc_depreciation_declining_balance,
-    calc_income_tax,
+    calc_income_tax, calc_consumption_tax,
 )
-from shinkoku.models import DeductionsResult, IncomeTaxInput, IncomeTaxResult
+from shinkoku.models import (
+    DeductionsResult, IncomeTaxInput, IncomeTaxResult,
+    ConsumptionTaxInput, ConsumptionTaxResult,
+)
 from tests.helpers.assertion_helpers import assert_amount_is_integer_yen
 
 class TestBasicDeduction:
@@ -331,3 +334,143 @@ class TestIncomeTaxIntegerConstraints:
             r.total_tax, r.withheld_tax, r.tax_due,
         ]:
             assert_amount_is_integer_yen(field)
+
+
+# ============================================================
+# Task 16: Consumption Tax
+# ============================================================
+
+class TestConsumptionTaxSpecial20pct:
+    """2-wari special: sales tax * 20%."""
+
+    def test_basic(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="special_20pct",
+            taxable_sales_10=5_500_000,
+        ))
+        # tax_on_sales = 5,500,000 * 10/110 = 500,000
+        assert r.tax_on_sales == 500_000
+        # national = 100,000 * 78/100 = 78,000
+        assert r.tax_due == 78_000
+        # local = 78,000 * 22/78 = 22,000
+        assert r.local_tax_due == 22_000
+        assert r.total_due == 100_000
+
+    def test_with_8pct_sales(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="special_20pct",
+            taxable_sales_10=3_300_000,
+            taxable_sales_8=1_080_000,
+        ))
+        # 10%: 3,300,000 * 10/110 = 300,000
+        # 8%: 1,080,000 * 8/108 = 80,000
+        # total sales tax = 380,000
+        assert r.tax_on_sales == 380_000
+        assert r.total_due > 0
+
+    def test_returns_model(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025, method="special_20pct", taxable_sales_10=1_100_000))
+        assert isinstance(r, ConsumptionTaxResult)
+        assert r.method == "special_20pct"
+
+
+class TestConsumptionTaxSimplified:
+    """Simplified: tax * (1 - deemed ratio)."""
+
+    def test_service_type5(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="simplified",
+            taxable_sales_10=5_500_000,
+            simplified_business_type=5,
+        ))
+        # tax_on_sales = 500,000, deemed 50%, due = 250,000
+        assert r.tax_on_sales == 500_000
+        # national = 250,000 * 78/100 = 195,000
+        assert r.tax_due == 195_000
+        # local = 195,000 * 22/78 = 55,000
+        assert r.local_tax_due == 55_000
+        assert r.total_due == 250_000
+
+    def test_wholesale_type1(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="simplified",
+            taxable_sales_10=11_000_000,
+            simplified_business_type=1,
+        ))
+        # tax = 1,000,000, deemed 90%, due = 100,000
+        assert r.tax_on_sales == 1_000_000
+        # national = 100,000 * 78/100 = 78,000
+        assert r.tax_due == 78_000
+
+    def test_retail_type2(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="simplified",
+            taxable_sales_10=5_500_000,
+            simplified_business_type=2,
+        ))
+        # tax = 500,000, deemed 80%, due = 100,000
+        assert r.tax_on_sales == 500_000
+
+
+class TestConsumptionTaxStandard:
+    """Standard: sales tax - purchase tax."""
+
+    def test_basic(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="standard",
+            taxable_sales_10=5_500_000,
+            taxable_purchases_10=2_200_000,
+        ))
+        # sales tax = 500,000, purchase tax = 200,000
+        assert r.tax_on_sales == 500_000
+        assert r.tax_on_purchases == 200_000
+        # due = 300,000
+        # national = 300,000 * 78/100 = 234,000
+        assert r.tax_due == 234_000
+        # local = 234,000 * 22/78 = 66,000
+        assert r.local_tax_due == 66_000
+        assert r.total_due == 300_000
+
+    def test_mixed_rates(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="standard",
+            taxable_sales_10=5_500_000,
+            taxable_sales_8=1_080_000,
+            taxable_purchases_10=1_100_000,
+            taxable_purchases_8=540_000,
+        ))
+        # sales: 500,000 + 80,000 = 580,000
+        # purchases: 100,000 + 40,000 = 140,000
+        assert r.tax_on_sales == 580_000
+        assert r.tax_on_purchases == 140_000
+        assert r.total_due > 0
+
+    def test_truncation_to_100(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="standard",
+            taxable_sales_10=5_500_000,
+            taxable_purchases_10=2_200_000,
+        ))
+        assert r.tax_due % 100 == 0
+        assert r.local_tax_due % 100 == 0
+
+    def test_all_amounts_integer(self):
+        r = calc_consumption_tax(ConsumptionTaxInput(
+            fiscal_year=2025,
+            method="special_20pct",
+            taxable_sales_10=5_500_000,
+        ))
+        assert_amount_is_integer_yen(r.tax_on_sales)
+        assert_amount_is_integer_yen(r.tax_on_purchases)
+        assert_amount_is_integer_yen(r.tax_due)
+        assert_amount_is_integer_yen(r.local_tax_due)
+        assert_amount_is_integer_yen(r.total_due)
