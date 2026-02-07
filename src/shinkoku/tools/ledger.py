@@ -27,6 +27,22 @@ def register(mcp) -> None:
             db_path=db_path, fiscal_year=fiscal_year, entry=parsed
         )
 
+    @mcp.tool()
+    def mcp_ledger_add_journals_batch(
+        db_path: str, fiscal_year: int, entries: list[dict]
+    ) -> dict:
+        """Add multiple journal entries in a single transaction."""
+        parsed = [JournalEntry(**e) for e in entries]
+        return ledger_add_journals_batch(
+            db_path=db_path, fiscal_year=fiscal_year, entries=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_search(db_path: str, params: dict) -> dict:
+        """Search journal entries with filters and pagination."""
+        parsed = JournalSearchParams(**params)
+        return ledger_search(db_path=db_path, params=parsed)
+
 
 def ledger_init(*, fiscal_year: int, db_path: str) -> dict:
     """Initialize DB, insert master accounts, create fiscal year."""
@@ -151,6 +167,174 @@ def ledger_add_journal(
             "status": "ok",
             "journal_id": journal_id,
             "fiscal_year": fiscal_year,
+        }
+    finally:
+        conn.close()
+
+
+def _insert_journal_in_transaction(
+    conn: sqlite3.Connection, fiscal_year: int, entry: JournalEntry
+) -> int:
+    """Insert a journal within an existing transaction. Returns journal_id."""
+    conn.execute(
+        "INSERT INTO journals "
+        "(fiscal_year, date, description, source, source_file, "
+        "is_adjustment) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            fiscal_year,
+            entry.date,
+            entry.description,
+            entry.source,
+            entry.source_file,
+            1 if entry.is_adjustment else 0,
+        ),
+    )
+    journal_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    for line in entry.lines:
+        conn.execute(
+            "INSERT INTO journal_lines "
+            "(journal_id, side, account_code, amount, "
+            "tax_category, tax_amount) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                journal_id,
+                line.side,
+                line.account_code,
+                line.amount,
+                line.tax_category,
+                line.tax_amount,
+            ),
+        )
+    return journal_id
+
+
+def ledger_add_journals_batch(
+    *, db_path: str, fiscal_year: int, entries: list[JournalEntry]
+) -> dict:
+    """Add multiple journal entries in a single transaction.
+
+    All-or-nothing: if any entry is invalid, all are rolled back.
+    """
+    if not entries:
+        return {"status": "ok", "count": 0, "journal_ids": []}
+
+    conn = get_connection(db_path)
+    try:
+        # Validate all entries first
+        for i, entry in enumerate(entries):
+            error = _validate_journal(conn, fiscal_year, entry)
+            if error:
+                return {
+                    "status": "error",
+                    "message": f"Entry {i}: {error}",
+                    "failed_index": i,
+                }
+
+        # Insert all in a single transaction
+        journal_ids = []
+        for entry in entries:
+            jid = _insert_journal_in_transaction(conn, fiscal_year, entry)
+            journal_ids.append(jid)
+
+        conn.commit()
+        return {
+            "status": "ok",
+            "count": len(journal_ids),
+            "journal_ids": journal_ids,
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def ledger_search(*, db_path: str, params: JournalSearchParams) -> dict:
+    """Search journal entries with various filters and pagination."""
+    conn = get_connection(db_path)
+    try:
+        # Build WHERE clause
+        conditions = ["j.fiscal_year = ?"]
+        bind_params: list = [params.fiscal_year]
+
+        if params.date_from:
+            conditions.append("j.date >= ?")
+            bind_params.append(params.date_from)
+        if params.date_to:
+            conditions.append("j.date <= ?")
+            bind_params.append(params.date_to)
+        if params.description_contains:
+            conditions.append("j.description LIKE ?")
+            bind_params.append(f"%{params.description_contains}%")
+        if params.source:
+            conditions.append("j.source = ?")
+            bind_params.append(params.source)
+
+        where_clause = " AND ".join(conditions)
+
+        # If filtering by account_code, join journal_lines
+        if params.account_code:
+            base_query = (
+                "FROM journals j "
+                "INNER JOIN journal_lines jl ON jl.journal_id = j.id "
+                f"WHERE {where_clause} AND jl.account_code = ?"
+            )
+            bind_params.append(params.account_code)
+        else:
+            base_query = f"FROM journals j WHERE {where_clause}"
+
+        # Count total
+        count_sql = f"SELECT COUNT(DISTINCT j.id) {base_query}"
+        total_count = conn.execute(count_sql, bind_params).fetchone()[0]
+
+        # Fetch journal IDs with pagination
+        select_sql = (
+            f"SELECT DISTINCT j.id, j.fiscal_year, j.date, "
+            f"j.description, j.source, j.source_file, j.is_adjustment "
+            f"{base_query} "
+            f"ORDER BY j.date, j.id "
+            f"LIMIT ? OFFSET ?"
+        )
+        rows = conn.execute(
+            select_sql, bind_params + [params.limit, params.offset]
+        ).fetchall()
+
+        journals = []
+        for row in rows:
+            journal_id = row[0]
+            lines = conn.execute(
+                "SELECT id, side, account_code, amount, "
+                "tax_category, tax_amount "
+                "FROM journal_lines WHERE journal_id = ?",
+                (journal_id,),
+            ).fetchall()
+
+            journals.append({
+                "id": row[0],
+                "fiscal_year": row[1],
+                "date": row[2],
+                "description": row[3],
+                "source": row[4],
+                "source_file": row[5],
+                "is_adjustment": bool(row[6]),
+                "lines": [
+                    {
+                        "id": l[0],
+                        "side": l[1],
+                        "account_code": l[2],
+                        "amount": l[3],
+                        "tax_category": l[4],
+                        "tax_amount": l[5],
+                    }
+                    for l in lines
+                ],
+            })
+
+        return {
+            "status": "ok",
+            "journals": journals,
+            "total_count": total_count,
         }
     finally:
         conn.close()
