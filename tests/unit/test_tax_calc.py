@@ -4,6 +4,7 @@ from shinkoku.tools.tax_calc import (
     calc_basic_deduction, calc_salary_deduction, calc_deductions,
     calc_life_insurance_deduction, calc_spouse_deduction,
     calc_furusato_deduction, calc_housing_loan_credit,
+    calc_depreciation_straight_line, calc_depreciation_declining_balance,
 )
 from shinkoku.models import DeductionsResult
 from tests.helpers.assertion_helpers import assert_amount_is_integer_yen
@@ -101,3 +102,57 @@ class TestCalcDeductions:
         assert_amount_is_integer_yen(r.total_income_deductions)
         for d in r.income_deductions:
             assert_amount_is_integer_yen(d.amount, d.type)
+
+
+# ============================================================
+# Task 14: Depreciation
+# ============================================================
+
+class TestDepreciationStraightLine:
+    def test_basic_full_year(self):
+        # 1,000,000 / 4 years * 100% * 12/12 = 250,000
+        assert calc_depreciation_straight_line(1_000_000, 4, 100, 12) == 250_000
+
+    def test_partial_year(self):
+        # 1,000,000 / 4 * 100% * 6/12 = 125,000
+        assert calc_depreciation_straight_line(1_000_000, 4, 100, 6) == 125_000
+
+    def test_business_use_ratio(self):
+        # 1,000,000 / 4 * 50% * 12/12 = 125,000
+        assert calc_depreciation_straight_line(1_000_000, 4, 50, 12) == 125_000
+
+    def test_combined_partial_and_ratio(self):
+        # 1,200,000 / 5 * 80% * 9/12 = 144,000
+        assert calc_depreciation_straight_line(1_200_000, 5, 80, 9) == 144_000
+
+    def test_zero_months(self):
+        assert calc_depreciation_straight_line(1_000_000, 4, 100, 0) == 0
+
+    def test_zero_useful_life(self):
+        assert calc_depreciation_straight_line(1_000_000, 0, 100, 12) == 0
+
+    def test_returns_integer(self):
+        result = calc_depreciation_straight_line(999_999, 7, 75, 10)
+        assert_amount_is_integer_yen(result, "straight_line_depreciation")
+
+
+class TestDepreciationDecliningBalance:
+    def test_basic_full_year(self):
+        # book_value=1,000,000, rate=500(50.0%), ratio=100%, 12 months
+        # 1,000,000 * 500/1000 * 100/100 * 12/12 = 500,000
+        assert calc_depreciation_declining_balance(1_000_000, 500, 100, 12) == 500_000
+
+    def test_partial_year(self):
+        # 1,000,000 * 500/1000 * 100/100 * 6/12 = 250,000
+        assert calc_depreciation_declining_balance(1_000_000, 500, 100, 6) == 250_000
+
+    def test_business_use_ratio(self):
+        # 1,000,000 * 500/1000 * 60/100 * 12/12 = 300,000
+        assert calc_depreciation_declining_balance(1_000_000, 500, 60, 12) == 300_000
+
+    def test_zero_book_value(self):
+        assert calc_depreciation_declining_balance(0, 500, 100, 12) == 0
+
+    def test_returns_integer(self):
+        result = calc_depreciation_declining_balance(777_777, 333, 80, 7)
+        assert_amount_is_integer_yen(result, "declining_balance_depreciation")
