@@ -7,6 +7,8 @@ from shinkoku.tools.ledger import (
     ledger_add_journal,
     ledger_add_journals_batch,
     ledger_search,
+    ledger_update_journal,
+    ledger_delete_journal,
 )
 
 
@@ -317,3 +319,126 @@ class TestLedgerSearch:
         journal = result["journals"][0]
         assert "lines" in journal
         assert len(journal["lines"]) >= 2
+
+
+# ============================================================
+# Task 9: ledger_update_journal + ledger_delete_journal
+# ============================================================
+
+
+class TestLedgerUpdateJournal:
+    def _create_journal(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        entry = JournalEntry(
+            date="2025-01-15", description="original",
+            lines=[
+                JournalLine(side="debit", account_code="1001", amount=10000),
+                JournalLine(side="credit", account_code="4001", amount=10000),
+            ],
+        )
+        result = ledger_add_journal(
+            db_path=db_path, fiscal_year=2025, entry=entry
+        )
+        return db_path, result["journal_id"]
+
+    def test_update_journal(self, tmp_path):
+        db_path, journal_id = self._create_journal(tmp_path)
+        updated = JournalEntry(
+            date="2025-01-20", description="updated",
+            lines=[
+                JournalLine(side="debit", account_code="1001", amount=20000),
+                JournalLine(side="credit", account_code="4001", amount=20000),
+            ],
+        )
+        result = ledger_update_journal(
+            db_path=db_path, journal_id=journal_id,
+            fiscal_year=2025, entry=updated,
+        )
+        assert result["status"] == "ok"
+        # Verify updated data
+        params = JournalSearchParams(fiscal_year=2025)
+        found = ledger_search(db_path=db_path, params=params)
+        j = found["journals"][0]
+        assert j["description"] == "updated"
+        assert j["date"] == "2025-01-20"
+        debit_line = [l for l in j["lines"] if l["side"] == "debit"][0]
+        assert debit_line["amount"] == 20000
+
+    def test_update_revalidates_balance(self, tmp_path):
+        db_path, journal_id = self._create_journal(tmp_path)
+        updated = JournalEntry(
+            date="2025-01-20", description="bad",
+            lines=[
+                JournalLine(side="debit", account_code="1001", amount=20000),
+                JournalLine(side="credit", account_code="4001", amount=19999),
+            ],
+        )
+        result = ledger_update_journal(
+            db_path=db_path, journal_id=journal_id,
+            fiscal_year=2025, entry=updated,
+        )
+        assert result["status"] == "error"
+
+    def test_update_nonexistent_journal(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        updated = JournalEntry(
+            date="2025-01-20", description="x",
+            lines=[
+                JournalLine(side="debit", account_code="1001", amount=10000),
+                JournalLine(side="credit", account_code="4001", amount=10000),
+            ],
+        )
+        result = ledger_update_journal(
+            db_path=db_path, journal_id=99999,
+            fiscal_year=2025, entry=updated,
+        )
+        assert result["status"] == "error"
+
+
+class TestLedgerDeleteJournal:
+    def _create_journal(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        entry = JournalEntry(
+            date="2025-01-15", description="to delete",
+            lines=[
+                JournalLine(side="debit", account_code="1001", amount=10000),
+                JournalLine(side="credit", account_code="4001", amount=10000),
+            ],
+        )
+        result = ledger_add_journal(
+            db_path=db_path, fiscal_year=2025, entry=entry
+        )
+        return db_path, result["journal_id"]
+
+    def test_delete_journal(self, tmp_path):
+        db_path, journal_id = self._create_journal(tmp_path)
+        result = ledger_delete_journal(
+            db_path=db_path, journal_id=journal_id
+        )
+        assert result["status"] == "ok"
+        # Verify deletion
+        params = JournalSearchParams(fiscal_year=2025)
+        found = ledger_search(db_path=db_path, params=params)
+        assert found["total_count"] == 0
+
+    def test_delete_cascades_lines(self, tmp_path):
+        db_path, journal_id = self._create_journal(tmp_path)
+        ledger_delete_journal(db_path=db_path, journal_id=journal_id)
+        conn = sqlite3.connect(db_path)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM journal_lines WHERE journal_id=?",
+            (journal_id,),
+        ).fetchone()[0]
+        assert count == 0
+        conn.close()
+
+    def test_delete_nonexistent(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        result = ledger_delete_journal(
+            db_path=db_path, journal_id=99999
+        )
+        assert result["status"] == "error"

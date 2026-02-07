@@ -43,6 +43,26 @@ def register(mcp) -> None:
         parsed = JournalSearchParams(**params)
         return ledger_search(db_path=db_path, params=parsed)
 
+    @mcp.tool()
+    def mcp_ledger_update_journal(
+        db_path: str, journal_id: int, fiscal_year: int, entry: dict
+    ) -> dict:
+        """Update a journal entry with re-validation."""
+        parsed = JournalEntry(**entry)
+        return ledger_update_journal(
+            db_path=db_path, journal_id=journal_id,
+            fiscal_year=fiscal_year, entry=parsed,
+        )
+
+    @mcp.tool()
+    def mcp_ledger_delete_journal(
+        db_path: str, journal_id: int
+    ) -> dict:
+        """Delete a journal entry and its lines."""
+        return ledger_delete_journal(
+            db_path=db_path, journal_id=journal_id
+        )
+
 
 def ledger_init(*, fiscal_year: int, db_path: str) -> dict:
     """Initialize DB, insert master accounts, create fiscal year."""
@@ -336,5 +356,93 @@ def ledger_search(*, db_path: str, params: JournalSearchParams) -> dict:
             "journals": journals,
             "total_count": total_count,
         }
+    finally:
+        conn.close()
+
+
+def ledger_update_journal(
+    *, db_path: str, journal_id: int, fiscal_year: int,
+    entry: JournalEntry,
+) -> dict:
+    """Update a journal entry (replace lines with re-validation)."""
+    conn = get_connection(db_path)
+    try:
+        # Check journal exists
+        row = conn.execute(
+            "SELECT id FROM journals WHERE id = ?", (journal_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Journal {journal_id} not found",
+            }
+
+        # Validate the new entry
+        error = _validate_journal(conn, fiscal_year, entry)
+        if error:
+            return {"status": "error", "message": error}
+
+        # Update journal header
+        conn.execute(
+            "UPDATE journals SET date=?, description=?, source=?, "
+            "source_file=?, is_adjustment=?, "
+            "updated_at=datetime('now') WHERE id=?",
+            (
+                entry.date,
+                entry.description,
+                entry.source,
+                entry.source_file,
+                1 if entry.is_adjustment else 0,
+                journal_id,
+            ),
+        )
+
+        # Delete old lines (CASCADE would handle this, but explicit)
+        conn.execute(
+            "DELETE FROM journal_lines WHERE journal_id = ?",
+            (journal_id,),
+        )
+
+        # Insert new lines
+        for line in entry.lines:
+            conn.execute(
+                "INSERT INTO journal_lines "
+                "(journal_id, side, account_code, amount, "
+                "tax_category, tax_amount) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    journal_id,
+                    line.side,
+                    line.account_code,
+                    line.amount,
+                    line.tax_category,
+                    line.tax_amount,
+                ),
+            )
+
+        conn.commit()
+        return {"status": "ok", "journal_id": journal_id}
+    finally:
+        conn.close()
+
+
+def ledger_delete_journal(*, db_path: str, journal_id: int) -> dict:
+    """Delete a journal entry and its lines (CASCADE)."""
+    conn = get_connection(db_path)
+    try:
+        # Check journal exists
+        row = conn.execute(
+            "SELECT id FROM journals WHERE id = ?", (journal_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Journal {journal_id} not found",
+            }
+
+        # Delete (journal_lines will CASCADE)
+        conn.execute("DELETE FROM journals WHERE id = ?", (journal_id,))
+        conn.commit()
+        return {"status": "ok", "journal_id": journal_id}
     finally:
         conn.close()
