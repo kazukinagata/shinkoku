@@ -16,6 +16,21 @@ def register(mcp) -> None:
         """Parse a CSV file and return structured candidates."""
         return import_csv(file_path=file_path)
 
+    @mcp.tool()
+    def mcp_import_receipt(file_path: str) -> dict:
+        """Check receipt file existence and return template for OCR."""
+        return import_receipt(file_path=file_path)
+
+    @mcp.tool()
+    def mcp_import_invoice(file_path: str) -> dict:
+        """Extract text from an invoice PDF."""
+        return import_invoice(file_path=file_path)
+
+    @mcp.tool()
+    def mcp_import_withholding(file_path: str) -> dict:
+        """Extract text from a withholding slip PDF."""
+        return import_withholding(file_path=file_path)
+
 
 def _detect_encoding(file_path: str) -> str:
     """Detect file encoding (UTF-8 or Shift_JIS)."""
@@ -186,4 +201,82 @@ def import_csv(*, file_path: str) -> dict:
         "candidates": candidates,
         "skipped_rows": skipped_rows,
         "errors": errors,
+    }
+
+
+def import_receipt(*, file_path: str) -> dict:
+    """Check file existence and return a ReceiptData template.
+
+    OCR is performed by Claude Vision, so this tool only verifies the file
+    exists and returns an empty template for Claude to fill in.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    return {
+        "status": "ok",
+        "file_path": file_path,
+        "date": None,
+        "vendor": None,
+        "total_amount": None,
+        "items": [],
+        "tax_included": True,
+    }
+
+
+def _extract_pdf_text(file_path: str) -> str:
+    """Extract text from a PDF using pdfplumber."""
+    try:
+        import pdfplumber
+        text_parts = []
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+        return "\n".join(text_parts)
+    except Exception:
+        return ""
+
+
+def import_invoice(*, file_path: str) -> dict:
+    """Extract text from an invoice PDF and return InvoiceData template."""
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    extracted_text = _extract_pdf_text(file_path)
+
+    return {
+        "status": "ok",
+        "file_path": file_path,
+        "extracted_text": extracted_text,
+        "vendor": None,
+        "invoice_number": None,
+        "date": None,
+        "total_amount": None,
+        "tax_amount": None,
+    }
+
+
+def import_withholding(*, file_path: str) -> dict:
+    """Extract text from a withholding slip PDF and return template."""
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    extracted_text = _extract_pdf_text(file_path)
+
+    return {
+        "status": "ok",
+        "file_path": file_path,
+        "extracted_text": extracted_text,
+        "payer_name": None,
+        "payment_amount": 0,
+        "withheld_tax": 0,
+        "social_insurance": 0,
+        "life_insurance_deduction": 0,
+        "earthquake_insurance_deduction": 0,
+        "housing_loan_deduction": 0,
     }

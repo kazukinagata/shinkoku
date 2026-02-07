@@ -3,7 +3,12 @@ import os
 import pytest
 from pathlib import Path
 
-from shinkoku.tools.import_data import import_csv
+from shinkoku.tools.import_data import (
+    import_csv,
+    import_receipt,
+    import_invoice,
+    import_withholding,
+)
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "csv"
 
@@ -75,3 +80,80 @@ class TestImportCSV:
         result = import_csv(file_path=csv_path)
         for c in result["candidates"]:
             assert c["date"].startswith("2025-")
+
+
+# ============================================================
+# Task 12: import_receipt + import_invoice + import_withholding
+# ============================================================
+
+
+class TestImportReceipt:
+    def test_receipt_existing_file(self, tmp_path):
+        p = tmp_path / "receipt.jpg"
+        p.write_bytes(b"\xff\xd8\xff")  # minimal JPEG header
+        result = import_receipt(file_path=str(p))
+        assert result["status"] == "ok"
+        assert result["file_path"] == str(p)
+        # Should return a template with None fields for Claude to fill
+        assert result["date"] is None
+        assert result["vendor"] is None
+        assert result["total_amount"] is None
+        assert "items" in result
+
+    def test_receipt_file_not_found(self):
+        result = import_receipt(file_path="/nonexistent/receipt.jpg")
+        assert result["status"] == "error"
+
+    def test_receipt_returns_template(self, tmp_path):
+        p = tmp_path / "receipt.png"
+        p.write_bytes(b"\x89PNG")
+        result = import_receipt(file_path=str(p))
+        assert result["tax_included"] is True
+
+
+class TestImportInvoice:
+    def test_invoice_pdf(self, tmp_path):
+        # Create a minimal PDF-like file for testing
+        # pdfplumber needs a real PDF, so test with a mock approach
+        p = tmp_path / "invoice.pdf"
+        # We test with a file that pdfplumber cannot parse => extracted_text = ""
+        p.write_text("not a real pdf")
+        result = import_invoice(file_path=str(p))
+        # Even with bad PDF, should return a result (possibly empty text)
+        assert result["file_path"] == str(p)
+
+    def test_invoice_file_not_found(self):
+        result = import_invoice(file_path="/nonexistent/invoice.pdf")
+        assert result["status"] == "error"
+
+    def test_invoice_returns_structure(self, tmp_path):
+        p = tmp_path / "invoice.pdf"
+        p.write_text("not a real pdf")
+        result = import_invoice(file_path=str(p))
+        assert "extracted_text" in result
+        assert "vendor" in result
+        assert "invoice_number" in result
+
+
+class TestImportWithholding:
+    def test_withholding_file_not_found(self):
+        result = import_withholding(file_path="/nonexistent/slip.pdf")
+        assert result["status"] == "error"
+
+    def test_withholding_returns_structure(self, tmp_path):
+        p = tmp_path / "withholding.pdf"
+        p.write_text("not a real pdf")
+        result = import_withholding(file_path=str(p))
+        assert "extracted_text" in result
+        assert "payer_name" in result
+        assert "payment_amount" in result
+        assert "withheld_tax" in result
+        assert "social_insurance" in result
+
+    def test_withholding_amounts_default_zero(self, tmp_path):
+        p = tmp_path / "withholding.pdf"
+        p.write_text("not a real pdf")
+        result = import_withholding(file_path=str(p))
+        assert result["payment_amount"] == 0
+        assert result["withheld_tax"] == 0
+        assert result["social_insurance"] == 0
