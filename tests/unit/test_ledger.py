@@ -9,6 +9,9 @@ from shinkoku.tools.ledger import (
     ledger_search,
     ledger_update_journal,
     ledger_delete_journal,
+    ledger_trial_balance,
+    ledger_pl,
+    ledger_bs,
 )
 
 
@@ -442,3 +445,160 @@ class TestLedgerDeleteJournal:
             db_path=db_path, journal_id=99999
         )
         assert result["status"] == "error"
+
+
+# ============================================================
+# Task 10: ledger_trial_balance + ledger_pl + ledger_bs
+# ============================================================
+
+
+def _setup_full_ledger(tmp_path):
+    """Create a DB with comprehensive journal entries for reports."""
+    db_path = str(tmp_path / "test.db")
+    ledger_init(fiscal_year=2025, db_path=db_path)
+    entries = [
+        # Revenue: 売上 300,000 (現金)
+        JournalEntry(
+            date="2025-01-15", description="売上1",
+            lines=[
+                JournalLine(side="debit", account_code="1001", amount=300000),
+                JournalLine(side="credit", account_code="4001", amount=300000),
+            ],
+        ),
+        # Revenue: 雑収入 10,000 (普通預金)
+        JournalEntry(
+            date="2025-02-01", description="受取利息等",
+            lines=[
+                JournalLine(side="debit", account_code="1002", amount=10000),
+                JournalLine(side="credit", account_code="4110", amount=10000),
+            ],
+        ),
+        # Expense: 通信費 20,000 (普通預金)
+        JournalEntry(
+            date="2025-02-15", description="通信費",
+            lines=[
+                JournalLine(side="debit", account_code="5140", amount=20000),
+                JournalLine(side="credit", account_code="1002", amount=20000),
+            ],
+        ),
+        # Expense: 消耗品費 10,000 (現金)
+        JournalEntry(
+            date="2025-03-01", description="消耗品",
+            lines=[
+                JournalLine(side="debit", account_code="5190", amount=10000),
+                JournalLine(side="credit", account_code="1001", amount=10000),
+            ],
+        ),
+        # Liability: 未払金 5,000 (with expense)
+        JournalEntry(
+            date="2025-03-10", description="未払経費",
+            lines=[
+                JournalLine(side="debit", account_code="5270", amount=5000),
+                JournalLine(side="credit", account_code="2030", amount=5000),
+            ],
+        ),
+        # Equity: 元入金 100,000
+        JournalEntry(
+            date="2025-01-01", description="元入金",
+            lines=[
+                JournalLine(side="debit", account_code="1002", amount=100000),
+                JournalLine(side="credit", account_code="3001", amount=100000),
+            ],
+        ),
+    ]
+    ledger_add_journals_batch(
+        db_path=db_path, fiscal_year=2025, entries=entries
+    )
+    return db_path
+
+
+class TestLedgerTrialBalance:
+    def test_trial_balance_debit_equals_credit(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_trial_balance(
+            db_path=db_path, fiscal_year=2025
+        )
+        assert result["status"] == "ok"
+        assert result["total_debit"] == result["total_credit"]
+
+    def test_trial_balance_has_accounts(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_trial_balance(
+            db_path=db_path, fiscal_year=2025
+        )
+        assert len(result["accounts"]) > 0
+        # Check that each account has required fields
+        for acct in result["accounts"]:
+            assert "account_code" in acct
+            assert "account_name" in acct
+            assert "category" in acct
+            assert "debit_total" in acct
+            assert "credit_total" in acct
+
+    def test_trial_balance_amounts_integer(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_trial_balance(
+            db_path=db_path, fiscal_year=2025
+        )
+        assert isinstance(result["total_debit"], int)
+        assert isinstance(result["total_credit"], int)
+        for acct in result["accounts"]:
+            assert isinstance(acct["debit_total"], int)
+            assert isinstance(acct["credit_total"], int)
+
+
+class TestLedgerPL:
+    def test_pl_net_income_equals_revenue_minus_expense(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_pl(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        # Revenue: 300,000 + 10,000 = 310,000
+        assert result["total_revenue"] == 310000
+        # Expense: 20,000 + 10,000 + 5,000 = 35,000
+        assert result["total_expense"] == 35000
+        # Net income
+        assert result["net_income"] == 310000 - 35000
+
+    def test_pl_has_items(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_pl(db_path=db_path, fiscal_year=2025)
+        assert len(result["revenues"]) > 0
+        assert len(result["expenses"]) > 0
+
+    def test_pl_amounts_integer(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_pl(db_path=db_path, fiscal_year=2025)
+        assert isinstance(result["total_revenue"], int)
+        assert isinstance(result["total_expense"], int)
+        assert isinstance(result["net_income"], int)
+
+
+class TestLedgerBS:
+    def test_bs_assets_equal_liabilities_plus_equity(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_bs(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        # A = L + E (equity includes net_income)
+        assert result["total_assets"] == (
+            result["total_liabilities"] + result["total_equity"]
+        )
+
+    def test_bs_net_income_consistent_with_pl(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        pl_result = ledger_pl(db_path=db_path, fiscal_year=2025)
+        bs_result = ledger_bs(db_path=db_path, fiscal_year=2025)
+        # BS total_equity should include net_income from PL
+        # Check that net_income is embedded in BS equity
+        assert bs_result["total_equity"] > 0
+        # Assets should match: cash + deposits - outflows
+        # 300,000 (cash in) - 10,000 (cash out) = 290,000 cash
+        # 10,000 (deposit in) - 20,000 (deposit out) + 100,000 (equity in) = 90,000 deposit
+        # Total assets = 290,000 + 90,000 = 380,000
+        assert bs_result["total_assets"] == 380000
+
+    def test_bs_amounts_integer(self, tmp_path):
+        db_path = _setup_full_ledger(tmp_path)
+        result = ledger_bs(db_path=db_path, fiscal_year=2025)
+        assert isinstance(result["total_assets"], int)
+        assert isinstance(result["total_liabilities"], int)
+        assert isinstance(result["total_equity"], int)

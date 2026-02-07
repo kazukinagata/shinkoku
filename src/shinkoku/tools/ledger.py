@@ -63,6 +63,25 @@ def register(mcp) -> None:
             db_path=db_path, journal_id=journal_id
         )
 
+    @mcp.tool()
+    def mcp_ledger_trial_balance(
+        db_path: str, fiscal_year: int
+    ) -> dict:
+        """Generate trial balance for a fiscal year."""
+        return ledger_trial_balance(
+            db_path=db_path, fiscal_year=fiscal_year
+        )
+
+    @mcp.tool()
+    def mcp_ledger_pl(db_path: str, fiscal_year: int) -> dict:
+        """Generate profit and loss statement."""
+        return ledger_pl(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_bs(db_path: str, fiscal_year: int) -> dict:
+        """Generate balance sheet."""
+        return ledger_bs(db_path=db_path, fiscal_year=fiscal_year)
+
 
 def ledger_init(*, fiscal_year: int, db_path: str) -> dict:
     """Initialize DB, insert master accounts, create fiscal year."""
@@ -444,5 +463,195 @@ def ledger_delete_journal(*, db_path: str, journal_id: int) -> dict:
         conn.execute("DELETE FROM journals WHERE id = ?", (journal_id,))
         conn.commit()
         return {"status": "ok", "journal_id": journal_id}
+    finally:
+        conn.close()
+
+
+def ledger_trial_balance(*, db_path: str, fiscal_year: int) -> dict:
+    """Generate trial balance: aggregate debits/credits by account."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT a.code, a.name, a.category, "
+            "COALESCE(SUM(CASE WHEN jl.side='debit' THEN jl.amount ELSE 0 END), 0) AS debit_total, "
+            "COALESCE(SUM(CASE WHEN jl.side='credit' THEN jl.amount ELSE 0 END), 0) AS credit_total "
+            "FROM journal_lines jl "
+            "INNER JOIN journals j ON j.id = jl.journal_id "
+            "INNER JOIN accounts a ON a.code = jl.account_code "
+            "WHERE j.fiscal_year = ? "
+            "GROUP BY a.code, a.name, a.category "
+            "ORDER BY a.code",
+            (fiscal_year,),
+        ).fetchall()
+
+        accounts = []
+        total_debit = 0
+        total_credit = 0
+        for row in rows:
+            debit = row[3]
+            credit = row[4]
+            balance = debit - credit
+            accounts.append({
+                "account_code": row[0],
+                "account_name": row[1],
+                "category": row[2],
+                "debit_total": debit,
+                "credit_total": credit,
+                "balance": balance,
+            })
+            total_debit += debit
+            total_credit += credit
+
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "accounts": accounts,
+            "total_debit": total_debit,
+            "total_credit": total_credit,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_pl(*, db_path: str, fiscal_year: int) -> dict:
+    """Generate profit and loss statement (revenue 4xxx - expense 5xxx)."""
+    conn = get_connection(db_path)
+    try:
+        # Revenue accounts (4xxx): credit - debit = net revenue
+        rev_rows = conn.execute(
+            "SELECT a.code, a.name, "
+            "COALESCE(SUM(CASE WHEN jl.side='credit' THEN jl.amount ELSE 0 END), 0) - "
+            "COALESCE(SUM(CASE WHEN jl.side='debit' THEN jl.amount ELSE 0 END), 0) AS amount "
+            "FROM journal_lines jl "
+            "INNER JOIN journals j ON j.id = jl.journal_id "
+            "INNER JOIN accounts a ON a.code = jl.account_code "
+            "WHERE j.fiscal_year = ? AND a.category = 'revenue' "
+            "GROUP BY a.code, a.name "
+            "HAVING amount != 0 "
+            "ORDER BY a.code",
+            (fiscal_year,),
+        ).fetchall()
+
+        # Expense accounts (5xxx): debit - credit = net expense
+        exp_rows = conn.execute(
+            "SELECT a.code, a.name, "
+            "COALESCE(SUM(CASE WHEN jl.side='debit' THEN jl.amount ELSE 0 END), 0) - "
+            "COALESCE(SUM(CASE WHEN jl.side='credit' THEN jl.amount ELSE 0 END), 0) AS amount "
+            "FROM journal_lines jl "
+            "INNER JOIN journals j ON j.id = jl.journal_id "
+            "INNER JOIN accounts a ON a.code = jl.account_code "
+            "WHERE j.fiscal_year = ? AND a.category = 'expense' "
+            "GROUP BY a.code, a.name "
+            "HAVING amount != 0 "
+            "ORDER BY a.code",
+            (fiscal_year,),
+        ).fetchall()
+
+        revenues = [
+            {"account_code": r[0], "account_name": r[1], "amount": r[2]}
+            for r in rev_rows
+        ]
+        expenses = [
+            {"account_code": r[0], "account_name": r[1], "amount": r[2]}
+            for r in exp_rows
+        ]
+
+        total_revenue = sum(r["amount"] for r in revenues)
+        total_expense = sum(e["amount"] for e in expenses)
+        net_income = total_revenue - total_expense
+
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "revenues": revenues,
+            "expenses": expenses,
+            "total_revenue": total_revenue,
+            "total_expense": total_expense,
+            "net_income": net_income,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_bs(*, db_path: str, fiscal_year: int) -> dict:
+    """Generate balance sheet.
+
+    Assets (1xxx) = Liabilities (2xxx) + Equity (3xxx) + Net Income.
+    Net income is computed from PL (revenue - expense).
+    """
+    conn = get_connection(db_path)
+    try:
+        def _get_balances(category: str, normal_side: str) -> list[dict]:
+            """Get net balances for accounts in a category."""
+            if normal_side == "debit":
+                expr = (
+                    "COALESCE(SUM(CASE WHEN jl.side='debit' THEN jl.amount ELSE 0 END), 0) - "
+                    "COALESCE(SUM(CASE WHEN jl.side='credit' THEN jl.amount ELSE 0 END), 0)"
+                )
+            else:
+                expr = (
+                    "COALESCE(SUM(CASE WHEN jl.side='credit' THEN jl.amount ELSE 0 END), 0) - "
+                    "COALESCE(SUM(CASE WHEN jl.side='debit' THEN jl.amount ELSE 0 END), 0)"
+                )
+            rows = conn.execute(
+                f"SELECT a.code, a.name, {expr} AS amount "
+                "FROM journal_lines jl "
+                "INNER JOIN journals j ON j.id = jl.journal_id "
+                "INNER JOIN accounts a ON a.code = jl.account_code "
+                "WHERE j.fiscal_year = ? AND a.category = ? "
+                "GROUP BY a.code, a.name "
+                "HAVING amount != 0 "
+                "ORDER BY a.code",
+                (fiscal_year, category),
+            ).fetchall()
+            return [
+                {"account_code": r[0], "account_name": r[1], "amount": r[2]}
+                for r in rows
+            ]
+
+        assets = _get_balances("asset", "debit")
+        liabilities = _get_balances("liability", "credit")
+        equity = _get_balances("equity", "credit")
+
+        total_assets = sum(a["amount"] for a in assets)
+        total_liabilities = sum(l["amount"] for l in liabilities)
+        total_equity_accounts = sum(e["amount"] for e in equity)
+
+        # Compute net income from PL to include in equity
+        # (revenue credit - revenue debit) - (expense debit - expense credit)
+        rev_net = conn.execute(
+            "SELECT COALESCE(SUM(CASE WHEN jl.side='credit' THEN jl.amount ELSE 0 END), 0) - "
+            "COALESCE(SUM(CASE WHEN jl.side='debit' THEN jl.amount ELSE 0 END), 0) "
+            "FROM journal_lines jl "
+            "INNER JOIN journals j ON j.id = jl.journal_id "
+            "INNER JOIN accounts a ON a.code = jl.account_code "
+            "WHERE j.fiscal_year = ? AND a.category = 'revenue'",
+            (fiscal_year,),
+        ).fetchone()[0] or 0
+
+        exp_net = conn.execute(
+            "SELECT COALESCE(SUM(CASE WHEN jl.side='debit' THEN jl.amount ELSE 0 END), 0) - "
+            "COALESCE(SUM(CASE WHEN jl.side='credit' THEN jl.amount ELSE 0 END), 0) "
+            "FROM journal_lines jl "
+            "INNER JOIN journals j ON j.id = jl.journal_id "
+            "INNER JOIN accounts a ON a.code = jl.account_code "
+            "WHERE j.fiscal_year = ? AND a.category = 'expense'",
+            (fiscal_year,),
+        ).fetchone()[0] or 0
+
+        net_income = rev_net - exp_net
+        total_equity = total_equity_accounts + net_income
+
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "assets": assets,
+            "liabilities": liabilities,
+            "equity": equity,
+            "total_assets": total_assets,
+            "total_liabilities": total_liabilities,
+            "total_equity": total_equity,
+            "net_income": net_income,
+        }
     finally:
         conn.close()
