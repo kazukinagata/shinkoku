@@ -365,7 +365,7 @@ class TestLedgerUpdateJournal:
         j = found["journals"][0]
         assert j["description"] == "updated"
         assert j["date"] == "2025-01-20"
-        debit_line = [l for l in j["lines"] if l["side"] == "debit"][0]
+        debit_line = [li for li in j["lines"] if li["side"] == "debit"][0]
         assert debit_line["amount"] == 20000
 
     def test_update_revalidates_balance(self, tmp_path):
@@ -585,7 +585,7 @@ class TestLedgerBS:
 
     def test_bs_net_income_consistent_with_pl(self, tmp_path):
         db_path = _setup_full_ledger(tmp_path)
-        pl_result = ledger_pl(db_path=db_path, fiscal_year=2025)
+        ledger_pl(db_path=db_path, fiscal_year=2025)
         bs_result = ledger_bs(db_path=db_path, fiscal_year=2025)
         # BS total_equity should include net_income from PL
         # Check that net_income is embedded in BS equity

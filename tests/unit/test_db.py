@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 
-from shinkoku.db import get_connection, init_db
+from shinkoku.db import init_db
 
 
 def test_init_db_creates_file(tmp_path):

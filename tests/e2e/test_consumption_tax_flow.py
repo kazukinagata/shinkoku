@@ -10,12 +10,9 @@ Simulates the complete consumption tax filing flow:
 
 import os
 
-import pytest
-
 from shinkoku.tools.ledger import (
     ledger_init,
     ledger_add_journals_batch,
-    ledger_pl,
 )
 from shinkoku.tools.tax_calc import calc_consumption_tax
 from shinkoku.tools.document import generate_consumption_tax_pdf

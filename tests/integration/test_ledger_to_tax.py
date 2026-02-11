@@ -5,8 +5,6 @@ aggregated via trial balance/PL/BS and used as input for income
 tax calculation with consistent results.
 """
 
-import pytest
-
 from shinkoku.tools.ledger import (
     ledger_init,
     ledger_add_journals_batch,

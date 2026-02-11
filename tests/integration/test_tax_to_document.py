@@ -6,8 +6,6 @@ can be passed directly to document generation functions to produce valid PDFs.
 
 import os
 
-import pytest
-
 from shinkoku.tools.tax_calc import calc_income_tax, calc_consumption_tax
 from shinkoku.tools.document import (
     generate_income_tax_pdf,
@@ -302,11 +300,11 @@ class TestLedgerToPdf:
             ],
             liabilities=[
                 BSItem(
-                    account_code=l["account_code"],
-                    account_name=l["account_name"],
-                    amount=l["amount"],
+                    account_code=li["account_code"],
+                    account_name=li["account_name"],
+                    amount=li["amount"],
                 )
-                for l in bs_data["liabilities"]
+                for li in bs_data["liabilities"]
             ],
             equity=[
                 BSItem(

@@ -1,6 +1,4 @@
 """Tests for import_data tools."""
-import os
-import pytest
 from pathlib import Path
 
 from shinkoku.tools.import_data import (

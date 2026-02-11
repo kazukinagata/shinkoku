@@ -1,7 +1,7 @@
 """Tests to verify shared test fixtures work correctly."""
 
 from tests.helpers.assertion_helpers import assert_amount_is_integer_yen
-from tests.helpers.db_helpers import insert_fiscal_year, insert_journal, load_master_accounts
+from tests.helpers.db_helpers import insert_fiscal_year, insert_journal
 
 
 def test_in_memory_db_has_tables(in_memory_db):

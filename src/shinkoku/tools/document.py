@@ -16,7 +16,9 @@ from reportlab.lib.units import mm
 
 from shinkoku.models import (
     PLResult,
+    PLItem,
     BSResult,
+    BSItem,
     IncomeTaxResult,
     ConsumptionTaxResult,
     DeductionsResult,
@@ -29,8 +31,6 @@ from shinkoku.tools.pdf_coordinates import (
     BLUE_RETURN_PL,
     BLUE_RETURN_BS,
     INCOME_TAX_FORM_B,
-    CONSUMPTION_TAX_FORM,
-    DEDUCTION_DETAIL_FORM,
 )
 
 
@@ -498,7 +498,7 @@ def register(mcp) -> None:
         bs_data = None
         if bs_assets is not None:
             bs_asset_items = [BSItem(**a) for a in (bs_assets or [])]
-            bs_liab_items = [BSItem(**l) for l in (bs_liabilities or [])]
+            bs_liab_items = [BSItem(**li) for li in (bs_liabilities or [])]
             bs_eq_items = [BSItem(**e) for e in (bs_equity or [])]
             bs_data = BSResult(
                 fiscal_year=fiscal_year,

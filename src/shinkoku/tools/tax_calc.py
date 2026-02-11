@@ -13,8 +13,6 @@ from __future__ import annotations
 from shinkoku.models import (
     DeductionItem,
     DeductionsResult,
-    DepreciationAsset,
-    DepreciationResult,
     IncomeTaxInput,
     IncomeTaxResult,
     ConsumptionTaxInput,

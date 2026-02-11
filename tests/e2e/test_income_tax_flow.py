@@ -12,8 +12,6 @@ Simulates the complete flow a user would follow via the MCP server:
 
 import os
 
-import pytest
-
 from shinkoku.tools.ledger import (
     ledger_init,
     ledger_add_journals_batch,
@@ -176,8 +174,8 @@ class TestIncomeTaxFullFlow:
                 for a in bs["assets"]
             ],
             liabilities=[
-                BSItem(account_code=l["account_code"], account_name=l["account_name"], amount=l["amount"])
-                for l in bs["liabilities"]
+                BSItem(account_code=li["account_code"], account_name=li["account_name"], amount=li["amount"])
+                for li in bs["liabilities"]
             ],
             equity=[
                 BSItem(account_code=e["account_code"], account_name=e["account_name"], amount=e["amount"])

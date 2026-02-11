@@ -359,14 +359,14 @@ def ledger_search(*, db_path: str, params: JournalSearchParams) -> dict:
                 "is_adjustment": bool(row[6]),
                 "lines": [
                     {
-                        "id": l[0],
-                        "side": l[1],
-                        "account_code": l[2],
-                        "amount": l[3],
-                        "tax_category": l[4],
-                        "tax_amount": l[5],
+                        "id": li[0],
+                        "side": li[1],
+                        "account_code": li[2],
+                        "amount": li[3],
+                        "tax_category": li[4],
+                        "tax_amount": li[5],
                     }
-                    for l in lines
+                    for li in lines
                 ],
             })
 
@@ -614,7 +614,7 @@ def ledger_bs(*, db_path: str, fiscal_year: int) -> dict:
         equity = _get_balances("equity", "credit")
 
         total_assets = sum(a["amount"] for a in assets)
-        total_liabilities = sum(l["amount"] for l in liabilities)
+        total_liabilities = sum(li["amount"] for li in liabilities)
         total_equity_accounts = sum(e["amount"] for e in equity)
 
         # Compute net income from PL to include in equity

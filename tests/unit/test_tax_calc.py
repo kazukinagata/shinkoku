@@ -1,5 +1,4 @@
 """Tests for tax_calc module."""
-import pytest
 from shinkoku.tools.tax_calc import (
     calc_basic_deduction, calc_salary_deduction, calc_deductions,
     calc_life_insurance_deduction, calc_spouse_deduction,

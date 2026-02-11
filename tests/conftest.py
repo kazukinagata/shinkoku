@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from shinkoku.db import get_connection, init_db, SCHEMA_PATH
+from shinkoku.db import SCHEMA_PATH
 from shinkoku.master_accounts import MASTER_ACCOUNTS
 
 
