@@ -1,0 +1,15 @@
+# shinkoku ユーザー設定ファイル
+# このファイルを shinkoku.config.yaml にコピーして、自分の環境に合わせて編集してください。
+# shinkoku.config.yaml は .gitignore に含まれるため、リポジトリには公開されません。
+
+# 対象年度
+tax_year: 2025
+
+# 売上データ（請求書PDF等が格納されたディレクトリ）
+invoices_dir: /path/to/your/invoices
+
+# 源泉徴収票
+withholding_slips_dir: /path/to/your/withholding-slips
+
+# 過去の確定申告データ（参考用）
+past_returns_dir: /path/to/your/past-returns
