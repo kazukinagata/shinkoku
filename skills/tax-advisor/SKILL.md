@@ -83,6 +83,8 @@ description: >
 |-------------|-------------|
 | 青色申告 | reference/blue-return.md |
 | 事業経費・家事按分 | reference/business-expenses.md |
+| 副業の事業所得vs雑所得判定 | reference/side-business-classification.md |
+| 電子帳簿保存法 | reference/electronic-bookkeeping.md |
 
 ### 制度・手続きに関する質問
 
@@ -99,8 +101,11 @@ description: >
 | 用語の定義・収入→所得変換 | reference/glossary.md |
 | よくある間違い | reference/common-mistakes.md |
 | 令和7年分の改正内容 | reference/tax-reform/2025.md |
+| 令和8年度税制改正大綱 | reference/tax-reform/2026.md |
 | 経過措置 | reference/tax-reform/transition.md |
 | 翌年以降の改正予定 | reference/tax-reform/upcoming.md |
+| 暗号資産の課税 | reference/crypto-tax.md |
+| 新NISAと確定申告 | reference/nisa-and-filing.md |
 | 免責事項 | reference/disclaimer.md |
 
 ## 回答パターン別ガイドライン

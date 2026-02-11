@@ -245,7 +245,10 @@ class TestIncomeTaxFullFlow:
         ))
 
         # This matches test scenario 5 from unit tests
-        assert tax_result.tax_due == -100_000
+        # total_income=3,910,000 → basic=680,000 (336万超〜489万)
+        # taxable=3,202,000, tax=222,700, credits=175,000, after=47,700
+        # reconstruction=1,001, total=48,700, due=48,700-128,200=-79,500
+        assert tax_result.tax_due == -79_500
         assert tax_result.tax_due < 0, "This scenario expects a refund"
 
     def test_all_integer_amounts_in_flow(self, tmp_path, scenario):

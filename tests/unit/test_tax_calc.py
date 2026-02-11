@@ -14,26 +14,41 @@ from shinkoku.models import (
 from tests.helpers.assertion_helpers import assert_amount_is_integer_yen
 
 class TestBasicDeduction:
-    def test_income_below_1320000(self):
+    """Basic deduction table (Reiwa 7-8, time-limited 租特法41条の16の2)."""
+    def test_income_zero(self):
         assert calc_basic_deduction(0) == 950_000
+    def test_income_at_1320000(self):
         assert calc_basic_deduction(1_320_000) == 950_000
-    def test_income_up_to_23500000(self):
+    def test_income_above_1320000(self):
         assert calc_basic_deduction(1_320_001) == 880_000
-        assert calc_basic_deduction(23_500_000) == 880_000
-    def test_income_up_to_24000000(self):
-        assert calc_basic_deduction(23_500_001) == 680_000
-    def test_income_up_to_24500000(self):
-        assert calc_basic_deduction(24_500_000) == 630_000
-    def test_income_up_to_25000000(self):
-        assert calc_basic_deduction(25_000_000) == 580_000
-    def test_income_up_to_25450000(self):
-        assert calc_basic_deduction(25_450_000) == 480_000
-    def test_income_up_to_25950000(self):
-        assert calc_basic_deduction(25_950_000) == 320_000
-    def test_income_up_to_26450000(self):
-        assert calc_basic_deduction(26_450_000) == 160_000
-    def test_income_over_26450000(self):
-        assert calc_basic_deduction(26_450_001) == 0
+    def test_income_at_3360000(self):
+        assert calc_basic_deduction(3_360_000) == 880_000
+    def test_income_above_3360000(self):
+        assert calc_basic_deduction(3_360_001) == 680_000
+    def test_income_at_4890000(self):
+        assert calc_basic_deduction(4_890_000) == 680_000
+    def test_income_above_4890000(self):
+        assert calc_basic_deduction(4_890_001) == 630_000
+    def test_income_at_6550000(self):
+        assert calc_basic_deduction(6_550_000) == 630_000
+    def test_income_above_6550000(self):
+        assert calc_basic_deduction(6_550_001) == 580_000
+    def test_income_at_23500000(self):
+        assert calc_basic_deduction(23_500_000) == 580_000
+    def test_income_above_23500000(self):
+        assert calc_basic_deduction(23_500_001) == 480_000
+    def test_income_at_24000000(self):
+        assert calc_basic_deduction(24_000_000) == 480_000
+    def test_income_above_24000000(self):
+        assert calc_basic_deduction(24_000_001) == 320_000
+    def test_income_at_24500000(self):
+        assert calc_basic_deduction(24_500_000) == 320_000
+    def test_income_above_24500000(self):
+        assert calc_basic_deduction(24_500_001) == 160_000
+    def test_income_at_25000000(self):
+        assert calc_basic_deduction(25_000_000) == 160_000
+    def test_income_over_25000000(self):
+        assert calc_basic_deduction(25_000_001) == 0
     def test_returns_integer(self):
         assert_amount_is_integer_yen(calc_basic_deduction(5_000_000), "basic")
 
@@ -59,17 +74,40 @@ class TestLifeInsurance:
         assert calc_life_insurance_deduction(0) == 0
 
 class TestSpouseDeduction:
-    def test_basic(self):
+    """Spouse deduction (Reiwa 7~, NTA No.1195)."""
+    def test_spouse_deduction_basic(self):
+        # 配偶者控除: spouse income ≤58万, taxpayer ≤900万 → 38万
         assert calc_spouse_deduction(5_000_000, 480_000) == 380_000
-    def test_special(self):
-        r = calc_spouse_deduction(5_000_000, 900_000)
-        assert 0 < r < 380_000
+        assert calc_spouse_deduction(5_000_000, 580_000) == 380_000
+    def test_special_full_amount(self):
+        # 配偶者特別控除（満額）: spouse income 58万超〜95万 → 38万
+        assert calc_spouse_deduction(5_000_000, 800_000) == 380_000
+        assert calc_spouse_deduction(5_000_000, 950_000) == 380_000
+    def test_special_gradual(self):
+        # 配偶者特別控除（段階）: spouse income 95万超〜100万 → 36万
+        assert calc_spouse_deduction(5_000_000, 960_000) == 360_000
+        assert calc_spouse_deduction(5_000_000, 1_000_000) == 360_000
+    def test_special_mid(self):
+        # 110万超〜115万 → 21万
+        assert calc_spouse_deduction(5_000_000, 1_120_000) == 210_000
+    def test_special_low(self):
+        # 130万超〜133万 → 3万
+        assert calc_spouse_deduction(5_000_000, 1_310_000) == 30_000
     def test_high_spouse(self):
+        assert calc_spouse_deduction(5_000_000, 1_330_001) == 0
         assert calc_spouse_deduction(5_000_000, 1_500_000) == 0
     def test_high_taxpayer(self):
         assert calc_spouse_deduction(11_000_000, 480_000) == 0
     def test_none(self):
         assert calc_spouse_deduction(5_000_000, None) == 0
+    def test_taxpayer_9m_bracket(self):
+        # taxpayer 900万超〜950万, spouse ≤58万 → 26万
+        assert calc_spouse_deduction(9_200_000, 480_000) == 260_000
+        # spouse 58万超〜95万 → 26万 (满额)
+        assert calc_spouse_deduction(9_200_000, 800_000) == 260_000
+    def test_taxpayer_10m_bracket(self):
+        # taxpayer 950万超〜1000万, spouse ≤58万 → 13万
+        assert calc_spouse_deduction(9_800_000, 480_000) == 130_000
 
 class TestFurusato:
     def test_basic(self):
@@ -91,13 +129,34 @@ class TestCalcDeductions:
     def test_basic_included(self):
         r = calc_deductions(total_income=5_000_000)
         b = [d for d in r.income_deductions if d.type == "basic"]
-        assert b[0].amount == 880_000
+        assert b[0].amount == 630_000  # 489万超〜655万: 63万
+    def test_basic_low_income(self):
+        r = calc_deductions(total_income=1_000_000)
+        b = [d for d in r.income_deductions if d.type == "basic"]
+        assert b[0].amount == 950_000  # ≤132万: 95万
     def test_combined(self):
         r = calc_deductions(total_income=5_000_000, social_insurance=800_000,
             life_insurance_premium=100_000, furusato_nozei=50_000,
             housing_loan_balance=35_000_000)
         assert r.total_income_deductions > 0
         assert r.total_tax_credits == 245_000
+    def test_medical_low_income_threshold(self):
+        # 所得200万未満: threshold = income * 5% = 1,500,000 * 5% = 75,000
+        r = calc_deductions(total_income=1_500_000, medical_expenses=80_000)
+        m = [d for d in r.income_deductions if d.type == "medical"]
+        assert len(m) == 1
+        assert m[0].amount == 80_000 - 75_000  # 5,000円
+    def test_medical_high_income_threshold(self):
+        # 所得200万以上: threshold = 100,000
+        r = calc_deductions(total_income=5_000_000, medical_expenses=150_000)
+        m = [d for d in r.income_deductions if d.type == "medical"]
+        assert len(m) == 1
+        assert m[0].amount == 50_000  # 150,000 - 100,000
+    def test_medical_below_threshold_low_income(self):
+        # 所得100万、医療費4万: threshold = 50,000 > 40,000 → 控除なし
+        r = calc_deductions(total_income=1_000_000, medical_expenses=40_000)
+        m = [d for d in r.income_deductions if d.type == "medical"]
+        assert len(m) == 0
     def test_model_type(self):
         assert isinstance(calc_deductions(total_income=5_000_000), DeductionsResult)
     def test_integer_amounts(self):
@@ -196,7 +255,10 @@ class TestSalaryDeduction:
 # ============================================================
 
 class TestIncomeTaxScenario1:
-    """Salary 6M + Side business revenue 3M, blue, furusato 50K."""
+    """Salary 6M + Side business revenue 3M, blue, furusato 50K.
+
+    total_income = 6,710,000 → basic deduction = 580,000 (655万超〜2,350万)
+    """
 
     def test_full_calculation(self):
         r = calc_income_tax(IncomeTaxInput(
@@ -210,16 +272,26 @@ class TestIncomeTaxScenario1:
         assert r.salary_income_after_deduction == 4_360_000
         assert r.business_income == 2_350_000
         assert r.total_income == 6_710_000
-        assert r.taxable_income == 5_782_000
-        assert r.income_tax_base == 728_900
-        assert r.income_tax_after_credits == 728_900
-        assert r.reconstruction_tax == 15_306
-        assert r.total_tax == 744_200
-        assert r.tax_due == 277_400
+        # basic=580,000 + furusato=48,000 = 628,000
+        assert r.total_income_deductions == 628_000
+        # taxable = 6,710,000 - 628,000 = 6,082,000
+        assert r.taxable_income == 6_082_000
+        # 6,082,000 * 20% - 427,500 = 788,900
+        assert r.income_tax_base == 788_900
+        assert r.income_tax_after_credits == 788_900
+        # 788,900 * 21/1000 = 16,566
+        assert r.reconstruction_tax == 16_566
+        # (788,900 + 16,566) = 805,466 → 805,400
+        assert r.total_tax == 805_400
+        assert r.tax_due == 338_600
 
 
 class TestIncomeTaxScenario2:
-    """Salary 8M + Side 2M, blue, housing loan 35M, furusato 100K, spouse."""
+    """Salary 8M + Side 2M, blue, housing loan 35M, furusato 100K, spouse.
+
+    total_income = 7,450,000 → basic deduction = 580,000 (655万超〜2,350万)
+    spouse_income=0 → 配偶者控除 380,000
+    """
 
     def test_full_calculation(self):
         r = calc_income_tax(IncomeTaxInput(
@@ -235,14 +307,20 @@ class TestIncomeTaxScenario2:
         assert r.salary_income_after_deduction == 6_100_000
         assert r.business_income == 1_350_000
         assert r.total_income == 7_450_000
-        assert r.total_income_deductions == 1_358_000
-        assert r.taxable_income == 6_092_000
-        assert r.income_tax_base == 790_900
+        # basic=580,000 + spouse=380,000 + furusato=98,000 = 1,058,000
+        assert r.total_income_deductions == 1_058_000
+        # taxable = 7,450,000 - 1,058,000 = 6,392,000
+        assert r.taxable_income == 6_392_000
+        # 6,392,000 * 20% - 427,500 = 850,900
+        assert r.income_tax_base == 850_900
         assert r.total_tax_credits == 245_000
-        assert r.income_tax_after_credits == 545_900
-        assert r.reconstruction_tax == 11_463
-        assert r.total_tax == 557_300
-        assert r.tax_due == -162_900
+        # 850,900 - 245,000 = 605,900
+        assert r.income_tax_after_credits == 605_900
+        # 605,900 * 21/1000 = 12,723
+        assert r.reconstruction_tax == 12_723
+        # (605,900 + 12,723) = 618,623 → 618,600
+        assert r.total_tax == 618_600
+        assert r.tax_due == -101_600
 
 
 class TestIncomeTaxScenario3:
@@ -269,8 +347,7 @@ class TestIncomeTaxScenario3:
 class TestIncomeTaxScenario4:
     """Salary 7M + Side 15M, blue, furusato 150K.
 
-    Taxable 18,522,000 falls in 40% bracket (>18M):
-    tax = 18,522,000 * 40% - 2,796,000 = 4,612,800
+    total_income = 19,550,000 → basic deduction = 580,000 (655万超〜2,350万)
     """
 
     def test_full_calculation(self):
@@ -285,15 +362,23 @@ class TestIncomeTaxScenario4:
         assert r.salary_income_after_deduction == 5_200_000
         assert r.business_income == 14_350_000
         assert r.total_income == 19_550_000
-        assert r.taxable_income == 18_522_000
-        assert r.income_tax_base == 4_612_800
-        assert r.reconstruction_tax == 96_868
-        assert r.total_tax == 4_709_600
-        assert r.tax_due == 2_826_000
+        # basic=580,000 + furusato=148,000 = 728,000
+        # taxable = 19,550,000 - 728,000 = 18,822,000
+        assert r.taxable_income == 18_822_000
+        # 18,822,000 * 40% - 2,796,000 = 4,732,800
+        assert r.income_tax_base == 4_732_800
+        # 4,732,800 * 21/1000 = 99,388
+        assert r.reconstruction_tax == 99_388
+        # (4,732,800 + 99,388) = 4,832,188 → 4,832,100
+        assert r.total_tax == 4_832_100
+        assert r.tax_due == 2_948_500
 
 
 class TestIncomeTaxScenario5:
-    """Salary 5M + Side 1M, blue, housing loan 25M, furusato 30K."""
+    """Salary 5M + Side 1M, blue, housing loan 25M, furusato 30K.
+
+    total_income = 3,910,000 → basic deduction = 680,000 (336万超〜489万)
+    """
 
     def test_full_calculation(self):
         r = calc_income_tax(IncomeTaxInput(
@@ -308,13 +393,19 @@ class TestIncomeTaxScenario5:
         assert r.salary_income_after_deduction == 3_560_000
         assert r.business_income == 350_000
         assert r.total_income == 3_910_000
-        assert r.taxable_income == 3_002_000
-        assert r.income_tax_base == 202_700
+        # basic=680,000 + furusato=28,000 = 708,000
+        # taxable = 3,910,000 - 708,000 = 3,202,000
+        assert r.taxable_income == 3_202_000
+        # 3,202,000 * 10% - 97,500 = 222,700
+        assert r.income_tax_base == 222_700
         assert r.total_tax_credits == 175_000
-        assert r.income_tax_after_credits == 27_700
-        assert r.reconstruction_tax == 581
-        assert r.total_tax == 28_200
-        assert r.tax_due == -100_000
+        # 222,700 - 175,000 = 47,700
+        assert r.income_tax_after_credits == 47_700
+        # 47,700 * 21/1000 = 1,001
+        assert r.reconstruction_tax == 1_001
+        # (47,700 + 1,001) = 48,701 → 48,700
+        assert r.total_tax == 48_700
+        assert r.tax_due == -79_500
 
 
 class TestIncomeTaxIntegerConstraints:

@@ -110,22 +110,22 @@ expected:
     business_income: 2_450_000
     # total_income = 4,360,000 + 2,450,000 = 6,810,000
     total_income: 6_810_000
-    # basic deduction for income 6,810,000 => 880,000
+    # basic deduction for income 6,810,000 (655万超〜2,350万) => 580,000
     # furusato_nozei deduction = 50,000 - 2,000 = 48,000
-    # total deductions = 880,000 + 48,000 = 928,000
-    total_income_deductions: 928_000
-    # taxable_income = 6,810,000 - 928,000 = 5,882,000 (truncate to 1000)
-    taxable_income: 5_882_000
-    # income_tax_base: 5,882,000 * 20% - 427,500 = 748,900
-    income_tax_base: 748_900
+    # total deductions = 580,000 + 48,000 = 628,000
+    total_income_deductions: 628_000
+    # taxable_income = 6,810,000 - 628,000 = 6,182,000 (truncate to 1000)
+    taxable_income: 6_182_000
+    # income_tax_base: 6,182,000 * 20% - 427,500 = 808,900
+    income_tax_base: 808_900
     total_tax_credits: 0
-    income_tax_after_credits: 748_900
-    # reconstruction_tax: 748,900 * 21/1000 = 15,726 (truncate to 1)
-    reconstruction_tax: 15_726
-    # total_tax: (748,900 + 15,726) = 764,626 -> truncate to 100 -> 764,600
-    total_tax: 764_600
-    # tax_due: 764,600 - 466,800 = 297,800
-    tax_due: 297_800
+    income_tax_after_credits: 808_900
+    # reconstruction_tax: 808,900 * 21/1000 = 16,986 (truncate to 1)
+    reconstruction_tax: 16_986
+    # total_tax: (808,900 + 16,986) = 825,886 -> truncate to 100 -> 825,800
+    total_tax: 825_800
+    # tax_due: 825,800 - 466,800 = 359,000
+    tax_due: 359_000
 
   consumption_tax:
     # 課税売上（税込想定）3,500,000 * 1.1 = 3,850,000

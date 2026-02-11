@@ -72,14 +72,20 @@ def _salary_plus_business_scenario():
                 "salary_income_after_deduction": 4_360_000,
                 "business_income": 2_450_000,
                 "total_income": 6_810_000,
-                "total_income_deductions": 928_000,
-                "taxable_income": 5_882_000,
-                "income_tax_base": 748_900,
+                # basic=580,000 (655万超〜2,350万) + furusato=48,000 = 628,000
+                "total_income_deductions": 628_000,
+                # 6,810,000 - 628,000 = 6,182,000
+                "taxable_income": 6_182_000,
+                # 6,182,000 * 20% - 427,500 = 808,900
+                "income_tax_base": 808_900,
                 "total_tax_credits": 0,
-                "income_tax_after_credits": 748_900,
-                "reconstruction_tax": 15_726,
-                "total_tax": 764_600,
-                "tax_due": 297_800,
+                "income_tax_after_credits": 808_900,
+                # 808,900 * 21/1000 = 16,986
+                "reconstruction_tax": 16_986,
+                # (808,900 + 16,986) = 825,886 → 825,800
+                "total_tax": 825_800,
+                # 825,800 - 466,800 = 359,000
+                "tax_due": 359_000,
             },
             "consumption_tax": {
                 "taxable_sales_10": 3_850_000,
