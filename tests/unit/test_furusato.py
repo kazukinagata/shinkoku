@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from shinkoku.tools.furusato import (
     add_furusato_donation,
     list_furusato_donations,
@@ -43,6 +45,28 @@ class TestAddFurusatoDonation:
         assert added.municipality_name == "大阪府大阪市"
         assert added.one_stop_applied is True
         assert added.receipt_number == "R-999"
+
+    def test_invalid_date_format_rejected(self, sample_furusato_donations):
+        db = sample_furusato_donations
+        with pytest.raises(ValueError, match="日付の形式が不正です"):
+            add_furusato_donation(
+                conn=db,
+                fiscal_year=2025,
+                municipality_name="東京都渋谷区",
+                amount=10000,
+                date="2025/11/01",
+            )
+
+    def test_invalid_date_format_no_separator(self, sample_furusato_donations):
+        db = sample_furusato_donations
+        with pytest.raises(ValueError, match="日付の形式が不正です"):
+            add_furusato_donation(
+                conn=db,
+                fiscal_year=2025,
+                municipality_name="東京都渋谷区",
+                amount=10000,
+                date="not-a-date",
+            )
 
 
 class TestListFurusatoDonations:

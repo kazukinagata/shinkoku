@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 
 from shinkoku.db import get_connection
 from shinkoku.models import FurusatoDonationRecord, FurusatoDonationSummary
 from shinkoku.tools.tax_calc import calc_furusato_deduction
+
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 # ============================================================
@@ -26,6 +29,9 @@ def add_furusato_donation(
     source_file: str | None = None,
 ) -> int:
     """Add a furusato donation record. Returns the donation id."""
+    if not _DATE_PATTERN.match(date):
+        raise ValueError(f"日付の形式が不正です (YYYY-MM-DD): {date}")
+
     # 重複チェック: 同一自治体・同一日付・同一金額の寄附がないか
     existing = conn.execute(
         "SELECT id FROM furusato_donations "
