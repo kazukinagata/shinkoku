@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 # v1 → v2: 配偶者/扶養/その他所得/仮想通貨/在庫/税理士報酬/株式/FX テーブル追加
 # + 源泉徴収票に生命保険5区分・国民年金・旧長期損害保険列追加
@@ -204,12 +204,93 @@ def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
     """Apply v2 → v3 migration: housing_loan_details に子育て世帯・R5確認済みフラグ追加。"""
     for col_name, col_def in _V3_HOUSING_LOAN_COLUMNS:
         if not _has_column(conn, "housing_loan_details", col_name):
-            conn.execute(
-                f"ALTER TABLE housing_loan_details ADD COLUMN {col_name} {col_def}"
-            )
+            conn.execute(f"ALTER TABLE housing_loan_details ADD COLUMN {col_name} {col_def}")
     conn.execute(
         "INSERT OR IGNORE INTO schema_version (version) VALUES (?)",
         (3,),
+    )
+    conn.commit()
+
+
+# v3 → v4: 扶養親族に他の納税者フラグ追加、住宅ローン明細拡張、
+# 社会保険料種別内訳/保険会社名/寄附金テーブル追加
+_V4_DEPENDENTS_COLUMNS = [
+    ("other_taxpayer_dependent", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+_V4_HOUSING_LOAN_COLUMNS = [
+    ("purchase_date", "TEXT"),
+    ("purchase_price", "INTEGER NOT NULL DEFAULT 0"),
+    ("total_floor_area", "INTEGER NOT NULL DEFAULT 0"),
+    ("residential_floor_area", "INTEGER NOT NULL DEFAULT 0"),
+    ("property_number", "TEXT"),
+    ("application_submitted", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+_V4_NEW_TABLES = """
+CREATE TABLE IF NOT EXISTS social_insurance_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    insurance_type TEXT NOT NULL CHECK (insurance_type IN (
+        'national_health', 'national_pension', 'national_pension_fund',
+        'nursing_care', 'labor_insurance', 'other'
+    )),
+    name TEXT,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS insurance_policies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    policy_type TEXT NOT NULL CHECK (policy_type IN (
+        'life_general_new', 'life_general_old', 'life_medical_care',
+        'life_annuity_new', 'life_annuity_old', 'earthquake', 'old_long_term'
+    )),
+    company_name TEXT NOT NULL,
+    premium INTEGER NOT NULL CHECK (premium > 0),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS donation_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    donation_type TEXT NOT NULL CHECK (donation_type IN (
+        'political', 'npo', 'public_interest', 'specified', 'other'
+    )),
+    recipient_name TEXT NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    date TEXT NOT NULL,
+    receipt_number TEXT,
+    source_file TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+_V4_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_social_insurance_items_fiscal_year ON social_insurance_items(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_insurance_policies_fiscal_year ON insurance_policies(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_donation_records_fiscal_year ON donation_records(fiscal_year);
+"""
+
+
+def _migrate_v3_to_v4(conn: sqlite3.Connection) -> None:
+    """Apply v3 → v4 migration."""
+    # 扶養親族に other_taxpayer_dependent 列追加
+    for col_name, col_def in _V4_DEPENDENTS_COLUMNS:
+        if not _has_column(conn, "dependents", col_name):
+            conn.execute(f"ALTER TABLE dependents ADD COLUMN {col_name} {col_def}")
+
+    # 住宅ローン詳細に明細フィールド追加
+    for col_name, col_def in _V4_HOUSING_LOAN_COLUMNS:
+        if not _has_column(conn, "housing_loan_details", col_name):
+            conn.execute(f"ALTER TABLE housing_loan_details ADD COLUMN {col_name} {col_def}")
+
+    # 新テーブル作成
+    conn.executescript(_V4_NEW_TABLES)
+    conn.executescript(_V4_INDEXES)
+
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_version (version) VALUES (?)",
+        (4,),
     )
     conn.commit()
 
@@ -237,6 +318,8 @@ def migrate(conn: sqlite3.Connection) -> int:
         _migrate_v1_to_v2(conn)
     if current < 3:
         _migrate_v2_to_v3(conn)
+    if current < 4:
+        _migrate_v3_to_v4(conn)
 
     return CURRENT_SCHEMA_VERSION
 

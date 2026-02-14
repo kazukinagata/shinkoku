@@ -247,6 +247,7 @@ class DependentInfo(BaseModel):
     income: int = 0  # 年間所得
     disability: str | None = Field(default=None, pattern=r"^(general|special|special_cohabiting)$")
     cohabiting: bool = True  # 同居
+    other_taxpayer_dependent: bool = False  # 他の納税者の扶養親族に該当する
 
 
 class HousingLoanDetail(BaseModel):
@@ -283,6 +284,12 @@ class HousingLoanDetailInput(BaseModel):
     is_new_construction: bool = True
     is_childcare_household: bool = False
     has_pre_r6_building_permit: bool = False
+    purchase_date: str | None = None  # 住宅購入日
+    purchase_price: int = 0  # 住宅の価格（円）
+    total_floor_area: int = 0  # 総床面積（平方メートル×100: 10063=100.63㎡）
+    residential_floor_area: int = 0  # 居住用部分の面積（同上）
+    property_number: str | None = None  # 不動産番号
+    application_submitted: bool = False  # 適用申請書提出有無
 
 
 class HousingLoanDetailRecord(BaseModel):
@@ -297,6 +304,12 @@ class HousingLoanDetailRecord(BaseModel):
     is_new_construction: bool
     is_childcare_household: bool = False
     has_pre_r6_building_permit: bool = False
+    purchase_date: str | None = None
+    purchase_price: int = 0
+    total_floor_area: int = 0
+    residential_floor_area: int = 0
+    property_number: str | None = None
+    application_submitted: bool = False
 
 
 class LifeInsurancePremiumInput(BaseModel):
@@ -604,9 +617,7 @@ class SpouseInput(BaseModel):
     name: str
     date_of_birth: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     income: int = 0
-    disability: str | None = Field(
-        default=None, pattern=r"^(general|special|special_cohabiting)$"
-    )
+    disability: str | None = Field(default=None, pattern=r"^(general|special|special_cohabiting)$")
     cohabiting: bool = True
     other_taxpayer_dependent: bool = False
 
@@ -634,10 +645,9 @@ class DependentInput(BaseModel):
     relationship: str
     date_of_birth: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     income: int = 0
-    disability: str | None = Field(
-        default=None, pattern=r"^(general|special|special_cohabiting)$"
-    )
+    disability: str | None = Field(default=None, pattern=r"^(general|special|special_cohabiting)$")
     cohabiting: bool = True
+    other_taxpayer_dependent: bool = False  # 他の納税者の扶養親族に該当する
 
 
 class DependentRecord(BaseModel):
@@ -651,6 +661,7 @@ class DependentRecord(BaseModel):
     income: int
     disability: str | None
     cohabiting: bool
+    other_taxpayer_dependent: bool = False
 
 
 # --- 源泉徴収票 (withholding slip) 拡張 ---
@@ -947,3 +958,80 @@ class SeparateTaxResult(BaseModel):
     fx_tax_due: int = 0
     # 合計
     total_separate_tax: int = 0
+
+
+# --- 社会保険料の種別別内訳 (social insurance items) ---
+
+
+class SocialInsuranceItemInput(BaseModel):
+    """社会保険料の種別入力。"""
+
+    insurance_type: str = Field(
+        description="種別: national_health / national_pension / national_pension_fund"
+        " / nursing_care / labor_insurance / other"
+    )
+    name: str | None = None  # 保険者名等
+    amount: int = Field(gt=0, description="円単位の整数")
+
+
+class SocialInsuranceItemRecord(BaseModel):
+    """社会保険料の種別DBレコード。"""
+
+    id: int
+    fiscal_year: int
+    insurance_type: str
+    name: str | None
+    amount: int
+
+
+# --- 保険契約（生命保険・地震保険の保険会社名） ---
+
+
+class InsurancePolicyInput(BaseModel):
+    """保険契約の入力。"""
+
+    policy_type: str = Field(
+        description="種別: life_general_new / life_general_old / life_medical_care"
+        " / life_annuity_new / life_annuity_old / earthquake / old_long_term"
+    )
+    company_name: str  # 保険会社名
+    premium: int = Field(gt=0, description="円単位の整数")
+
+
+class InsurancePolicyRecord(BaseModel):
+    """保険契約のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    policy_type: str
+    company_name: str
+    premium: int
+
+
+# --- 寄附金（ふるさと納税以外） ---
+
+
+class DonationRecordInput(BaseModel):
+    """ふるさと納税以外の寄附金入力。"""
+
+    donation_type: str = Field(
+        description="種別: political / npo / public_interest / specified / other"
+    )
+    recipient_name: str  # 寄附先名
+    amount: int = Field(gt=0, description="円単位の整数")
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    receipt_number: str | None = None
+    source_file: str | None = None
+
+
+class DonationRecordRecord(BaseModel):
+    """寄附金のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    donation_type: str
+    recipient_name: str
+    amount: int
+    date: str
+    receipt_number: str | None
+    source_file: str | None

@@ -1,4 +1,4 @@
--- shinkoku schema v2
+-- shinkoku schema v4
 -- 確定申告自動化のための複式簿記データベース
 
 -- スキーマバージョン管理
@@ -174,6 +174,12 @@ CREATE TABLE IF NOT EXISTS housing_loan_details (
     is_new_construction INTEGER NOT NULL DEFAULT 1,
     is_childcare_household INTEGER NOT NULL DEFAULT 0,
     has_pre_r6_building_permit INTEGER NOT NULL DEFAULT 0,
+    purchase_date TEXT,
+    purchase_price INTEGER NOT NULL DEFAULT 0,
+    total_floor_area INTEGER NOT NULL DEFAULT 0,
+    residential_floor_area INTEGER NOT NULL DEFAULT 0,
+    property_number TEXT,
+    application_submitted INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -215,6 +221,7 @@ CREATE TABLE IF NOT EXISTS dependents (
     income INTEGER NOT NULL DEFAULT 0,
     disability TEXT CHECK (disability IN ('general','special','special_cohabiting') OR disability IS NULL),
     cohabiting INTEGER NOT NULL DEFAULT 1,
+    other_taxpayer_dependent INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -318,6 +325,47 @@ CREATE TABLE IF NOT EXISTS fx_loss_carryforward (
     used_amount INTEGER NOT NULL DEFAULT 0
 );
 
+-- 社会保険料の種別別内訳
+CREATE TABLE IF NOT EXISTS social_insurance_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    insurance_type TEXT NOT NULL CHECK (insurance_type IN (
+        'national_health', 'national_pension', 'national_pension_fund',
+        'nursing_care', 'labor_insurance', 'other'
+    )),
+    name TEXT,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 生命保険/地震保険の保険会社名
+CREATE TABLE IF NOT EXISTS insurance_policies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    policy_type TEXT NOT NULL CHECK (policy_type IN (
+        'life_general_new', 'life_general_old', 'life_medical_care',
+        'life_annuity_new', 'life_annuity_old', 'earthquake', 'old_long_term'
+    )),
+    company_name TEXT NOT NULL,
+    premium INTEGER NOT NULL CHECK (premium > 0),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ふるさと納税以外の寄附金
+CREATE TABLE IF NOT EXISTS donation_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    donation_type TEXT NOT NULL CHECK (donation_type IN (
+        'political', 'npo', 'public_interest', 'specified', 'other'
+    )),
+    recipient_name TEXT NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    date TEXT NOT NULL,
+    receipt_number TEXT,
+    source_file TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_journals_fiscal_year ON journals(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_journals_date ON journals(date);
@@ -347,3 +395,6 @@ CREATE INDEX IF NOT EXISTS idx_stock_trading_accounts_fiscal_year ON stock_tradi
 CREATE INDEX IF NOT EXISTS idx_stock_loss_carryforward_fiscal_year ON stock_loss_carryforward(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_fx_trading_records_fiscal_year ON fx_trading_records(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_fx_loss_carryforward_fiscal_year ON fx_loss_carryforward(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_social_insurance_items_fiscal_year ON social_insurance_items(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_insurance_policies_fiscal_year ON insurance_policies(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_donation_records_fiscal_year ON donation_records(fiscal_year);
