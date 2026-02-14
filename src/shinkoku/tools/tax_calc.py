@@ -722,7 +722,7 @@ def calc_deductions(
         donation_total = sum(d.amount for d in donations)
         if donation_total > DONATION_SELF_BURDEN:
             income_limit = total_income * DONATION_INCOME_DEDUCTION_RATIO // 100
-            donation_deduction = min(donation_total - DONATION_SELF_BURDEN, income_limit)
+            donation_deduction = max(0, min(donation_total, income_limit) - DONATION_SELF_BURDEN)
             if donation_deduction > 0:
                 income_deductions.append(
                     DeductionItem(
@@ -1372,7 +1372,10 @@ def register(mcp) -> None:
         """Calculate depreciation for a fixed asset."""
         if method == "declining_balance":
             if book_value is None or declining_rate is None:
-                return {"error": "book_value and declining_rate required for declining balance"}
+                return {
+                    "status": "error",
+                    "message": "book_value and declining_rate required for declining balance",
+                }
             amount = calc_depreciation_declining_balance(
                 book_value=book_value,
                 declining_rate=declining_rate,

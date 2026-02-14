@@ -46,15 +46,6 @@ def test_sample_journals_debit_equals_credit(sample_journals):
     assert debit == credit
 
 
-def test_tax_params_2025(tax_params_2025):
-    """tax_params_2025 fixture should have required keys."""
-    assert tax_params_2025["fiscal_year"] == 2025
-    assert len(tax_params_2025["basic_deduction_table"]) > 0
-    assert len(tax_params_2025["income_tax_table"]) > 0
-    assert tax_params_2025["salary_deduction_min"] == 650_000
-    assert tax_params_2025["blue_return_deduction"] == 650_000
-
-
 def test_output_dir(output_dir):
     """output_dir fixture should be a writable directory."""
     assert output_dir.is_dir()

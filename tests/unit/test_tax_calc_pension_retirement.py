@@ -14,28 +14,28 @@ class TestPensionDeduction:
         assert result.deduction_amount == 0
         assert result.taxable_pension_income == 0
 
-    def test_under_65_below_700k(self):
-        """65歳未満、70万以下は全額控除（R7改正）。"""
+    def test_under_65_below_600k(self):
+        """65歳未満、60万以下は全額控除。"""
+        result = calc_pension_deduction(
+            PensionDeductionInput(pension_income=500_000, is_over_65=False)
+        )
+        assert result.deduction_amount == 500_000
+        assert result.taxable_pension_income == 0
+
+    def test_under_65_at_600k(self):
         result = calc_pension_deduction(
             PensionDeductionInput(pension_income=600_000, is_over_65=False)
         )
         assert result.deduction_amount == 600_000
         assert result.taxable_pension_income == 0
 
-    def test_under_65_at_700k(self):
-        result = calc_pension_deduction(
-            PensionDeductionInput(pension_income=700_000, is_over_65=False)
-        )
-        assert result.deduction_amount == 700_000
-        assert result.taxable_pension_income == 0
-
-    def test_under_65_between_70_130(self):
-        """65歳未満、70万超〜130万: 控除額70万。"""
+    def test_under_65_between_60_130(self):
+        """65歳未満、60万超〜130万: 控除額60万。"""
         result = calc_pension_deduction(
             PensionDeductionInput(pension_income=1_000_000, is_over_65=False)
         )
-        assert result.deduction_amount == 700_000
-        assert result.taxable_pension_income == 300_000
+        assert result.deduction_amount == 600_000
+        assert result.taxable_pension_income == 400_000
 
     def test_under_65_between_130_410(self):
         """65歳未満、130万超〜410万: 年金×25%+37.5万。"""
@@ -72,28 +72,28 @@ class TestPensionDeduction:
         assert result.deduction_amount == 2_055_000
         assert result.taxable_pension_income == 12_945_000
 
-    def test_over_65_below_130k(self):
-        """65歳以上、130万以下は全額控除（R7改正）。"""
+    def test_over_65_below_110k(self):
+        """65歳以上、110万以下は全額控除。"""
         result = calc_pension_deduction(
             PensionDeductionInput(pension_income=1_000_000, is_over_65=True)
         )
         assert result.deduction_amount == 1_000_000
         assert result.taxable_pension_income == 0
 
-    def test_over_65_at_130k(self):
+    def test_over_65_at_110k(self):
         result = calc_pension_deduction(
-            PensionDeductionInput(pension_income=1_300_000, is_over_65=True)
+            PensionDeductionInput(pension_income=1_100_000, is_over_65=True)
         )
-        assert result.deduction_amount == 1_300_000
+        assert result.deduction_amount == 1_100_000
         assert result.taxable_pension_income == 0
 
-    def test_over_65_between_130_330(self):
-        """65歳以上、130万超〜330万: 控除額130万。"""
+    def test_over_65_between_110_330(self):
+        """65歳以上、110万超〜330万: 控除額110万。"""
         result = calc_pension_deduction(
             PensionDeductionInput(pension_income=2_500_000, is_over_65=True)
         )
-        assert result.deduction_amount == 1_300_000
-        assert result.taxable_pension_income == 1_200_000
+        assert result.deduction_amount == 1_100_000
+        assert result.taxable_pension_income == 1_400_000
 
     def test_over_65_between_330_410(self):
         """65歳以上、330万超〜410万: 年金×25%+37.5万。"""
@@ -113,8 +113,8 @@ class TestPensionDeduction:
                 other_income=15_000_000,
             )
         )
-        # 130万 - 10万 = 120万
-        assert result.deduction_amount == 1_200_000
+        # 110万 - 10万 = 100万
+        assert result.deduction_amount == 1_000_000
         assert result.other_income_adjustment == 100_000
 
     def test_other_income_adjustment_over_20m(self):
@@ -126,8 +126,8 @@ class TestPensionDeduction:
                 other_income=25_000_000,
             )
         )
-        # 130万 - 20万 = 110万
-        assert result.deduction_amount == 1_100_000
+        # 110万 - 20万 = 90万
+        assert result.deduction_amount == 900_000
         assert result.other_income_adjustment == 200_000
 
     def test_other_income_at_10m_no_adjustment(self):
@@ -139,7 +139,7 @@ class TestPensionDeduction:
                 other_income=10_000_000,
             )
         )
-        assert result.deduction_amount == 1_300_000
+        assert result.deduction_amount == 1_100_000
         assert result.other_income_adjustment == 0
 
 

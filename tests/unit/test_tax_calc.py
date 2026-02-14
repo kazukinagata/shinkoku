@@ -2119,7 +2119,7 @@ class TestDonationDeduction:
         )
         donation_items = [d for d in result.income_deductions if d.type == "donation"]
         assert len(donation_items) == 1
-        assert donation_items[0].amount == 400_000  # 100万×40% < (50万-2千)
+        assert donation_items[0].amount == 398_000  # min(50万, 100万×40%) - 2千
 
     def test_no_deduction_below_2000(self):
         """自己負担額（2,000円）以下の寄附は控除なし。"""
