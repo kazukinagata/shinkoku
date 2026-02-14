@@ -1,4 +1,3 @@
-data/
 output/
 __pycache__/
 *.pyc
@@ -10,4 +9,4 @@ dist/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
-shinkoku.config.yaml
+playground/

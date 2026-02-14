@@ -1,7 +1,8 @@
 .PHONY: dev test lint
 
 dev:
-	claude --plugin-dir .
+	mkdir -p playground
+	cd playground && claude --plugin-dir ..
 
 test:
 	uv run pytest tests/

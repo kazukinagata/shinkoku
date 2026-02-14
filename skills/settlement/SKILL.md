@@ -16,7 +16,18 @@ journal スキルで日常仕訳の入力が完了していることを前提と
 
 ## 設定の読み込み（最初に実行）
 
-このスキルを開始する際、まず `${CLAUDE_PLUGIN_ROOT}/shinkoku.config.yaml` を Read ツールで読み込み、`tax_year` やディレクトリパスを把握すること。ファイルが存在しない場合は `shinkoku.config.example.yaml` をコピーしてセットアップするよう案内すること。
+1. `shinkoku.config.yaml` を Read ツールで読み込む
+2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
+3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
+   - `db_path`: MCP ツールの `db_path` 引数に使用
+   - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
+   - 各ディレクトリ: ファイル参照時に使用
+
+### パス解決の例
+
+config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
+- `ledger_trial_balance(db_path="/home/user/tax-2025/shinkoku.db", ...)`
+- `generate_bs_pl_pdf(output_path="/home/user/tax-2025/output/bs_pl_2025.pdf", ...)`
 
 ## 基本方針
 

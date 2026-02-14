@@ -1,30 +1,23 @@
 # shinkoku ユーザー設定ファイル
-# このファイルを shinkoku.config.yaml にコピーして、自分の環境に合わせて編集してください。
-# shinkoku.config.yaml は .gitignore に含まれるため、リポジトリには公開されません。
+# /setup スキルで対話的に生成できます。
 
 # 対象年度
 tax_year: 2025
 
-# 売上データ（請求書PDF等が格納されたディレクトリ）
-invoices_dir: /path/to/your/invoices
+# データベースファイルのパス
+db_path: ./shinkoku.db
 
-# 源泉徴収票
-withholding_slips_dir: /path/to/your/withholding-slips
-
-# 過去の確定申告データ（参考用）
-past_returns_dir: /path/to/your/past-returns
+# PDF帳票の出力先ディレクトリ
+output_dir: ./output
 
 # 適格請求書発行事業者の登録番号（T + 13桁）
 invoice_registration_number:
 
-# 控除関連書類（医療費・ふるさと納税・保険料等の証明書）
-deductions_dir: /path/to/your/deductions
-
-# レシート・領収書
-receipts_dir: /path/to/your/receipts
-
-# 銀行明細CSV
-bank_statements_dir: /path/to/your/bank-statements
-
-# クレジットカード明細CSV
-credit_card_statements_dir: /path/to/your/credit-card-statements
+# --- 書類ディレクトリ（任意） ---
+invoices_dir:
+withholding_slips_dir:
+past_returns_dir:
+deductions_dir:
+receipts_dir:
+bank_statements_dir:
+credit_card_statements_dir:

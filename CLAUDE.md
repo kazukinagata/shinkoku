@@ -6,7 +6,7 @@
 ## アーキテクチャ
 
 ```
-skills/ (SKILL.md)     ← 対話フロー定義（8スキル）
+skills/ (SKILL.md)     ← 対話フロー定義（9スキル、setup 含む）
   ↓
 src/shinkoku/tools/    ← MCP ツール（register(mcp) で登録）
   ↓
@@ -115,9 +115,10 @@ uv run ruff format --check src/ tests/              # フォーマットチェ�
 | `src/shinkoku/tools/document.py` | PDF帳票生成ツール |
 | `src/shinkoku/tools/pdf_utils.py` | PDF生成ユーティリティ |
 | `src/shinkoku/tools/pdf_coordinates.py` | PDF帳票の座標定義 |
+| `skills/setup/SKILL.md` | セットアップウィザード（設定ファイル生成・DB初期化） |
 
 ## 注意事項
 
-- `data/`, `output/` は `.gitignore` 対象 — 実行時に自動生成される
-- `shinkoku.config.yaml` はコミットしない（テンプレートは `shinkoku.config.example.yaml`）
+- `output/` は `.gitignore` 対象 — 実行時に自動生成される
+- `shinkoku.config.yaml` はコミットしない（テンプレートは `shinkoku.config.example.yaml`、`/setup` スキルで対話生成可能）
 - 税法計算は令和7年分（2025年課税年度）の改正を反映済み

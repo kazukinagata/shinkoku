@@ -16,7 +16,16 @@ CSV・レシート・請求書からデータを取り込み、ユーザー確�
 
 ## 設定の読み込み（最初に実行）
 
-このスキルを開始する際、まず `${CLAUDE_PLUGIN_ROOT}/shinkoku.config.yaml` を Read ツールで読み込み、`tax_year` やディレクトリパスを把握すること。ファイルが存在しない場合は `shinkoku.config.example.yaml` をコピーしてセットアップするよう案内すること。
+1. `shinkoku.config.yaml` を Read ツールで読み込む
+2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
+3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
+   - `db_path`: MCP ツールの `db_path` 引数に使用
+   - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
+   - 各ディレクトリ: ファイル参照時に使用
+
+### パス解決の例（db_path）
+
+config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の場合、MCP ツールには絶対パス `/home/user/tax-2025/shinkoku.db` を渡す。`ledger_init`, `ledger_add_journal`, `ledger_add_journals_batch`, `ledger_search`, `ledger_update_journal`, `ledger_delete_journal` すべてに同じ絶対パスを使用する。
 
 ## 基本方針
 
