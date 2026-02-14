@@ -287,6 +287,22 @@ doc_generate_rent_detail:
 - 青色申告決算書の様式に準拠した形式で生成する
 - 出力後、ファイルパスをユーザーに案内する
 
+### 3-3b. 収支内訳書PDFの生成（白色申告の場合）
+
+白色申告（`filing.return_type == "white"`）の場合、青色申告決算書の代わりに収支内訳書を生成する。
+
+```
+doc_generate_income_expense_statement:
+  fiscal_year: int
+  pl_revenues: list[dict]     — 収入の内訳（ledger_pl の結果）
+  pl_expenses: list[dict]     — 経費の内訳（ledger_pl の結果）
+  output_path: str
+  taxpayer_name: str
+```
+
+- 収支内訳書は青色申告決算書（BS/PL）の簡易版で、損益計算書のみ
+- 貸借対照表は不要
+
 ### 3-4. 減価償却明細書PDFの生成（`doc_generate_depreciation_schedule`）
 
 固定資産がある場合、減価償却明細書を生成する（青色申告決算書の添付書類）。
@@ -329,6 +345,7 @@ doc_generate_rent_detail:
 
 ■ 出力ファイル:
   → [出力パス]/bs_pl_2025.pdf
+  → [出力パス]/income_expense_statement_2025.pdf（白色申告の場合）
   → [出力パス]/rent_detail_2025.pdf（該当者のみ）
 
 ■ 次のステップ:

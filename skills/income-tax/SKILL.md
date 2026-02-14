@@ -122,6 +122,8 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 ## ステップ1.6: iDeCo・小規模企業共済の確認
 
+掛金払込証明書がある場合は `import_deduction_certificate` で取り込むことができる。
+
 1. iDeCo（個人型確定拠出年金）の年間掛金を確認する
    - 小規模企業共済等掛金払込証明書から金額を確認
    - 全額が所得控除（上限: 自営業者は年額81.6万円）
@@ -169,6 +171,25 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 3. `ledger_list_business_withholding` で登録済み情報を確認する
 4. 源泉徴収税額の合計を `business_withheld_tax` として所得税計算に使用する
 
+## ステップ1.8.5: 税理士等報酬の登録
+
+税理士・弁護士等に報酬を支払っている場合、報酬明細を登録する。
+
+1. `ledger_list_professional_fees` で登録済みの税理士等報酬を確認する
+2. 未登録の場合は `ledger_add_professional_fee` で登録する:
+   ```
+   パラメータ:
+     db_path: str
+     fiscal_year: int
+     detail:
+       payer_address: str    — 支払者住所
+       payer_name: str       — 支払者名（税理士・弁護士名）
+       fee_amount: int       — 報酬金額（円）
+       expense_deduction: int — 必要経費（円）
+       withheld_tax: int     — 源泉徴収税額（円）
+   ```
+3. 源泉徴収税額は `business_withheld_tax` に合算する
+
 ## ステップ1.9: 損失繰越の確認
 
 前年以前に事業で損失が発生し、青色申告している場合、繰越控除を適用できる。
@@ -185,9 +206,52 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
    ```
 3. 繰越損失の合計を `loss_carryforward_amount` として所得税計算に使用する
 
-## ステップ1.10: その他の所得の確認（雑所得・配当所得・一時所得）
+## ステップ1.10: その他の所得の確認（雑所得・配当所得・一時所得・年金所得・退職所得）
 
 事業所得・給与所得以外の総合課税の所得を確認・登録する。
+
+### 公的年金等の雑所得
+
+公的年金等の収入がある場合、年金控除を計算して雑所得を求める。
+
+1. 年金収入の有無を確認する
+2. `tax_calc_pension_deduction` で公的年金等控除を計算する:
+   ```
+   パラメータ:
+     pension_income: int   — 公的年金等の収入金額（円）
+     is_over_65: bool      — 65歳以上かどうか（年度末12/31時点）
+     other_income: int     — 公的年金等以外の合計所得金額（0の場合は省略可）
+
+   戻り値:
+     pension_income: int              — 入力の年金収入
+     deduction_amount: int            — 公的年金等控除額
+     taxable_pension_income: int      — 雑所得（年金） = 収入 - 控除
+     other_income_adjustment: int     — 所得金額調整額
+   ```
+3. `taxable_pension_income` を雑所得として `misc_income` に加算する
+4. 令和7年改正: 65歳未満の最低保障額60万→70万、65歳以上の最低保障額110万→130万
+
+### 退職所得
+
+退職金を受け取った場合、退職所得を計算する。
+
+1. 退職金の有無を確認する
+2. `tax_calc_retirement_income` で退職所得を計算する:
+   ```
+   パラメータ:
+     severance_pay: int              — 退職手当等の収入金額（円）
+     years_of_service: int           — 勤続年数（1年未満切上げ）
+     is_officer: bool                — 役員等かどうか（デフォルト: false）
+     is_disability_retirement: bool  — 障害退職かどうか（デフォルト: false）
+
+   戻り値:
+     severance_pay: int                — 入力の退職金
+     retirement_income_deduction: int  — 退職所得控除額
+     taxable_retirement_income: int    — 退職所得（1/2適用後）
+     half_taxation_applied: bool       — 1/2課税が適用されたか
+   ```
+3. 退職所得は原則分離課税（退職時に源泉徴収済み）だが、確定申告で精算する場合もある
+4. 役員等の短期退職（勤続5年以下）は1/2課税が適用されない
 
 ### 雑所得（miscellaneous）
 
@@ -263,6 +327,8 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 所得控除の内訳書に種別ごとの記載が必要なため、社会保険料を種別別に登録する。
 
+社会保険料の控除証明書がある場合は `import_deduction_certificate` で取り込むことができる。
+
 1. `ledger_list_social_insurance_items` で登録済み項目を確認する
 2. 未登録の場合は `ledger_add_social_insurance_item` で種別ごとに登録する:
    ```
@@ -279,6 +345,9 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 ## ステップ1.13: 保険契約の保険会社名の登録
 
 所得控除の内訳書に保険会社名の記載が必要なため、保険契約を登録する。
+
+控除証明書の画像・PDFがある場合は `import_deduction_certificate` で取り込むことができる。
+取り込み後、抽出データに基づいて `ledger_add_insurance_policy` で登録する。
 
 1. `ledger_list_insurance_policies` で登録済み項目を確認する
 2. 未登録の場合は `ledger_add_insurance_policy` で登録する:
@@ -432,6 +501,15 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
   - tax_due: 申告納税額（= total_tax - withheld_tax - business_withheld_tax - estimated_tax_payment）
 ```
 
+**寄附金控除の反映:**
+
+ふるさと納税以外の寄附金控除（ステップ1.14で登録）は、`calc_deductions` の結果に含まれている。
+`calc_income_tax` は内部で `calc_deductions` を呼び出すため、以下のパラメータが正しく渡されていれば自動的に反映される:
+- `furusato_nozei`: ふるさと納税の寄附金合計
+- 政治活動寄附金・認定NPO等の税額控除は `calc_deductions` の `donations` パラメータ経由で計算される
+
+所得税計算前に `calc_deductions` を個別に呼び出す場合は、`donations` パラメータにステップ1.14で登録した寄附金レコードのリストを必ず渡すこと。
+
 **計算結果の確認:**
 
 1. 合計所得金額の内訳を表示する
@@ -462,6 +540,32 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 ## ステップ3.7: 住宅ローン控除の計算明細書PDF生成（該当者のみ）
 
 住宅ローン控除（初年度）を適用する場合、計算明細書PDFを生成する。
+
+### 住宅ローン控除明細の DB 登録
+
+PDF 生成前に、住宅ローン控除の詳細情報を DB に登録する。
+
+1. `ledger_add_housing_loan_detail` で住宅ローン控除の明細を登録する:
+   ```
+   パラメータ:
+     db_path: str
+     fiscal_year: int
+     detail: HousingLoanDetailInput
+       housing_type: str            — 住宅区分
+       housing_category: str        — 住宅性能区分
+       move_in_date: str            — 入居年月日
+       year_end_balance: int        — 年末残高
+       is_new_construction: bool    — 新築かどうか
+       is_childcare_household: bool — 子育て世帯
+       has_pre_r6_building_permit: bool — R5以前の建築確認済み
+       purchase_date: str | None    — 住宅購入日
+       purchase_price: int          — 住宅の価格
+       total_floor_area: int        — 総床面積（㎡×100）
+       residential_floor_area: int  — 居住用部分の面積（㎡×100）
+       property_number: str | None  — 不動産番号
+       application_submitted: bool  — 適用申請書提出有無
+   ```
+2. 登録後、DB の情報を使って PDF を生成する
 
 ### `doc_generate_housing_loan_detail` の呼び出し
 

@@ -21,6 +21,10 @@ from shinkoku.models import (
     LifeInsurancePremiumInput,
     ConsumptionTaxInput,
     ConsumptionTaxResult,
+    PensionDeductionInput,
+    PensionDeductionResult,
+    RetirementIncomeInput,
+    RetirementIncomeResult,
 )
 from shinkoku.tax_constants import (
     BASIC_DEDUCTION_TABLE,
@@ -34,6 +38,14 @@ from shinkoku.tax_constants import (
     NPO_DONATION_CREDIT_CAP_RATIO,
     NPO_DONATION_CREDIT_RATE,
     NPO_DONATION_CREDIT_RATE_DENOM,
+    PENSION_DEDUCTION_OVER_65,
+    PENSION_DEDUCTION_OVER_65_MAX,
+    PENSION_DEDUCTION_UNDER_65,
+    PENSION_DEDUCTION_UNDER_65_MAX,
+    PENSION_OTHER_INCOME_ADJUSTMENT_1,
+    PENSION_OTHER_INCOME_ADJUSTMENT_2,
+    PENSION_OTHER_INCOME_BRACKET_1,
+    PENSION_OTHER_INCOME_BRACKET_2,
     POLITICAL_DONATION_CREDIT_CAP_RATIO,
     POLITICAL_DONATION_CREDIT_RATE,
     POLITICAL_DONATION_CREDIT_RATE_DENOM,
@@ -72,6 +84,13 @@ from shinkoku.tax_constants import (
     PERSONAL_DEDUCTION_INCOME_LIMIT,
     RECONSTRUCTION_TAX_DENOMINATOR,
     RECONSTRUCTION_TAX_RATE,
+    RETIREMENT_DEDUCTION_BASE_20,
+    RETIREMENT_DEDUCTION_DISABILITY_ADD,
+    RETIREMENT_DEDUCTION_MIN,
+    RETIREMENT_DEDUCTION_PER_YEAR_OVER_20,
+    RETIREMENT_DEDUCTION_PER_YEAR_UNDER_20,
+    RETIREMENT_OFFICER_SHORT_SERVICE_YEARS,
+    RETIREMENT_SHORT_SERVICE_HALF_LIMIT,
     SALARY_DEDUCTION_MAX,
     SALARY_DEDUCTION_MIN,
     SELF_MEDICATION_MAX,
@@ -1153,6 +1172,115 @@ def calc_furusato_deduction_limit(
 
 
 # ============================================================
+# Pension Deduction (公的年金等控除)
+# ============================================================
+
+
+def calc_pension_deduction(input_data: PensionDeductionInput) -> PensionDeductionResult:
+    """公的年金等控除額を計算する（所得税法第35条、令和7年改正）。"""
+    pension = input_data.pension_income
+    if pension <= 0:
+        return PensionDeductionResult(
+            pension_income=0,
+            deduction_amount=0,
+            taxable_pension_income=0,
+            is_over_65=input_data.is_over_65,
+        )
+
+    # テーブル選択
+    table = PENSION_DEDUCTION_OVER_65 if input_data.is_over_65 else PENSION_DEDUCTION_UNDER_65
+    max_deduction = (
+        PENSION_DEDUCTION_OVER_65_MAX if input_data.is_over_65 else PENSION_DEDUCTION_UNDER_65_MAX
+    )
+
+    # 速算表から控除額を計算
+    deduction = max_deduction  # デフォルト: 上限（1000万超）
+    for upper_limit, rate, fixed in table:
+        if pension <= upper_limit:
+            if rate == 100:
+                deduction = pension  # 全額控除
+            elif rate == 0:
+                deduction = fixed  # 固定額
+            else:
+                deduction = pension * rate // 100 + fixed
+            break
+
+    # 所得金額調整（公的年金等以外の所得が1,000万超）
+    other_income_adj = 0
+    if input_data.other_income > PENSION_OTHER_INCOME_BRACKET_2:
+        other_income_adj = PENSION_OTHER_INCOME_ADJUSTMENT_2
+    elif input_data.other_income > PENSION_OTHER_INCOME_BRACKET_1:
+        other_income_adj = PENSION_OTHER_INCOME_ADJUSTMENT_1
+
+    deduction = max(0, deduction - other_income_adj)
+    taxable = max(0, pension - deduction)
+
+    return PensionDeductionResult(
+        pension_income=pension,
+        deduction_amount=deduction,
+        taxable_pension_income=taxable,
+        is_over_65=input_data.is_over_65,
+        other_income_adjustment=other_income_adj,
+    )
+
+
+# ============================================================
+# Retirement Income (退職所得)
+# ============================================================
+
+
+def calc_retirement_income(input_data: RetirementIncomeInput) -> RetirementIncomeResult:
+    """退職所得を計算する（所得税法第30条）。"""
+    years = input_data.years_of_service
+    pay = input_data.severance_pay
+
+    # 退職所得控除額の計算
+    if years <= 20:
+        deduction = max(
+            RETIREMENT_DEDUCTION_PER_YEAR_UNDER_20 * years,
+            RETIREMENT_DEDUCTION_MIN,
+        )
+    else:
+        deduction = RETIREMENT_DEDUCTION_BASE_20 + RETIREMENT_DEDUCTION_PER_YEAR_OVER_20 * (
+            years - 20
+        )
+
+    # 障害退職の加算
+    if input_data.is_disability_retirement:
+        deduction += RETIREMENT_DEDUCTION_DISABILITY_ADD
+
+    # 退職所得の計算
+    excess = max(0, pay - deduction)
+    half_applied = True
+
+    if input_data.is_officer and years <= RETIREMENT_OFFICER_SHORT_SERVICE_YEARS:
+        # 役員等の短期退職: 1/2適用なし
+        taxable = excess
+        half_applied = False
+    elif not input_data.is_officer and years <= RETIREMENT_OFFICER_SHORT_SERVICE_YEARS:
+        # 一般の短期退職（令和4年改正）: 300万以下は1/2、300万超はそのまま
+        if excess <= RETIREMENT_SHORT_SERVICE_HALF_LIMIT:
+            taxable = excess // 2
+        else:
+            taxable = RETIREMENT_SHORT_SERVICE_HALF_LIMIT // 2 + (
+                excess - RETIREMENT_SHORT_SERVICE_HALF_LIMIT
+            )
+            half_applied = False  # 部分的な1/2適用
+    else:
+        # 通常: 1/2適用
+        taxable = excess // 2
+
+    return RetirementIncomeResult(
+        severance_pay=pay,
+        retirement_income_deduction=deduction,
+        taxable_retirement_income=taxable,
+        years_of_service=years,
+        is_officer=input_data.is_officer,
+        half_taxation_applied=half_applied,
+    )
+
+
+# ============================================================
 # MCP Tool Registration
 # ============================================================
 
@@ -1303,3 +1431,43 @@ def register(mcp) -> None:
             income_tax_rate_percent=income_tax_rate_percent,
         )
         return {"estimated_limit": limit}
+
+    @mcp.tool()
+    def tax_calc_pension_deduction(
+        pension_income: int,
+        is_over_65: bool,
+        other_income: int = 0,
+    ) -> dict:
+        """Calculate public pension deduction (公的年金等控除).
+
+        Calculates the deduction amount for public pension income based on
+        age (65+ or under) and other income levels. Reiwa 7 revision applied.
+        """
+        input_data = PensionDeductionInput(
+            pension_income=pension_income,
+            is_over_65=is_over_65,
+            other_income=other_income,
+        )
+        result = calc_pension_deduction(input_data)
+        return result.model_dump()
+
+    @mcp.tool()
+    def tax_calc_retirement_income(
+        severance_pay: int,
+        years_of_service: int,
+        is_officer: bool = False,
+        is_disability_retirement: bool = False,
+    ) -> dict:
+        """Calculate retirement income (退職所得).
+
+        Calculates retirement income deduction and taxable amount with
+        1/2 taxation rules. Handles officer short-service and R4 revision.
+        """
+        input_data = RetirementIncomeInput(
+            severance_pay=severance_pay,
+            years_of_service=years_of_service,
+            is_officer=is_officer,
+            is_disability_retirement=is_disability_retirement,
+        )
+        result = calc_retirement_income(input_data)
+        return result.model_dump()

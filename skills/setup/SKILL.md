@@ -48,6 +48,7 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 - `taxpayer.gender`: 性別（male / female）
 - `taxpayer.date_of_birth`: 生年月日（YYYY-MM-DD）
 - `taxpayer.phone`: 電話番号
+- `taxpayer.relationship_to_head`: 世帯主との続柄（本人/妻/夫/子等）
 
 ### 2.5-3. マイナンバー
 
@@ -153,6 +154,7 @@ taxpayer:
   widow_status: {widow_status}
   disability_status: {disability_status}
   working_student: {working_student}
+  relationship_to_head: {relationship_to_head}
 
 # --- 住所 ---
 address:
@@ -262,6 +264,7 @@ fiscal_year: {tax_year}
 - 寡婦/ひとり親: {widow_status}
 - 障害者区分: {disability_status}
 - 勤労学生: {working_student}
+- 世帯主との続柄: {relationship_to_head}
 
 ## 住所
 

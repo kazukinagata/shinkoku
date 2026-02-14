@@ -350,6 +350,148 @@ def generate_bs_pl_pdf(
 
 
 # ============================================================
+# Income/Expense Statement (収支内訳書 — 白色申告用)
+# ============================================================
+
+
+def generate_income_expense_statement_pdf(
+    pl_data: PLResult,
+    output_path: str = "output/income_expense_statement.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """Generate income/expense statement PDF for white return (白色申告用収支内訳書).
+
+    白色申告では青色申告決算書（BS/PL）の代わりに収支内訳書を提出する。
+    損益計算書のみで、貸借対照表は不要。
+
+    Args:
+        pl_data: Profit/Loss data.
+        output_path: Output file path.
+        taxpayer_name: Taxpayer name for the header.
+
+    Returns:
+        The output file path.
+    """
+    from shinkoku.tools.pdf_coordinates import INCOME_EXPENSE_STATEMENT
+
+    fields: list[dict[str, Any]] = []
+
+    # Title
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "収支内訳書（一般用）",
+            "font_size": 12,
+        }
+    )
+
+    # Header
+    if taxpayer_name:
+        fields.append(
+            {
+                "type": "text",
+                "x": INCOME_EXPENSE_STATEMENT["taxpayer_name"]["x"],
+                "y": INCOME_EXPENSE_STATEMENT["taxpayer_name"]["y"],
+                "value": taxpayer_name,
+                "font_size": INCOME_EXPENSE_STATEMENT["taxpayer_name"]["font_size"],
+            }
+        )
+
+    fields.append(
+        {
+            "type": "text",
+            "x": INCOME_EXPENSE_STATEMENT["fiscal_year"]["x"],
+            "y": INCOME_EXPENSE_STATEMENT["fiscal_year"]["y"],
+            "value": f"令和{pl_data.fiscal_year - 2018}年分",
+            "font_size": INCOME_EXPENSE_STATEMENT["fiscal_year"]["font_size"],
+        }
+    )
+
+    # Revenue items
+    for i, item in enumerate(pl_data.revenues[:5]):
+        fields.append(
+            {
+                "type": "text",
+                "x": INCOME_EXPENSE_STATEMENT[f"revenue_{i}_name"]["x"],
+                "y": INCOME_EXPENSE_STATEMENT[f"revenue_{i}_name"]["y"],
+                "value": item.account_name,
+                "font_size": INCOME_EXPENSE_STATEMENT[f"revenue_{i}_name"]["font_size"],
+            }
+        )
+        fields.append(
+            {
+                "type": "number",
+                "x": INCOME_EXPENSE_STATEMENT[f"revenue_{i}_amount"]["x"],
+                "y": INCOME_EXPENSE_STATEMENT[f"revenue_{i}_amount"]["y"],
+                "value": item.amount,
+                "font_size": INCOME_EXPENSE_STATEMENT[f"revenue_{i}_amount"]["font_size"],
+            }
+        )
+
+    # Total revenue
+    fields.append(
+        {
+            "type": "number",
+            "x": INCOME_EXPENSE_STATEMENT["total_revenue"]["x"],
+            "y": INCOME_EXPENSE_STATEMENT["total_revenue"]["y"],
+            "value": pl_data.total_revenue,
+            "font_size": INCOME_EXPENSE_STATEMENT["total_revenue"]["font_size"],
+        }
+    )
+
+    # Expense items
+    for i, item in enumerate(pl_data.expenses[:15]):
+        fields.append(
+            {
+                "type": "text",
+                "x": INCOME_EXPENSE_STATEMENT[f"expense_{i}_name"]["x"],
+                "y": INCOME_EXPENSE_STATEMENT[f"expense_{i}_name"]["y"],
+                "value": item.account_name,
+                "font_size": INCOME_EXPENSE_STATEMENT[f"expense_{i}_name"]["font_size"],
+            }
+        )
+        fields.append(
+            {
+                "type": "number",
+                "x": INCOME_EXPENSE_STATEMENT[f"expense_{i}_amount"]["x"],
+                "y": INCOME_EXPENSE_STATEMENT[f"expense_{i}_amount"]["y"],
+                "value": item.amount,
+                "font_size": INCOME_EXPENSE_STATEMENT[f"expense_{i}_amount"]["font_size"],
+            }
+        )
+
+    # Total expenses
+    fields.append(
+        {
+            "type": "number",
+            "x": INCOME_EXPENSE_STATEMENT["total_expenses"]["x"],
+            "y": INCOME_EXPENSE_STATEMENT["total_expenses"]["y"],
+            "value": pl_data.total_expense,
+            "font_size": INCOME_EXPENSE_STATEMENT["total_expenses"]["font_size"],
+        }
+    )
+
+    # Net income
+    fields.append(
+        {
+            "type": "number",
+            "x": INCOME_EXPENSE_STATEMENT["net_income"]["x"],
+            "y": INCOME_EXPENSE_STATEMENT["net_income"]["y"],
+            "value": pl_data.net_income,
+            "font_size": INCOME_EXPENSE_STATEMENT["net_income"]["font_size"],
+        }
+    )
+
+    return generate_standalone_pdf(
+        fields=fields,
+        output_path=output_path,
+        title="",
+    )
+
+
+# ============================================================
 # Income Tax PDF (Task 19)
 # ============================================================
 
@@ -1696,6 +1838,38 @@ def register(mcp) -> None:
         path = generate_depreciation_schedule_pdf(
             assets=assets or [],
             fiscal_year=fiscal_year,
+            output_path=output_path,
+            taxpayer_name=resolved_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_income_expense_statement(
+        fiscal_year: int,
+        pl_revenues: list[dict] | None = None,
+        pl_expenses: list[dict] | None = None,
+        output_path: str = "output/income_expense_statement.pdf",
+        taxpayer_name: str = "",
+        config_path: str | None = None,
+    ) -> dict:
+        """Generate income/expense statement PDF (収支内訳書: 白色申告用).
+
+        白色申告の場合に青色申告決算書の代わりに提出する。
+        損益計算書のみで貸借対照表は不要。
+        """
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
+        rev_items = [PLItem(**r) for r in (pl_revenues or [])]
+        exp_items = [PLItem(**e) for e in (pl_expenses or [])]
+        pl_data = PLResult(
+            fiscal_year=fiscal_year,
+            revenues=rev_items,
+            expenses=exp_items,
+            total_revenue=sum(r.amount for r in rev_items),
+            total_expense=sum(e.amount for e in exp_items),
+            net_income=sum(r.amount for r in rev_items) - sum(e.amount for e in exp_items),
+        )
+        path = generate_income_expense_statement_pdf(
+            pl_data=pl_data,
             output_path=output_path,
             taxpayer_name=resolved_name,
         )

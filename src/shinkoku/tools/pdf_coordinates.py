@@ -435,6 +435,55 @@ for _i, _loss_type in enumerate(_SCHEDULE_4_LOSS_TYPES):
 
 
 # ============================================================
+# Income/Expense Statement (収支内訳書 — 白色申告用)
+# ============================================================
+
+INCOME_EXPENSE_STATEMENT: dict[str, dict] = {
+    # --- Header ---
+    "taxpayer_name": {"x": 60 * mm, "y": 270 * mm, "font_size": 10, "type": "text"},
+    "fiscal_year": {"x": 120 * mm, "y": 280 * mm, "font_size": 10, "type": "text"},
+    # --- Revenue ---
+    "total_revenue": {"x": 170 * mm, "y": 240 * mm, "font_size": 9, "type": "number"},
+    # --- Expenses ---
+    "total_expenses": {"x": 170 * mm, "y": 100 * mm, "font_size": 9, "type": "number"},
+    # --- Income ---
+    "net_income": {"x": 170 * mm, "y": 70 * mm, "font_size": 10, "type": "number"},
+}
+
+# 収入行（最大5行）
+for _i in range(5):
+    _y_offset = 235 * mm - _i * 8 * mm
+    INCOME_EXPENSE_STATEMENT[f"revenue_{_i}_name"] = {
+        "x": 30 * mm,
+        "y": _y_offset,
+        "font_size": 8,
+        "type": "text",
+    }
+    INCOME_EXPENSE_STATEMENT[f"revenue_{_i}_amount"] = {
+        "x": 170 * mm,
+        "y": _y_offset,
+        "font_size": 8,
+        "type": "number",
+    }
+
+# 経費行（最大15行）
+for _i in range(15):
+    _y_offset = 190 * mm - _i * 6 * mm
+    INCOME_EXPENSE_STATEMENT[f"expense_{_i}_name"] = {
+        "x": 30 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    INCOME_EXPENSE_STATEMENT[f"expense_{_i}_amount"] = {
+        "x": 170 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "number",
+    }
+
+
+# ============================================================
 # Depreciation Schedule (減価償却明細書)
 # ============================================================
 

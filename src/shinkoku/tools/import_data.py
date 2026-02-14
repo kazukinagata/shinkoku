@@ -46,6 +46,15 @@ def register(mcp) -> None:
         return import_payment_statement(file_path=file_path)
 
     @mcp.tool()
+    def mcp_import_deduction_certificate(file_path: str) -> dict:
+        """Check deduction certificate file and return template for OCR.
+
+        Controls: life insurance, earthquake insurance, social insurance,
+        and small business mutual aid contribution certificates.
+        """
+        return import_deduction_certificate(file_path=file_path)
+
+    @mcp.tool()
     def mcp_import_check_csv_imported(db_path: str, fiscal_year: int, file_path: str) -> dict:
         """Check if a CSV file has already been imported."""
         return import_check_csv_imported(
@@ -380,6 +389,37 @@ def import_payment_statement(*, file_path: str) -> dict:
         "category": None,  # 区分（報酬/料金/契約金等）
         "gross_amount": None,  # 支払金額
         "withholding_tax": None,  # 源泉徴収税額
+    }
+
+
+def import_deduction_certificate(*, file_path: str) -> dict:
+    """Check deduction certificate file and return template for OCR.
+
+    控除証明書（生命保険料・地震保険料・社会保険料・小規模企業共済等）の
+    読み取りテンプレートを返す。画像の場合は Claude Vision で OCR する。
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    extracted_text = ""
+    if path.suffix.lower() == ".pdf":
+        extracted_text = _extract_pdf_text(file_path)
+
+    return {
+        "status": "ok",
+        "file_path": file_path,
+        "extracted_text": extracted_text,
+        # 以下は Claude Vision / Claude が OCR 結果から埋める
+        "certificate_type": None,  # life_insurance / earthquake_insurance / social_insurance / small_business_mutual_aid
+        "policy_type": None,  # new / old (生命保険の新旧制度)
+        "category": None,  # general / medical_care / annuity (生命保険の区分)
+        "company_name": None,  # 保険会社名・機関名
+        "policy_number": None,  # 証券番号
+        "annual_premium": None,  # 年間保険料（円）
+        "is_old_long_term": None,  # 旧長期損害保険かどうか
+        "insurance_type": None,  # 社会保険の種別
+        "sub_type": None,  # 小規模企業共済の種別（ideco / small_business / disability）
     }
 
 

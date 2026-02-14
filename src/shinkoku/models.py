@@ -1035,3 +1035,47 @@ class DonationRecordRecord(BaseModel):
     date: str
     receipt_number: str | None
     source_file: str | None
+
+
+# --- 公的年金等控除 (pension deduction) ---
+
+
+class PensionDeductionInput(BaseModel):
+    """公的年金等控除の入力。"""
+
+    pension_income: int = Field(ge=0, description="公的年金等の収入金額（円）")
+    is_over_65: bool = Field(description="65歳以上かどうか（年度末時点）")
+    other_income: int = 0  # 公的年金等以外の合計所得金額
+
+
+class PensionDeductionResult(BaseModel):
+    """公的年金等控除の計算結果。"""
+
+    pension_income: int  # 入力の年金収入
+    deduction_amount: int  # 控除額
+    taxable_pension_income: int  # 雑所得（年金） = pension_income - deduction_amount
+    is_over_65: bool
+    other_income_adjustment: int = 0  # 所得調整額（0, 100000, 200000）
+
+
+# --- 退職所得 (retirement income) ---
+
+
+class RetirementIncomeInput(BaseModel):
+    """退職所得の入力。"""
+
+    severance_pay: int = Field(ge=0, description="退職手当等の収入金額（円）")
+    years_of_service: int = Field(gt=0, description="勤続年数（1年未満切上げ）")
+    is_officer: bool = False  # 役員等かどうか（5年以下特例）
+    is_disability_retirement: bool = False  # 障害退職かどうか（+100万加算）
+
+
+class RetirementIncomeResult(BaseModel):
+    """退職所得の計算結果。"""
+
+    severance_pay: int
+    retirement_income_deduction: int  # 退職所得控除額
+    taxable_retirement_income: int  # 退職所得（1/2適用後）
+    years_of_service: int
+    is_officer: bool
+    half_taxation_applied: bool  # 1/2課税が適用されたか

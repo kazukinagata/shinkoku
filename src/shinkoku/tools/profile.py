@@ -32,6 +32,7 @@ def get_taxpayer_profile(*, config_path: str) -> dict:
             "widow_status": taxpayer.widow_status,
             "disability_status": taxpayer.disability_status,
             "working_student": taxpayer.working_student,
+            "relationship_to_head": taxpayer.relationship_to_head,
         },
         "address": address.model_dump(),
         "business_address": (
