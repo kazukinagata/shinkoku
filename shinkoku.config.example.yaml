@@ -25,3 +25,6 @@ receipts_dir: /path/to/your/receipts
 
 # 銀行明細CSV
 bank_statements_dir: /path/to/your/bank-statements
+
+# クレジットカード明細CSV
+credit_card_statements_dir: /path/to/your/credit-card-statements
