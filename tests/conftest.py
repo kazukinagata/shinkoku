@@ -94,6 +94,28 @@ def sample_journals(in_memory_db_with_accounts):
 
 
 @pytest.fixture
+def sample_furusato_donations(in_memory_db_with_accounts):
+    """DB pre-loaded with sample furusato donations for testing."""
+    db = in_memory_db_with_accounts
+    db.execute("INSERT INTO fiscal_years (year) VALUES (2025)")
+    donations = [
+        (2025, "北海道旭川市", "北海道", 30000, "2025-03-15", "R-001", 0),
+        (2025, "福岡県福岡市", "福岡県", 50000, "2025-06-20", "R-002", 1),
+        (2025, "沖縄県那覇市", "沖縄県", 20000, "2025-09-10", "R-003", 0),
+    ]
+    for d in donations:
+        db.execute(
+            "INSERT INTO furusato_donations "
+            "(fiscal_year, municipality_name, municipality_prefecture, "
+            "amount, date, receipt_number, one_stop_applied) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            d,
+        )
+    db.commit()
+    return db
+
+
+@pytest.fixture
 def tax_params_2025():
     """令和7年分 (2025) の税額計算パラメータ。"""
     return {

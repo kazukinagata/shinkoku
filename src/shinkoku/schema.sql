@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS journals (
     fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
     date TEXT NOT NULL,
     description TEXT,
+    content_hash TEXT,
     source TEXT CHECK (source IN ('csv_import', 'receipt_ocr', 'invoice_ocr', 'manual', 'adjustment')),
     source_file TEXT,
     is_adjustment INTEGER NOT NULL DEFAULT 0,
@@ -94,13 +95,42 @@ CREATE TABLE IF NOT EXISTS withholding_slips (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- インポート元ファイル管理（CSV再インポート防止）
+CREATE TABLE IF NOT EXISTS import_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    file_hash TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ふるさと納税寄附データ
+CREATE TABLE IF NOT EXISTS furusato_donations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    municipality_name TEXT NOT NULL,
+    municipality_prefecture TEXT,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    date TEXT NOT NULL,
+    receipt_number TEXT,
+    one_stop_applied INTEGER NOT NULL DEFAULT 0,
+    source_file TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_journals_fiscal_year ON journals(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_journals_date ON journals(date);
 CREATE INDEX IF NOT EXISTS idx_journals_source ON journals(source);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_journals_content_hash ON journals(fiscal_year, content_hash) WHERE content_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_journal_lines_journal_id ON journal_lines(journal_id);
 CREATE INDEX IF NOT EXISTS idx_journal_lines_account_code ON journal_lines(account_code);
 CREATE INDEX IF NOT EXISTS idx_journal_lines_side ON journal_lines(side);
 CREATE INDEX IF NOT EXISTS idx_fixed_assets_fiscal_year ON fixed_assets(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_deductions_fiscal_year ON deductions(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_withholding_slips_fiscal_year ON withholding_slips(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_import_sources_fiscal_year ON import_sources(fiscal_year);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_import_sources_file_hash ON import_sources(fiscal_year, file_hash);
+CREATE INDEX IF NOT EXISTS idx_furusato_donations_fiscal_year ON furusato_donations(fiscal_year);

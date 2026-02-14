@@ -211,12 +211,8 @@ class DeductionItem(BaseModel):
 class DeductionsResult(BaseModel):
     """控除計算結果。"""
 
-    income_deductions: list[DeductionItem] = Field(
-        default_factory=list, description="所得控除"
-    )
-    tax_credits: list[DeductionItem] = Field(
-        default_factory=list, description="税額控除"
-    )
+    income_deductions: list[DeductionItem] = Field(default_factory=list, description="所得控除")
+    tax_credits: list[DeductionItem] = Field(default_factory=list, description="税額控除")
     total_income_deductions: int = 0
     total_tax_credits: int = 0
 
@@ -312,3 +308,81 @@ class ConsumptionTaxResult(BaseModel):
     tax_due: int = 0
     local_tax_due: int = 0
     total_due: int = 0
+
+
+# --- ふるさと納税 (furusato nozei) ---
+
+
+class FurusatoReceiptData(BaseModel):
+    """ふるさと納税受領証明書テンプレート。"""
+
+    file_path: str
+    municipality_name: str | None = None
+    municipality_prefecture: str | None = None
+    address: str | None = None
+    amount: int | None = None
+    date: str | None = None
+    receipt_number: str | None = None
+
+
+class FurusatoDonationRecord(BaseModel):
+    """ふるさと納税寄附データ（DBレコード）。"""
+
+    id: int
+    fiscal_year: int
+    municipality_name: str
+    municipality_prefecture: str | None
+    amount: int
+    date: str
+    receipt_number: str | None
+    one_stop_applied: bool
+    source_file: str | None
+
+
+class FurusatoDonationSummary(BaseModel):
+    """ふるさと納税集計結果。"""
+
+    fiscal_year: int
+    total_amount: int
+    donation_count: int
+    municipality_count: int
+    deduction_amount: int = Field(description="所得控除額 = 合計 - 2,000円")
+    estimated_limit: int | None = Field(
+        default=None, description="推定控除上限額（所得情報が必要）"
+    )
+    over_limit: bool = False
+    one_stop_count: int = 0
+    needs_tax_return: bool = Field(
+        default=True,
+        description="確定申告が必要か（副業ユーザーは常にTrue）",
+    )
+    donations: list[FurusatoDonationRecord] = Field(default_factory=list)
+
+
+# --- 重複検出 (duplicate detection) ---
+
+
+class DuplicateWarning(BaseModel):
+    """登録時の重複警告。"""
+
+    match_type: str = Field(pattern=r"^(exact|similar)$")
+    score: int = Field(ge=0, le=100)
+    existing_journal_id: int
+    reason: str
+
+
+class DuplicatePair(BaseModel):
+    """重複ペア（申告前チェック用）。"""
+
+    journal_id_a: int
+    journal_id_b: int
+    score: int = Field(ge=0, le=100)
+    reason: str
+
+
+class DuplicateCheckResult(BaseModel):
+    """重複チェック結果。"""
+
+    pairs: list[DuplicatePair] = Field(default_factory=list)
+    exact_count: int = 0
+    suspected_count: int = 0

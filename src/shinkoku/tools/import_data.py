@@ -7,6 +7,10 @@ import io
 import re
 from pathlib import Path
 
+from shinkoku.db import get_connection
+from shinkoku.duplicate_detection import check_source_file_imported, record_import_source
+from shinkoku.hashing import compute_file_hash
+
 
 def register(mcp) -> None:
     """Register import tools with the MCP server."""
@@ -30,6 +34,30 @@ def register(mcp) -> None:
     def mcp_import_withholding(file_path: str) -> dict:
         """Extract text from a withholding slip PDF."""
         return import_withholding(file_path=file_path)
+
+    @mcp.tool()
+    def mcp_import_furusato_receipt(file_path: str) -> dict:
+        """Check furusato receipt file and return template for OCR."""
+        return import_furusato_receipt(file_path=file_path)
+
+    @mcp.tool()
+    def mcp_import_check_csv_imported(db_path: str, fiscal_year: int, file_path: str) -> dict:
+        """Check if a CSV file has already been imported."""
+        return import_check_csv_imported(
+            db_path=db_path, fiscal_year=fiscal_year, file_path=file_path
+        )
+
+    @mcp.tool()
+    def mcp_import_record_source(
+        db_path: str, fiscal_year: int, file_path: str, row_count: int = 0
+    ) -> dict:
+        """Record that a file has been imported."""
+        return import_record_source(
+            db_path=db_path,
+            fiscal_year=fiscal_year,
+            file_path=file_path,
+            row_count=row_count,
+        )
 
 
 def _detect_encoding(file_path: str) -> str:
@@ -65,8 +93,14 @@ def _detect_date_column(headers: list[str]) -> int | None:
 def _detect_description_column(headers: list[str]) -> int | None:
     """Find the column index for the description."""
     desc_patterns = [
-        "摘要", "利用店名", "店名", "description", "内容",
-        "取引内容", "備考", "名称",
+        "摘要",
+        "利用店名",
+        "店名",
+        "description",
+        "内容",
+        "取引内容",
+        "備考",
+        "名称",
     ]
     for i, h in enumerate(headers):
         h_lower = h.lower().strip()
@@ -79,7 +113,12 @@ def _detect_description_column(headers: list[str]) -> int | None:
 def _detect_amount_column(headers: list[str]) -> int | None:
     """Find the column index for the amount."""
     amount_patterns = [
-        "金額", "利用金額", "amount", "支払金額", "取引金額", "合計",
+        "金額",
+        "利用金額",
+        "amount",
+        "支払金額",
+        "取引金額",
+        "合計",
     ]
     for i, h in enumerate(headers):
         h_lower = h.lower().strip()
@@ -162,9 +201,12 @@ def import_csv(*, file_path: str) -> dict:
         try:
             # Validate we have enough columns
             if (
-                date_col is not None and date_col >= len(row)
-                or desc_col is not None and desc_col >= len(row)
-                or amount_col is not None and amount_col >= len(row)
+                date_col is not None
+                and date_col >= len(row)
+                or desc_col is not None
+                and desc_col >= len(row)
+                or amount_col is not None
+                and amount_col >= len(row)
             ):
                 skipped_rows.append(i)
                 continue
@@ -183,19 +225,25 @@ def import_csv(*, file_path: str) -> dict:
                 if j < len(row):
                     original[h] = row[j].strip()
 
-            candidates.append({
-                "row_number": i,
-                "date": date_val,
-                "description": desc_val,
-                "amount": amount_val,
-                "original_data": original,
-            })
+            candidates.append(
+                {
+                    "row_number": i,
+                    "date": date_val,
+                    "description": desc_val,
+                    "amount": amount_val,
+                    "original_data": original,
+                }
+            )
         except (IndexError, ValueError):
             skipped_rows.append(i)
+
+    # ファイルハッシュ（重複インポート検出用）
+    file_hash = compute_file_hash(file_path)
 
     return {
         "status": "ok",
         "file_path": file_path,
+        "file_hash": file_hash,
         "encoding": encoding,
         "total_rows": len(candidates),
         "candidates": candidates,
@@ -229,6 +277,7 @@ def _extract_pdf_text(file_path: str) -> str:
     """Extract text from a PDF using pdfplumber."""
     try:
         import pdfplumber
+
         text_parts = []
         with pdfplumber.open(file_path) as pdf:
             for page in pdf.pages:
@@ -280,3 +329,81 @@ def import_withholding(*, file_path: str) -> dict:
         "earthquake_insurance_deduction": 0,
         "housing_loan_deduction": 0,
     }
+
+
+def import_furusato_receipt(*, file_path: str) -> dict:
+    """Check receipt file existence and return FurusatoReceiptData template.
+
+    OCR is performed by Claude Vision, so this tool only verifies the file
+    exists and returns an empty template for Claude to fill in.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    return {
+        "status": "ok",
+        "file_path": file_path,
+        "municipality_name": None,
+        "municipality_prefecture": None,
+        "address": None,
+        "amount": None,
+        "date": None,
+        "receipt_number": None,
+    }
+
+
+def import_check_csv_imported(*, db_path: str, fiscal_year: int, file_path: str) -> dict:
+    """Check if a CSV file has already been imported."""
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    file_hash = compute_file_hash(file_path)
+    conn = get_connection(db_path)
+    try:
+        record = check_source_file_imported(conn, fiscal_year, file_hash)
+        if record:
+            return {
+                "status": "already_imported",
+                "file_path": file_path,
+                "file_hash": file_hash,
+                "import_record": record,
+            }
+        return {
+            "status": "not_imported",
+            "file_path": file_path,
+            "file_hash": file_hash,
+        }
+    finally:
+        conn.close()
+
+
+def import_record_source(
+    *, db_path: str, fiscal_year: int, file_path: str, row_count: int = 0
+) -> dict:
+    """Record that a file has been imported."""
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    file_hash = compute_file_hash(file_path)
+    file_name = path.name
+    conn = get_connection(db_path)
+    try:
+        source_id = record_import_source(
+            conn,
+            fiscal_year,
+            file_hash,
+            file_name,
+            file_path=file_path,
+            row_count=row_count,
+        )
+        return {
+            "status": "ok",
+            "import_source_id": source_id,
+            "file_hash": file_hash,
+            "file_name": file_name,
+        }
+    finally:
+        conn.close()

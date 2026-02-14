@@ -28,14 +28,14 @@ from shinkoku.models import (
 # Reiwa 7-8 only: 本則改正(48万→58万) + 租税特別措置法第41条の16の2 加算特例
 # R9以降は132万以下=95万のみ維持、それ以外は一律58万に戻る（時限措置）
 _BASIC_DEDUCTION_TABLE: list[tuple[int, int]] = [
-    (1_320_000, 950_000),    # ≤132万: 95万 (本則58万+加算37万)
-    (3_360_000, 880_000),    # 132万超〜336万: 88万 (本則58万+加算30万)
-    (4_890_000, 680_000),    # 336万超〜489万: 68万 (本則58万+加算10万)
-    (6_550_000, 630_000),    # 489万超〜655万: 63万 (本則58万+加算5万)
-    (23_500_000, 580_000),   # 655万超〜2,350万: 58万 (本則のみ)
-    (24_000_000, 480_000),   # 2,350万超〜2,400万: 48万
-    (24_500_000, 320_000),   # 2,400万超〜2,450万: 32万
-    (25_000_000, 160_000),   # 2,450万超〜2,500万: 16万
+    (1_320_000, 950_000),  # ≤132万: 95万 (本則58万+加算37万)
+    (3_360_000, 880_000),  # 132万超〜336万: 88万 (本則58万+加算30万)
+    (4_890_000, 680_000),  # 336万超〜489万: 68万 (本則58万+加算10万)
+    (6_550_000, 630_000),  # 489万超〜655万: 63万 (本則58万+加算5万)
+    (23_500_000, 580_000),  # 655万超〜2,350万: 58万 (本則のみ)
+    (24_000_000, 480_000),  # 2,350万超〜2,400万: 48万
+    (24_500_000, 320_000),  # 2,400万超〜2,450万: 32万
+    (25_000_000, 160_000),  # 2,450万超〜2,500万: 16万
 ]
 
 
@@ -50,6 +50,7 @@ def calc_basic_deduction(total_income: int) -> int:
 # ============================================================
 # Salary Income Deduction (Reiwa 7)
 # ============================================================
+
 
 def calc_salary_deduction(salary_income: int) -> int:
     """Calculate salary income deduction (Reiwa 7 revision).
@@ -74,6 +75,7 @@ def calc_salary_deduction(salary_income: int) -> int:
 # ============================================================
 # Life Insurance Deduction (new system, per-category)
 # ============================================================
+
 
 def calc_life_insurance_deduction(premium: int) -> int:
     """Calculate life insurance deduction for one category (new system).
@@ -103,44 +105,44 @@ def calc_life_insurance_deduction(premium: int) -> int:
 #
 # (spouse_income_upper, deduction) for taxpayer income <= 9,000,000
 _SPOUSE_SPECIAL_TABLE: list[tuple[int, int]] = [
-    (580_000, 380_000),      # ≤58万: 配偶者控除 38万
-    (950_000, 380_000),      # 58万超〜95万: 配偶者特別控除 38万（満額）
-    (1_000_000, 360_000),    # 95万超〜100万: 36万
-    (1_050_000, 310_000),    # 100万超〜105万: 31万
-    (1_100_000, 260_000),    # 105万超〜110万: 26万
-    (1_150_000, 210_000),    # 110万超〜115万: 21万
-    (1_200_000, 160_000),    # 115万超〜120万: 16万
-    (1_250_000, 110_000),    # 120万超〜125万: 11万
-    (1_300_000, 60_000),     # 125万超〜130万: 6万
-    (1_330_000, 30_000),     # 130万超〜133万: 3万
+    (580_000, 380_000),  # ≤58万: 配偶者控除 38万
+    (950_000, 380_000),  # 58万超〜95万: 配偶者特別控除 38万（満額）
+    (1_000_000, 360_000),  # 95万超〜100万: 36万
+    (1_050_000, 310_000),  # 100万超〜105万: 31万
+    (1_100_000, 260_000),  # 105万超〜110万: 26万
+    (1_150_000, 210_000),  # 110万超〜115万: 21万
+    (1_200_000, 160_000),  # 115万超〜120万: 16万
+    (1_250_000, 110_000),  # 120万超〜125万: 11万
+    (1_300_000, 60_000),  # 125万超〜130万: 6万
+    (1_330_000, 30_000),  # 130万超〜133万: 3万
 ]
 
 # taxpayer income 900万超〜950万
 _SPOUSE_SPECIAL_TABLE_9M: list[tuple[int, int]] = [
-    (580_000, 260_000),      # ≤58万: 配偶者控除 26万
-    (950_000, 260_000),      # 58万超〜95万: 26万
-    (1_000_000, 240_000),    # 95万超〜100万: 24万
-    (1_050_000, 210_000),    # 100万超〜105万: 21万
-    (1_100_000, 180_000),    # 105万超〜110万: 18万
-    (1_150_000, 140_000),    # 110万超〜115万: 14万
-    (1_200_000, 110_000),    # 115万超〜120万: 11万
-    (1_250_000, 80_000),     # 120万超〜125万: 8万
-    (1_300_000, 40_000),     # 125万超〜130万: 4万
-    (1_330_000, 20_000),     # 130万超〜133万: 2万
+    (580_000, 260_000),  # ≤58万: 配偶者控除 26万
+    (950_000, 260_000),  # 58万超〜95万: 26万
+    (1_000_000, 240_000),  # 95万超〜100万: 24万
+    (1_050_000, 210_000),  # 100万超〜105万: 21万
+    (1_100_000, 180_000),  # 105万超〜110万: 18万
+    (1_150_000, 140_000),  # 110万超〜115万: 14万
+    (1_200_000, 110_000),  # 115万超〜120万: 11万
+    (1_250_000, 80_000),  # 120万超〜125万: 8万
+    (1_300_000, 40_000),  # 125万超〜130万: 4万
+    (1_330_000, 20_000),  # 130万超〜133万: 2万
 ]
 
 # taxpayer income 950万超〜1,000万
 _SPOUSE_SPECIAL_TABLE_10M: list[tuple[int, int]] = [
-    (580_000, 130_000),      # ≤58万: 配偶者控除 13万
-    (950_000, 130_000),      # 58万超〜95万: 13万
-    (1_000_000, 120_000),    # 95万超〜100万: 12万
-    (1_050_000, 100_000),    # 100万超〜105万: 10万
-    (1_100_000, 90_000),     # 105万超〜110万: 9万
-    (1_150_000, 70_000),     # 110万超〜115万: 7万
-    (1_200_000, 50_000),     # 115万超〜120万: 5万
-    (1_250_000, 40_000),     # 120万超〜125万: 4万
-    (1_300_000, 20_000),     # 125万超〜130万: 2万
-    (1_330_000, 10_000),     # 130万超〜133万: 1万
+    (580_000, 130_000),  # ≤58万: 配偶者控除 13万
+    (950_000, 130_000),  # 58万超〜95万: 13万
+    (1_000_000, 120_000),  # 95万超〜100万: 12万
+    (1_050_000, 100_000),  # 100万超〜105万: 10万
+    (1_100_000, 90_000),  # 105万超〜110万: 9万
+    (1_150_000, 70_000),  # 110万超〜115万: 7万
+    (1_200_000, 50_000),  # 115万超〜120万: 5万
+    (1_250_000, 40_000),  # 120万超〜125万: 4万
+    (1_300_000, 20_000),  # 125万超〜130万: 2万
+    (1_330_000, 10_000),  # 130万超〜133万: 1万
 ]
 
 
@@ -169,16 +171,27 @@ def calc_spouse_deduction(taxpayer_income: int, spouse_income: int | None) -> in
 # Furusato Nozei (Hometown Tax Donation) Deduction
 # ============================================================
 
-def calc_furusato_deduction(donation: int) -> int:
-    """Calculate furusato nozei income deduction = donation - 2,000 yen."""
+
+def calc_furusato_deduction(donation: int, total_income: int | None = None) -> int:
+    """Calculate furusato nozei income deduction.
+
+    所得税法第78条: 控除額 = MIN(寄附金合計, 総所得金額等×40%) - 2,000円
+    total_income が指定されない場合は40%上限を適用しない（集計表示用）。
+    """
     if donation <= 2_000:
         return 0
-    return donation - 2_000
+    capped = donation
+    if total_income is not None:
+        capped = min(donation, total_income * 40 // 100)
+    if capped <= 2_000:
+        return 0
+    return capped - 2_000
 
 
 # ============================================================
 # Housing Loan Tax Credit
 # ============================================================
+
 
 def calc_housing_loan_credit(balance: int) -> int:
     """Calculate housing loan tax credit = balance * 0.7% (truncated)."""
@@ -190,6 +203,7 @@ def calc_housing_loan_credit(balance: int) -> int:
 # ============================================================
 # Aggregated Deductions Calculator
 # ============================================================
+
 
 def calc_deductions(
     total_income: int,
@@ -208,9 +222,7 @@ def calc_deductions(
     # 1. Basic deduction (always applied if > 0)
     basic = calc_basic_deduction(total_income)
     if basic > 0:
-        income_deductions.append(
-            DeductionItem(type="basic", name="基礎控除", amount=basic)
-        )
+        income_deductions.append(DeductionItem(type="basic", name="基礎控除", amount=basic))
 
     # 2. Social insurance (full amount)
     if social_insurance > 0:
@@ -258,9 +270,9 @@ def calc_deductions(
             )
         )
 
-    # 6. Furusato nozei
+    # 6. Furusato nozei（所得税法第78条: 総所得金額×40%上限）
     if furusato_nozei > 0:
-        furusato = calc_furusato_deduction(furusato_nozei)
+        furusato = calc_furusato_deduction(furusato_nozei, total_income=total_income)
         if furusato > 0:
             income_deductions.append(
                 DeductionItem(
@@ -310,6 +322,7 @@ def calc_deductions(
 # ============================================================
 # Depreciation (Task 14)
 # ============================================================
+
 
 def calc_depreciation_straight_line(
     acquisition_cost: int,
@@ -505,14 +518,10 @@ def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResul
 
     else:  # standard
         tax_on_purchases_10 = (
-            input_data.taxable_purchases_10 * 10 // 110
-            if input_data.taxable_purchases_10
-            else 0
+            input_data.taxable_purchases_10 * 10 // 110 if input_data.taxable_purchases_10 else 0
         )
         tax_on_purchases_8 = (
-            input_data.taxable_purchases_8 * 8 // 108
-            if input_data.taxable_purchases_8
-            else 0
+            input_data.taxable_purchases_8 * 8 // 108 if input_data.taxable_purchases_8 else 0
         )
         tax_on_purchases = tax_on_purchases_10 + tax_on_purchases_8
         tax_due_raw = total_tax_on_sales - tax_on_purchases
@@ -541,8 +550,72 @@ def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResul
 
 
 # ============================================================
+# Furusato Nozei Deduction Limit Estimation
+# ============================================================
+
+
+def _get_marginal_tax_rate(taxable_income: int) -> int:
+    """Get marginal income tax rate (percent) for the given taxable income.
+
+    Uses the same bracket table as income tax calculation.
+    """
+    if taxable_income <= 0:
+        return 0
+    for upper, rate, _ in _INCOME_TAX_TABLE:
+        if taxable_income <= upper:
+            return rate
+    return 45  # Over 40,000,000
+
+
+def calc_furusato_deduction_limit(
+    total_income: int,
+    total_income_deductions: int,
+    income_tax_rate_percent: int | None = None,
+) -> int:
+    """Estimate furusato nozei deduction limit.
+
+    推定上限額の計算式（住民税所得割額の20%ベース）:
+    上限 ≈ 住民税所得割額 × 20% ÷ (100% - 所得税率 × 1.021 - 10%) + 2,000
+
+    住民税所得割額 = (総所得 - 所得控除) × 10%
+
+    Note: この計算は推定値。調整控除等は考慮していない。
+    """
+    taxable_income_raw = max(0, total_income - total_income_deductions)
+    # 課税所得を1,000円未満切捨て
+    taxable_income = (taxable_income_raw // 1_000) * 1_000
+
+    if taxable_income <= 0:
+        return 0
+
+    # 所得税率を自動計算（指定がなければ）
+    if income_tax_rate_percent is None:
+        income_tax_rate_percent = _get_marginal_tax_rate(taxable_income)
+
+    # 住民税所得割額 = 課税所得 × 10%
+    juuminzei_shotokuwari = taxable_income * 10 // 100
+
+    if juuminzei_shotokuwari <= 0:
+        return 0
+
+    # 分母: 100% - (所得税率 × 1.021) - 10%(住民税基本分)
+    # パーセント整数演算のため1000倍して計算
+    denominator_permille = 1000 - income_tax_rate_percent * 1021 // 100 - 100
+
+    if denominator_permille <= 0:
+        # 所得税率が非常に高い場合の安全策
+        return juuminzei_shotokuwari * 20 // 100 + 2_000
+
+    # 上限 = 住民税所得割額 × 20% ÷ (分母/100%) + 2,000
+    limit = juuminzei_shotokuwari * 200 // denominator_permille + 2_000
+
+    return limit
+
+
+# ============================================================
 # MCP Tool Registration
 # ============================================================
+
 
 def register(mcp) -> None:
     """Register tax calculation tools with the MCP server."""
@@ -666,3 +739,17 @@ def register(mcp) -> None:
         )
         result = calc_consumption_tax(input_data)
         return result.model_dump()
+
+    @mcp.tool()
+    def tax_calc_furusato_limit(
+        total_income: int,
+        total_income_deductions: int,
+        income_tax_rate_percent: int | None = None,
+    ) -> dict:
+        """Estimate furusato nozei deduction limit."""
+        limit = calc_furusato_deduction_limit(
+            total_income=total_income,
+            total_income_deductions=total_income_deductions,
+            income_tax_rate_percent=income_tax_rate_percent,
+        )
+        return {"estimated_limit": limit}

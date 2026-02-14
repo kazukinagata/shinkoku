@@ -4,9 +4,15 @@ Verifies that data imported via import_csv() can be correctly
 converted to JournalEntry objects and stored via ledger tools.
 """
 
+from __future__ import annotations
+
 import pytest
 
-from shinkoku.tools.import_data import import_csv
+from shinkoku.tools.import_data import (
+    import_csv,
+    import_check_csv_imported,
+    import_record_source,
+)
 from shinkoku.tools.ledger import (
     ledger_init,
     ledger_add_journals_batch,
@@ -45,10 +51,10 @@ class TestImportToLedger:
         # Step 2: Convert candidates to JournalEntry objects
         # Simulate what Claude would do: assign account codes based on description
         account_mapping = {
-            "Amazon.co.jp": "5190",       # 消耗品費
-            "サーバー代": "5140",          # 通信費
-            "文房具店": "5190",            # 消耗品費
-            "ドメイン更新": "5140",        # 通信費
+            "Amazon.co.jp": "5190",  # 消耗品費
+            "サーバー代": "5140",  # 通信費
+            "文房具店": "5190",  # 消耗品費
+            "ドメイン更新": "5140",  # 通信費
             "コワーキングスペース": "5250",  # 地代家賃
         }
 
@@ -74,7 +80,9 @@ class TestImportToLedger:
         assert init_result["status"] == "ok"
 
         batch_result = ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries,
+            db_path=db_path,
+            fiscal_year=2025,
+            entries=entries,
         )
         assert batch_result["status"] == "ok"
         assert batch_result["count"] == 5
@@ -85,9 +93,7 @@ class TestImportToLedger:
         assert search_result["total_count"] == 5
 
         # Verify amounts match original CSV
-        stored_amounts = sorted(
-            [j["lines"][0]["amount"] for j in search_result["journals"]]
-        )
+        stored_amounts = sorted([j["lines"][0]["amount"] for j in search_result["journals"]])
         original_amounts = sorted([c["amount"] for c in candidates])
         assert stored_amounts == original_amounts
 
@@ -112,7 +118,9 @@ class TestImportToLedger:
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
         ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries,
+            db_path=db_path,
+            fiscal_year=2025,
+            entries=entries,
         )
 
         # Search by source
@@ -146,7 +154,9 @@ class TestImportToLedger:
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
         ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries,
+            db_path=db_path,
+            fiscal_year=2025,
+            entries=entries,
         )
 
         # January only (2 entries: Jan 10, Jan 15)
@@ -190,7 +200,9 @@ class TestImportToLedger:
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
         ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries,
+            db_path=db_path,
+            fiscal_year=2025,
+            entries=entries,
         )
 
         params = JournalSearchParams(fiscal_year=2025)
@@ -223,7 +235,9 @@ class TestImportToLedger:
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
         result = ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=[entry],
+            db_path=db_path,
+            fiscal_year=2025,
+            entries=[entry],
         )
         assert result["status"] == "ok"
         assert result["count"] == 1
@@ -232,3 +246,76 @@ class TestImportToLedger:
         found = ledger_search(db_path=db_path, params=params)
         assert found["journals"][0]["description"] == "テスト店舗"
         assert found["journals"][0]["lines"][0]["amount"] == 9800
+
+
+# ============================================================
+# Phase B-1: CSV reimport detection
+# ============================================================
+
+
+class TestCSVReimportDetection:
+    """Tests for CSV file-level duplicate import detection."""
+
+    def test_csv_reimport_blocked(self, tmp_path):
+        """Import CSV -> record -> reimport same CSV -> blocked."""
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+
+        csv_path = tmp_path / "expenses.csv"
+        csv_path.write_text(
+            "利用日,利用店名,利用金額\n2025-01-10,Amazon,5000\n",
+            encoding="utf-8",
+        )
+
+        # First check: not imported yet
+        check1 = import_check_csv_imported(
+            db_path=db_path, fiscal_year=2025, file_path=str(csv_path)
+        )
+        assert check1["status"] == "not_imported"
+
+        # Record the import
+        record_result = import_record_source(
+            db_path=db_path,
+            fiscal_year=2025,
+            file_path=str(csv_path),
+            row_count=1,
+        )
+        assert record_result["status"] == "ok"
+
+        # Second check: should be detected as already imported
+        check2 = import_check_csv_imported(
+            db_path=db_path, fiscal_year=2025, file_path=str(csv_path)
+        )
+        assert check2["status"] == "already_imported"
+        assert "import_record" in check2
+
+    def test_modified_csv_allowed(self, tmp_path):
+        """Modify CSV -> different hash -> allowed."""
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+
+        csv_path = tmp_path / "expenses.csv"
+        csv_path.write_text(
+            "利用日,利用店名,利用金額\n2025-01-10,Amazon,5000\n",
+            encoding="utf-8",
+        )
+
+        # Record the import with original content
+        import_record_source(
+            db_path=db_path,
+            fiscal_year=2025,
+            file_path=str(csv_path),
+            row_count=1,
+        )
+
+        # Modify the CSV (different content -> different hash)
+        csv_path.write_text(
+            "利用日,利用店名,利用金額\n2025-01-10,Amazon,5000\n2025-01-15,楽天,3000\n",
+            encoding="utf-8",
+        )
+
+        # Check should pass (different hash)
+        check = import_check_csv_imported(
+            db_path=db_path, fiscal_year=2025, file_path=str(csv_path)
+        )
+        assert check["status"] == "not_imported"

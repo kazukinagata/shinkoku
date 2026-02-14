@@ -1,4 +1,7 @@
 """Tests for ledger tools."""
+
+from __future__ import annotations
+
 import sqlite3
 import pytest
 from shinkoku.models import JournalEntry, JournalLine, JournalSearchParams
@@ -12,6 +15,7 @@ from shinkoku.tools.ledger import (
     ledger_trial_balance,
     ledger_pl,
     ledger_bs,
+    ledger_check_duplicates,
 )
 
 
@@ -34,9 +38,7 @@ class TestLedgerInit:
         ledger_init(fiscal_year=2024, db_path=db_path)
         ledger_init(fiscal_year=2025, db_path=db_path)
         conn = sqlite3.connect(db_path)
-        years = conn.execute(
-            "SELECT year FROM fiscal_years ORDER BY year"
-        ).fetchall()
+        years = conn.execute("SELECT year FROM fiscal_years ORDER BY year").fetchall()
         assert [r[0] for r in years] == [2024, 2025]
         conn.close()
 
@@ -53,9 +55,7 @@ class TestLedgerAddJournal:
                 JournalLine(side="credit", account_code="4001", amount=100000),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2025, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
         assert result["status"] == "ok"
         assert result["journal_id"] > 0
 
@@ -70,9 +70,7 @@ class TestLedgerAddJournal:
                 JournalLine(side="credit", account_code="4001", amount=99999),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2025, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
         assert result["status"] == "error"
 
     def test_zero_amount(self, tmp_path):
@@ -94,9 +92,7 @@ class TestLedgerAddJournal:
                 JournalLine(side="credit", account_code="4001", amount=10000),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2025, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
         assert result["status"] == "error"
 
     def test_invalid_fiscal_year(self, tmp_path):
@@ -110,9 +106,7 @@ class TestLedgerAddJournal:
                 JournalLine(side="credit", account_code="4001", amount=10000),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2024, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2024, entry=entry)
         assert result["status"] == "error"
 
     def test_compound_entry(self, tmp_path):
@@ -127,9 +121,7 @@ class TestLedgerAddJournal:
                 JournalLine(side="credit", account_code="1002", amount=5000),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2025, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
         assert result["status"] == "ok"
 
     def test_integer_amounts(self, tmp_path):
@@ -143,9 +135,7 @@ class TestLedgerAddJournal:
                 JournalLine(side="credit", account_code="4001", amount=50000),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2025, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
         assert result["status"] == "ok"
         conn = sqlite3.connect(db_path)
         lines = conn.execute(
@@ -168,23 +158,23 @@ class TestLedgerAddJournalsBatch:
         ledger_init(fiscal_year=2025, db_path=db_path)
         entries = [
             JournalEntry(
-                date="2025-01-10", description="売上1",
+                date="2025-01-10",
+                description="売上1",
                 lines=[
                     JournalLine(side="debit", account_code="1001", amount=10000),
                     JournalLine(side="credit", account_code="4001", amount=10000),
                 ],
             ),
             JournalEntry(
-                date="2025-01-11", description="売上2",
+                date="2025-01-11",
+                description="売上2",
                 lines=[
                     JournalLine(side="debit", account_code="1002", amount=20000),
                     JournalLine(side="credit", account_code="4001", amount=20000),
                 ],
             ),
         ]
-        result = ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries
-        )
+        result = ledger_add_journals_batch(db_path=db_path, fiscal_year=2025, entries=entries)
         assert result["status"] == "ok"
         assert result["count"] == 2
         assert len(result["journal_ids"]) == 2
@@ -194,23 +184,23 @@ class TestLedgerAddJournalsBatch:
         ledger_init(fiscal_year=2025, db_path=db_path)
         entries = [
             JournalEntry(
-                date="2025-01-10", description="ok",
+                date="2025-01-10",
+                description="ok",
                 lines=[
                     JournalLine(side="debit", account_code="1001", amount=10000),
                     JournalLine(side="credit", account_code="4001", amount=10000),
                 ],
             ),
             JournalEntry(
-                date="2025-01-11", description="bad balance",
+                date="2025-01-11",
+                description="bad balance",
                 lines=[
                     JournalLine(side="debit", account_code="1001", amount=10000),
                     JournalLine(side="credit", account_code="4001", amount=9999),
                 ],
             ),
         ]
-        result = ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries
-        )
+        result = ledger_add_journals_batch(db_path=db_path, fiscal_year=2025, entries=entries)
         assert result["status"] == "error"
         # Verify rollback: no journals should exist
         conn = sqlite3.connect(db_path)
@@ -221,9 +211,7 @@ class TestLedgerAddJournalsBatch:
     def test_batch_empty(self, tmp_path):
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
-        result = ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=[]
-        )
+        result = ledger_add_journals_batch(db_path=db_path, fiscal_year=2025, entries=[])
         assert result["status"] == "ok"
         assert result["count"] == 0
 
@@ -234,7 +222,8 @@ class TestLedgerSearch:
         ledger_init(fiscal_year=2025, db_path=db_path)
         entries = [
             JournalEntry(
-                date="2025-01-10", description="ウェブ開発報酬",
+                date="2025-01-10",
+                description="ウェブ開発報酬",
                 source="manual",
                 lines=[
                     JournalLine(side="debit", account_code="1001", amount=100000),
@@ -242,7 +231,8 @@ class TestLedgerSearch:
                 ],
             ),
             JournalEntry(
-                date="2025-02-15", description="サーバー代",
+                date="2025-02-15",
+                description="サーバー代",
                 source="csv_import",
                 lines=[
                     JournalLine(side="debit", account_code="5140", amount=5000),
@@ -250,7 +240,8 @@ class TestLedgerSearch:
                 ],
             ),
             JournalEntry(
-                date="2025-03-20", description="文房具購入",
+                date="2025-03-20",
+                description="文房具購入",
                 source="manual",
                 lines=[
                     JournalLine(side="debit", account_code="5190", amount=3000),
@@ -258,9 +249,7 @@ class TestLedgerSearch:
                 ],
             ),
         ]
-        ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries
-        )
+        ledger_add_journals_batch(db_path=db_path, fiscal_year=2025, entries=entries)
         return db_path
 
     def test_search_all(self, tmp_path):
@@ -272,34 +261,26 @@ class TestLedgerSearch:
 
     def test_search_by_date_range(self, tmp_path):
         db_path = self._setup_data(tmp_path)
-        params = JournalSearchParams(
-            fiscal_year=2025, date_from="2025-02-01", date_to="2025-02-28"
-        )
+        params = JournalSearchParams(fiscal_year=2025, date_from="2025-02-01", date_to="2025-02-28")
         result = ledger_search(db_path=db_path, params=params)
         assert result["total_count"] == 1
         assert result["journals"][0]["description"] == "サーバー代"
 
     def test_search_by_account(self, tmp_path):
         db_path = self._setup_data(tmp_path)
-        params = JournalSearchParams(
-            fiscal_year=2025, account_code="5140"
-        )
+        params = JournalSearchParams(fiscal_year=2025, account_code="5140")
         result = ledger_search(db_path=db_path, params=params)
         assert result["total_count"] == 1
 
     def test_search_by_description(self, tmp_path):
         db_path = self._setup_data(tmp_path)
-        params = JournalSearchParams(
-            fiscal_year=2025, description_contains="文房具"
-        )
+        params = JournalSearchParams(fiscal_year=2025, description_contains="文房具")
         result = ledger_search(db_path=db_path, params=params)
         assert result["total_count"] == 1
 
     def test_search_by_source(self, tmp_path):
         db_path = self._setup_data(tmp_path)
-        params = JournalSearchParams(
-            fiscal_year=2025, source="csv_import"
-        )
+        params = JournalSearchParams(fiscal_year=2025, source="csv_import")
         result = ledger_search(db_path=db_path, params=params)
         assert result["total_count"] == 1
 
@@ -334,29 +315,31 @@ class TestLedgerUpdateJournal:
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
         entry = JournalEntry(
-            date="2025-01-15", description="original",
+            date="2025-01-15",
+            description="original",
             lines=[
                 JournalLine(side="debit", account_code="1001", amount=10000),
                 JournalLine(side="credit", account_code="4001", amount=10000),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2025, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
         return db_path, result["journal_id"]
 
     def test_update_journal(self, tmp_path):
         db_path, journal_id = self._create_journal(tmp_path)
         updated = JournalEntry(
-            date="2025-01-20", description="updated",
+            date="2025-01-20",
+            description="updated",
             lines=[
                 JournalLine(side="debit", account_code="1001", amount=20000),
                 JournalLine(side="credit", account_code="4001", amount=20000),
             ],
         )
         result = ledger_update_journal(
-            db_path=db_path, journal_id=journal_id,
-            fiscal_year=2025, entry=updated,
+            db_path=db_path,
+            journal_id=journal_id,
+            fiscal_year=2025,
+            entry=updated,
         )
         assert result["status"] == "ok"
         # Verify updated data
@@ -371,15 +354,18 @@ class TestLedgerUpdateJournal:
     def test_update_revalidates_balance(self, tmp_path):
         db_path, journal_id = self._create_journal(tmp_path)
         updated = JournalEntry(
-            date="2025-01-20", description="bad",
+            date="2025-01-20",
+            description="bad",
             lines=[
                 JournalLine(side="debit", account_code="1001", amount=20000),
                 JournalLine(side="credit", account_code="4001", amount=19999),
             ],
         )
         result = ledger_update_journal(
-            db_path=db_path, journal_id=journal_id,
-            fiscal_year=2025, entry=updated,
+            db_path=db_path,
+            journal_id=journal_id,
+            fiscal_year=2025,
+            entry=updated,
         )
         assert result["status"] == "error"
 
@@ -387,15 +373,18 @@ class TestLedgerUpdateJournal:
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
         updated = JournalEntry(
-            date="2025-01-20", description="x",
+            date="2025-01-20",
+            description="x",
             lines=[
                 JournalLine(side="debit", account_code="1001", amount=10000),
                 JournalLine(side="credit", account_code="4001", amount=10000),
             ],
         )
         result = ledger_update_journal(
-            db_path=db_path, journal_id=99999,
-            fiscal_year=2025, entry=updated,
+            db_path=db_path,
+            journal_id=99999,
+            fiscal_year=2025,
+            entry=updated,
         )
         assert result["status"] == "error"
 
@@ -405,22 +394,19 @@ class TestLedgerDeleteJournal:
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
         entry = JournalEntry(
-            date="2025-01-15", description="to delete",
+            date="2025-01-15",
+            description="to delete",
             lines=[
                 JournalLine(side="debit", account_code="1001", amount=10000),
                 JournalLine(side="credit", account_code="4001", amount=10000),
             ],
         )
-        result = ledger_add_journal(
-            db_path=db_path, fiscal_year=2025, entry=entry
-        )
+        result = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
         return db_path, result["journal_id"]
 
     def test_delete_journal(self, tmp_path):
         db_path, journal_id = self._create_journal(tmp_path)
-        result = ledger_delete_journal(
-            db_path=db_path, journal_id=journal_id
-        )
+        result = ledger_delete_journal(db_path=db_path, journal_id=journal_id)
         assert result["status"] == "ok"
         # Verify deletion
         params = JournalSearchParams(fiscal_year=2025)
@@ -441,9 +427,7 @@ class TestLedgerDeleteJournal:
     def test_delete_nonexistent(self, tmp_path):
         db_path = str(tmp_path / "test.db")
         ledger_init(fiscal_year=2025, db_path=db_path)
-        result = ledger_delete_journal(
-            db_path=db_path, journal_id=99999
-        )
+        result = ledger_delete_journal(db_path=db_path, journal_id=99999)
         assert result["status"] == "error"
 
 
@@ -459,7 +443,8 @@ def _setup_full_ledger(tmp_path):
     entries = [
         # Revenue: 売上 300,000 (現金)
         JournalEntry(
-            date="2025-01-15", description="売上1",
+            date="2025-01-15",
+            description="売上1",
             lines=[
                 JournalLine(side="debit", account_code="1001", amount=300000),
                 JournalLine(side="credit", account_code="4001", amount=300000),
@@ -467,7 +452,8 @@ def _setup_full_ledger(tmp_path):
         ),
         # Revenue: 雑収入 10,000 (普通預金)
         JournalEntry(
-            date="2025-02-01", description="受取利息等",
+            date="2025-02-01",
+            description="受取利息等",
             lines=[
                 JournalLine(side="debit", account_code="1002", amount=10000),
                 JournalLine(side="credit", account_code="4110", amount=10000),
@@ -475,7 +461,8 @@ def _setup_full_ledger(tmp_path):
         ),
         # Expense: 通信費 20,000 (普通預金)
         JournalEntry(
-            date="2025-02-15", description="通信費",
+            date="2025-02-15",
+            description="通信費",
             lines=[
                 JournalLine(side="debit", account_code="5140", amount=20000),
                 JournalLine(side="credit", account_code="1002", amount=20000),
@@ -483,7 +470,8 @@ def _setup_full_ledger(tmp_path):
         ),
         # Expense: 消耗品費 10,000 (現金)
         JournalEntry(
-            date="2025-03-01", description="消耗品",
+            date="2025-03-01",
+            description="消耗品",
             lines=[
                 JournalLine(side="debit", account_code="5190", amount=10000),
                 JournalLine(side="credit", account_code="1001", amount=10000),
@@ -491,7 +479,8 @@ def _setup_full_ledger(tmp_path):
         ),
         # Liability: 未払金 5,000 (with expense)
         JournalEntry(
-            date="2025-03-10", description="未払経費",
+            date="2025-03-10",
+            description="未払経費",
             lines=[
                 JournalLine(side="debit", account_code="5270", amount=5000),
                 JournalLine(side="credit", account_code="2030", amount=5000),
@@ -499,33 +488,28 @@ def _setup_full_ledger(tmp_path):
         ),
         # Equity: 元入金 100,000
         JournalEntry(
-            date="2025-01-01", description="元入金",
+            date="2025-01-01",
+            description="元入金",
             lines=[
                 JournalLine(side="debit", account_code="1002", amount=100000),
                 JournalLine(side="credit", account_code="3001", amount=100000),
             ],
         ),
     ]
-    ledger_add_journals_batch(
-        db_path=db_path, fiscal_year=2025, entries=entries
-    )
+    ledger_add_journals_batch(db_path=db_path, fiscal_year=2025, entries=entries)
     return db_path
 
 
 class TestLedgerTrialBalance:
     def test_trial_balance_debit_equals_credit(self, tmp_path):
         db_path = _setup_full_ledger(tmp_path)
-        result = ledger_trial_balance(
-            db_path=db_path, fiscal_year=2025
-        )
+        result = ledger_trial_balance(db_path=db_path, fiscal_year=2025)
         assert result["status"] == "ok"
         assert result["total_debit"] == result["total_credit"]
 
     def test_trial_balance_has_accounts(self, tmp_path):
         db_path = _setup_full_ledger(tmp_path)
-        result = ledger_trial_balance(
-            db_path=db_path, fiscal_year=2025
-        )
+        result = ledger_trial_balance(db_path=db_path, fiscal_year=2025)
         assert len(result["accounts"]) > 0
         # Check that each account has required fields
         for acct in result["accounts"]:
@@ -537,9 +521,7 @@ class TestLedgerTrialBalance:
 
     def test_trial_balance_amounts_integer(self, tmp_path):
         db_path = _setup_full_ledger(tmp_path)
-        result = ledger_trial_balance(
-            db_path=db_path, fiscal_year=2025
-        )
+        result = ledger_trial_balance(db_path=db_path, fiscal_year=2025)
         assert isinstance(result["total_debit"], int)
         assert isinstance(result["total_credit"], int)
         for acct in result["accounts"]:
@@ -579,9 +561,7 @@ class TestLedgerBS:
         result = ledger_bs(db_path=db_path, fiscal_year=2025)
         assert result["status"] == "ok"
         # A = L + E (equity includes net_income)
-        assert result["total_assets"] == (
-            result["total_liabilities"] + result["total_equity"]
-        )
+        assert result["total_assets"] == (result["total_liabilities"] + result["total_equity"])
 
     def test_bs_net_income_consistent_with_pl(self, tmp_path):
         db_path = _setup_full_ledger(tmp_path)
@@ -602,3 +582,134 @@ class TestLedgerBS:
         assert isinstance(result["total_assets"], int)
         assert isinstance(result["total_liabilities"], int)
         assert isinstance(result["total_equity"], int)
+
+
+# ============================================================
+# Phase B-1: Duplicate Detection in Ledger
+# ============================================================
+
+
+class TestDuplicateDetection:
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def _make_entry(
+        self,
+        date="2025-01-15",
+        debit="1001",
+        credit="4001",
+        amount=10000,
+        description="test",
+    ):
+        return JournalEntry(
+            date=date,
+            description=description,
+            lines=[
+                JournalLine(side="debit", account_code=debit, amount=amount),
+                JournalLine(side="credit", account_code=credit, amount=amount),
+            ],
+        )
+
+    def test_exact_duplicate_blocked(self, tmp_path):
+        """Adding the same journal twice should be blocked."""
+        db_path = self._init_db(tmp_path)
+        entry = self._make_entry()
+
+        r1 = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
+        assert r1["status"] == "ok"
+
+        r2 = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
+        assert r2["status"] == "error"
+        assert "duplicate" in r2
+
+    def test_similar_duplicate_warns(self, tmp_path):
+        """Same date + same amount but different accounts -> warning."""
+        db_path = self._init_db(tmp_path)
+        entry1 = self._make_entry(debit="1001", credit="4001")
+        entry2 = self._make_entry(debit="5190", credit="1002")
+
+        r1 = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry1)
+        assert r1["status"] == "ok"
+
+        r2 = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry2)
+        assert r2["status"] == "warning"
+        assert "duplicate" in r2
+
+    def test_force_skips_similar_warning(self, tmp_path):
+        """force=True bypasses similar warning."""
+        db_path = self._init_db(tmp_path)
+        entry1 = self._make_entry(debit="1001", credit="4001")
+        entry2 = self._make_entry(debit="5190", credit="1002")
+
+        ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry1)
+        r2 = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry2, force=True)
+        assert r2["status"] == "ok"
+        assert "warnings" in r2
+
+    def test_exact_duplicate_not_skippable(self, tmp_path):
+        """force=True does NOT skip exact duplicate."""
+        db_path = self._init_db(tmp_path)
+        entry = self._make_entry()
+
+        ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry)
+        r2 = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry, force=True)
+        assert r2["status"] == "error"
+        assert "duplicate" in r2
+
+    def test_batch_within_batch_duplicate(self, tmp_path):
+        """Batch with internal duplicates should be blocked."""
+        db_path = self._init_db(tmp_path)
+        entry = self._make_entry()
+
+        result = ledger_add_journals_batch(
+            db_path=db_path, fiscal_year=2025, entries=[entry, entry]
+        )
+        assert result["status"] == "error"
+        assert "バッチ内" in result["message"]
+
+    def test_update_recomputes_hash(self, tmp_path):
+        """Updating a journal should recompute its content_hash."""
+        db_path = self._init_db(tmp_path)
+        entry1 = self._make_entry(amount=10000)
+        r1 = ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry1)
+        journal_id = r1["journal_id"]
+
+        # Get original hash
+        conn = sqlite3.connect(db_path)
+        old_hash = conn.execute(
+            "SELECT content_hash FROM journals WHERE id=?", (journal_id,)
+        ).fetchone()[0]
+        conn.close()
+
+        # Update with different amount
+        entry2 = self._make_entry(amount=20000)
+        ledger_update_journal(
+            db_path=db_path,
+            journal_id=journal_id,
+            fiscal_year=2025,
+            entry=entry2,
+        )
+
+        conn = sqlite3.connect(db_path)
+        new_hash = conn.execute(
+            "SELECT content_hash FROM journals WHERE id=?", (journal_id,)
+        ).fetchone()[0]
+        conn.close()
+
+        assert old_hash != new_hash
+
+    def test_check_duplicates_tool(self, tmp_path):
+        """Integration test for check_duplicates."""
+        db_path = self._init_db(tmp_path)
+        # Add two journals with same date/amount but different accounts
+        entry1 = self._make_entry(debit="1001", credit="4001")
+        entry2 = self._make_entry(debit="5190", credit="1002")
+
+        ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry1)
+        ledger_add_journal(db_path=db_path, fiscal_year=2025, entry=entry2, force=True)
+
+        result = ledger_check_duplicates(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert len(result["pairs"]) >= 1
