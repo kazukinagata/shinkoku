@@ -22,3 +22,50 @@ receipts_dir:
 bank_statements_dir:
 credit_card_statements_dir:
 furusato_receipts_dir:
+
+# --- 納税者情報 ---
+taxpayer:
+  last_name: ""           # 姓
+  first_name: ""          # 名
+  last_name_kana: ""      # 姓（カタカナ）
+  first_name_kana: ""     # 名（カタカナ）
+  gender:                 # male / female
+  date_of_birth:          # YYYY-MM-DD
+  phone: ""               # 電話番号
+  my_number:              # マイナンバー12桁（取扱注意）
+  widow_status: none      # none / widow / single_parent
+  disability_status: none # none / general / special
+  working_student: false
+  relationship_to_head:   # 本人 / 妻 / 子 等
+
+# --- 住所 ---
+address:
+  postal_code: ""
+  prefecture: ""
+  city: ""
+  street: ""
+  building: ""
+  jan1_address:           # 1/1時点の住所（異なる場合のみ）
+
+# --- 事業所住所（異なる場合のみ） ---
+# business_address:
+#   postal_code: ""
+#   prefecture: ""
+#   city: ""
+#   street: ""
+#   building: ""
+
+# --- 事業情報 ---
+business:
+  trade_name: ""          # 屋号
+  industry_type: ""       # 業種
+  business_description: "" # 事業内容
+  establishment_year:     # 開業年
+
+# --- 申告方法 ---
+filing:
+  submission_method: e-tax  # e-tax / mail / in-person
+  return_type: blue         # blue / white
+  blue_return_deduction: 650000
+  electronic_bookkeeping: false
+  tax_office_name: ""

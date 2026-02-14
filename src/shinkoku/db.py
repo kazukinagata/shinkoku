@@ -1,10 +1,148 @@
 """Database initialization and connection management."""
 
+from __future__ import annotations
+
 import sqlite3
 from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
+
+# v1 → v2: 配偶者/扶養/その他所得/仮想通貨/在庫/税理士報酬/株式/FX テーブル追加
+# + 源泉徴収票に生命保険5区分・国民年金・旧長期損害保険列追加
+_V2_MIGRATION_TABLES = """
+CREATE TABLE IF NOT EXISTS spouse_info (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    name TEXT NOT NULL,
+    date_of_birth TEXT NOT NULL,
+    income INTEGER NOT NULL DEFAULT 0,
+    disability TEXT CHECK (disability IN ('general','special','special_cohabiting') OR disability IS NULL),
+    cohabiting INTEGER NOT NULL DEFAULT 1,
+    other_taxpayer_dependent INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year)
+);
+CREATE TABLE IF NOT EXISTS dependents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    name TEXT NOT NULL,
+    relationship TEXT NOT NULL,
+    date_of_birth TEXT NOT NULL,
+    income INTEGER NOT NULL DEFAULT 0,
+    disability TEXT CHECK (disability IN ('general','special','special_cohabiting') OR disability IS NULL),
+    cohabiting INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS other_income_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    income_type TEXT NOT NULL CHECK (income_type IN (
+        'miscellaneous', 'dividend_comprehensive', 'one_time'
+    )),
+    description TEXT NOT NULL,
+    revenue INTEGER NOT NULL CHECK (revenue >= 0),
+    expenses INTEGER NOT NULL DEFAULT 0,
+    withheld_tax INTEGER NOT NULL DEFAULT 0,
+    payer_name TEXT,
+    payer_address TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS crypto_income_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    exchange_name TEXT NOT NULL,
+    gains INTEGER NOT NULL DEFAULT 0,
+    expenses INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, exchange_name)
+);
+CREATE TABLE IF NOT EXISTS inventory_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    period TEXT NOT NULL CHECK (period IN ('beginning', 'ending')),
+    amount INTEGER NOT NULL CHECK (amount >= 0),
+    method TEXT NOT NULL DEFAULT 'cost',
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, period)
+);
+CREATE TABLE IF NOT EXISTS professional_fees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    payer_address TEXT NOT NULL,
+    payer_name TEXT NOT NULL,
+    fee_amount INTEGER NOT NULL CHECK (fee_amount > 0),
+    expense_deduction INTEGER NOT NULL DEFAULT 0,
+    withheld_tax INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS stock_trading_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    account_type TEXT NOT NULL CHECK (account_type IN (
+        'tokutei_withholding', 'tokutei_no_withholding',
+        'ippan_listed', 'ippan_unlisted'
+    )),
+    broker_name TEXT NOT NULL,
+    gains INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    withheld_income_tax INTEGER NOT NULL DEFAULT 0,
+    withheld_residential_tax INTEGER NOT NULL DEFAULT 0,
+    dividend_income INTEGER NOT NULL DEFAULT 0,
+    dividend_withheld_tax INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, account_type, broker_name)
+);
+CREATE TABLE IF NOT EXISTS stock_loss_carryforward (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    loss_year INTEGER NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    used_amount INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS fx_trading_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    broker_name TEXT NOT NULL,
+    realized_gains INTEGER NOT NULL DEFAULT 0,
+    swap_income INTEGER NOT NULL DEFAULT 0,
+    expenses INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, broker_name)
+);
+CREATE TABLE IF NOT EXISTS fx_loss_carryforward (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    loss_year INTEGER NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    used_amount INTEGER NOT NULL DEFAULT 0
+);
+"""
+
+# 源泉徴収票の拡張列（Phase 6）
+_V2_WITHHOLDING_SLIP_COLUMNS = [
+    ("life_insurance_general_new", "INTEGER NOT NULL DEFAULT 0"),
+    ("life_insurance_general_old", "INTEGER NOT NULL DEFAULT 0"),
+    ("life_insurance_medical_care", "INTEGER NOT NULL DEFAULT 0"),
+    ("life_insurance_annuity_new", "INTEGER NOT NULL DEFAULT 0"),
+    ("life_insurance_annuity_old", "INTEGER NOT NULL DEFAULT 0"),
+    ("national_pension_premium", "INTEGER NOT NULL DEFAULT 0"),
+    ("old_long_term_insurance_premium", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+_V2_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_spouse_info_fiscal_year ON spouse_info(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_dependents_fiscal_year ON dependents(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_other_income_items_fiscal_year ON other_income_items(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_crypto_income_records_fiscal_year ON crypto_income_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_inventory_records_fiscal_year ON inventory_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_professional_fees_fiscal_year ON professional_fees(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_stock_trading_accounts_fiscal_year ON stock_trading_accounts(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_stock_loss_carryforward_fiscal_year ON stock_loss_carryforward(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_fx_trading_records_fiscal_year ON fx_trading_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_fx_loss_carryforward_fiscal_year ON fx_loss_carryforward(fiscal_year);
+"""
 
 
 def get_connection(db_path: str) -> sqlite3.Connection:
@@ -23,25 +161,60 @@ def _has_schema_version_table(conn: sqlite3.Connection) -> bool:
     return cursor.fetchone() is not None
 
 
-def migrate(conn: sqlite3.Connection) -> int:
-    """Apply schema migrations. Returns the current schema version."""
-    if _has_schema_version_table(conn):
-        row = conn.execute(
-            "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
-        ).fetchone()
-        if row and row[0] >= CURRENT_SCHEMA_VERSION:
-            return row[0]
+def _get_current_version(conn: sqlite3.Connection) -> int:
+    if not _has_schema_version_table(conn):
+        return 0
+    row = conn.execute(
+        "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
+    ).fetchone()
+    return row[0] if row else 0
 
-    # Apply initial schema
-    schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
-    conn.executescript(schema_sql)
 
-    # Record version (use INSERT OR IGNORE to be idempotent)
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    """Check if a column exists in a table."""
+    cursor = conn.execute(f"PRAGMA table_info({table})")  # noqa: S608
+    return any(row[1] == column for row in cursor.fetchall())
+
+
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Apply v1 → v2 migration: new tables + withholding_slips columns."""
+    conn.executescript(_V2_MIGRATION_TABLES)
+
+    # 源泉徴収票に列追加（既存列があればスキップ）
+    for col_name, col_def in _V2_WITHHOLDING_SLIP_COLUMNS:
+        if not _has_column(conn, "withholding_slips", col_name):
+            conn.execute(f"ALTER TABLE withholding_slips ADD COLUMN {col_name} {col_def}")
+
+    conn.executescript(_V2_INDEXES)
     conn.execute(
         "INSERT OR IGNORE INTO schema_version (version) VALUES (?)",
-        (CURRENT_SCHEMA_VERSION,),
+        (2,),
     )
     conn.commit()
+
+
+def migrate(conn: sqlite3.Connection) -> int:
+    """Apply schema migrations. Returns the current schema version."""
+    current = _get_current_version(conn)
+
+    if current >= CURRENT_SCHEMA_VERSION:
+        return current
+
+    if current == 0:
+        # Fresh database: apply full schema
+        schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
+        conn.executescript(schema_sql)
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version) VALUES (?)",
+            (CURRENT_SCHEMA_VERSION,),
+        )
+        conn.commit()
+        return CURRENT_SCHEMA_VERSION
+
+    # Incremental migrations
+    if current < 2:
+        _migrate_v1_to_v2(conn)
+
     return CURRENT_SCHEMA_VERSION
 
 

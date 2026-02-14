@@ -32,6 +32,68 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 
 - `invoice_registration_number`: T + 13桁の番号（任意、スキップ可）
 
+## ステップ2.5: 納税者情報のヒアリング
+
+以下の項目を AskUserQuestion で段階的に確認する。すべて任意（スキップ可能）だが、PDF 帳票への自動記入や人的控除の判定に使用される。
+
+### 2.5-1. 氏名
+
+- `taxpayer.last_name`: 姓
+- `taxpayer.first_name`: 名
+- `taxpayer.last_name_kana`: 姓（カタカナ）
+- `taxpayer.first_name_kana`: 名（カタカナ）
+
+### 2.5-2. 基本情報
+
+- `taxpayer.gender`: 性別（male / female）
+- `taxpayer.date_of_birth`: 生年月日（YYYY-MM-DD）
+- `taxpayer.phone`: 電話番号
+
+### 2.5-3. マイナンバー
+
+- `taxpayer.my_number`: マイナンバー12桁（取扱注意 — config に保存するが、ツール出力やログには一切表示しない）
+
+### 2.5-4. 人的控除に関する状態（任意）
+
+- `taxpayer.widow_status`: 寡婦/ひとり親の区分（none / widow / single_parent）
+- `taxpayer.disability_status`: 障害者の区分（none / general / special）
+- `taxpayer.working_student`: 勤労学生に該当するか（true / false）
+
+## ステップ2.6: 住所情報のヒアリング
+
+### 2.6-1. 自宅住所
+
+- `address.postal_code`: 郵便番号
+- `address.prefecture`: 都道府県
+- `address.city`: 市区町村
+- `address.street`: 番地
+- `address.building`: 建物名・部屋番号（任意）
+
+### 2.6-2. 1月1日時点の住所（異なる場合のみ）
+
+- `address.jan1_address`: 1/1 時点の住所（住民税の課税自治体判定に使用）
+
+### 2.6-3. 事業所住所（自宅と異なる場合のみ）
+
+- `business_address.postal_code` 〜 `business_address.building`
+
+## ステップ2.7: 事業情報のヒアリング
+
+事業所得がある場合に確認する。
+
+- `business.trade_name`: 屋号
+- `business.industry_type`: 業種
+- `business.business_description`: 事業内容
+- `business.establishment_year`: 開業年
+
+## ステップ2.8: 申告方法の確認
+
+- `filing.submission_method`: 提出方法（e-tax / mail / in-person）
+- `filing.return_type`: 申告の種類（blue / white）
+- `filing.blue_return_deduction`: 青色申告特別控除額（650000 / 100000）
+- `filing.electronic_bookkeeping`: 電子帳簿保存の有無（true / false）
+- `filing.tax_office_name`: 所轄税務署名
+
 ## ステップ3: パス設定
 
 以下のパスを確認する。デフォルト値を提示し、変更がなければそのまま採用する。
@@ -75,6 +137,52 @@ output_dir: {output_dir}
 # 適格請求書発行事業者の登録番号（T + 13桁）
 invoice_registration_number: {invoice_registration_number}
 
+# --- 納税者情報 ---
+taxpayer:
+  last_name: {last_name}
+  first_name: {first_name}
+  last_name_kana: {last_name_kana}
+  first_name_kana: {first_name_kana}
+  gender: {gender}
+  date_of_birth: {date_of_birth}
+  phone: {phone}
+  my_number: {my_number}
+  widow_status: {widow_status}
+  disability_status: {disability_status}
+  working_student: {working_student}
+
+# --- 住所 ---
+address:
+  postal_code: {postal_code}
+  prefecture: {prefecture}
+  city: {city}
+  street: {street}
+  building: {building}
+  jan1_address: {jan1_address}
+
+# --- 事業所住所（自宅と異なる場合のみ） ---
+business_address:
+  postal_code:
+  prefecture:
+  city:
+  street:
+  building:
+
+# --- 事業情報 ---
+business:
+  trade_name: {trade_name}
+  industry_type: {industry_type}
+  business_description: {business_description}
+  establishment_year: {establishment_year}
+
+# --- 申告方法 ---
+filing:
+  submission_method: {submission_method}
+  return_type: {return_type}
+  blue_return_deduction: {blue_return_deduction}
+  electronic_bookkeeping: {electronic_bookkeeping}
+  tax_office_name: {tax_office_name}
+
 # --- 書類ディレクトリ（任意） ---
 invoices_dir: {invoices_dir}
 withholding_slips_dir: {withholding_slips_dir}
@@ -86,6 +194,8 @@ credit_card_statements_dir: {credit_card_statements_dir}
 ```
 
 未設定の項目は値を空にする（`key:` のみ）。
+
+**`my_number` の取扱い**: マイナンバーは config YAML に保存するが、ツール出力（`profile_get_taxpayer`）では `has_my_number: true/false` のみ返す。ログ・会話には出力しない。PDF 生成時のみ config から直接読み取る。
 
 ## ステップ6: データベースの初期化
 
@@ -140,6 +250,34 @@ fiscal_year: {tax_year}
 - データベースパス: {db_path}
 - 出力ディレクトリ: {output_dir}
 - インボイス登録番号: {invoice_registration_number}
+
+## 納税者情報
+
+- 氏名: {last_name} {first_name}
+- 生年月日: {date_of_birth}
+- マイナンバー: {登録済み/未登録}
+- 寡婦/ひとり親: {widow_status}
+- 障害者区分: {disability_status}
+- 勤労学生: {working_student}
+
+## 住所
+
+- 自宅: {postal_code} {prefecture}{city}{street}{building}
+- 1/1時点の住所: {jan1_address}（同上/異なる住所）
+- 事業所住所: {設定あり/自宅と同じ}
+
+## 事業情報
+
+- 屋号: {trade_name}
+- 業種: {industry_type}
+- 事業内容: {business_description}
+
+## 申告方法
+
+- 提出方法: {submission_method}
+- 申告の種類: {return_type}
+- 青色申告特別控除: {blue_return_deduction}円
+- 所轄税務署: {tax_office_name}
 
 ## 書類ディレクトリ
 

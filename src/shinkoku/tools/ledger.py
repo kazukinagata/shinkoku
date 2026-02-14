@@ -10,12 +10,23 @@ from shinkoku.hashing import compute_journal_hash
 from shinkoku.master_accounts import MASTER_ACCOUNTS
 from shinkoku.models import (
     BusinessWithholdingInput,
+    CryptoIncomeInput,
+    DependentInput,
+    FXLossCarryforwardInput,
+    FXTradingInput,
     HousingLoanDetailInput,
+    InventoryInput,
     JournalEntry,
     JournalSearchParams,
     LossCarryforwardInput,
     MedicalExpenseInput,
+    OtherIncomeInput,
+    ProfessionalFeeInput,
     RentDetailInput,
+    SpouseInput,
+    StockLossCarryforwardInput,
+    StockTradingAccountInput,
+    WithholdingSlipInput,
 )
 
 
@@ -192,6 +203,234 @@ def register(mcp) -> None:
         """Delete a housing loan detail entry."""
         return ledger_delete_housing_loan_detail(
             db_path=db_path, housing_loan_detail_id=housing_loan_detail_id
+        )
+
+    # --- Spouse CRUD (Phase 2) ---
+
+    @mcp.tool()
+    def mcp_ledger_set_spouse(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Set spouse information for a fiscal year (upsert)."""
+        parsed = SpouseInput(**detail)
+        return ledger_set_spouse(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_get_spouse(db_path: str, fiscal_year: int) -> dict:
+        """Get spouse information for a fiscal year."""
+        return ledger_get_spouse(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_spouse(db_path: str, fiscal_year: int) -> dict:
+        """Delete spouse information for a fiscal year."""
+        return ledger_delete_spouse(db_path=db_path, fiscal_year=fiscal_year)
+
+    # --- Dependent CRUD (Phase 2) ---
+
+    @mcp.tool()
+    def mcp_ledger_add_dependent(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a dependent for a fiscal year."""
+        parsed = DependentInput(**detail)
+        return ledger_add_dependent(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_dependents(db_path: str, fiscal_year: int) -> dict:
+        """List all dependents for a fiscal year."""
+        return ledger_list_dependents(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_dependent(db_path: str, dependent_id: int) -> dict:
+        """Delete a dependent entry."""
+        return ledger_delete_dependent(db_path=db_path, dependent_id=dependent_id)
+
+    # --- Withholding Slip CRUD (Phase 6) ---
+
+    @mcp.tool()
+    def mcp_ledger_save_withholding_slip(
+        db_path: str, fiscal_year: int, detail: dict
+    ) -> dict:
+        """Save a withholding slip (源泉徴収票) with full fields."""
+        parsed = WithholdingSlipInput(**detail)
+        return ledger_save_withholding_slip(
+            db_path=db_path, fiscal_year=fiscal_year, detail=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_list_withholding_slips(db_path: str, fiscal_year: int) -> dict:
+        """List all withholding slips for a fiscal year."""
+        return ledger_list_withholding_slips(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_withholding_slip(db_path: str, withholding_slip_id: int) -> dict:
+        """Delete a withholding slip entry."""
+        return ledger_delete_withholding_slip(
+            db_path=db_path, withholding_slip_id=withholding_slip_id
+        )
+
+    # --- Other Income CRUD (Phase 10) ---
+
+    @mcp.tool()
+    def mcp_ledger_add_other_income(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add an other income item (miscellaneous/dividend/one-time)."""
+        parsed = OtherIncomeInput(**detail)
+        return ledger_add_other_income(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_other_income(db_path: str, fiscal_year: int) -> dict:
+        """List all other income items for a fiscal year."""
+        return ledger_list_other_income(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_other_income(db_path: str, other_income_id: int) -> dict:
+        """Delete an other income item."""
+        return ledger_delete_other_income(db_path=db_path, other_income_id=other_income_id)
+
+    # --- Crypto Income CRUD (Phase 11) ---
+
+    @mcp.tool()
+    def mcp_ledger_add_crypto_income(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a crypto income record."""
+        parsed = CryptoIncomeInput(**detail)
+        return ledger_add_crypto_income(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_crypto_income(db_path: str, fiscal_year: int) -> dict:
+        """List all crypto income records for a fiscal year."""
+        return ledger_list_crypto_income(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_crypto_income(db_path: str, crypto_income_id: int) -> dict:
+        """Delete a crypto income record."""
+        return ledger_delete_crypto_income(db_path=db_path, crypto_income_id=crypto_income_id)
+
+    # --- Inventory CRUD (Phase 14) ---
+
+    @mcp.tool()
+    def mcp_ledger_set_inventory(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Set inventory record (upsert by fiscal_year + period)."""
+        parsed = InventoryInput(**detail)
+        return ledger_set_inventory(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_inventory(db_path: str, fiscal_year: int) -> dict:
+        """List inventory records for a fiscal year."""
+        return ledger_list_inventory(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_inventory(db_path: str, inventory_id: int) -> dict:
+        """Delete an inventory record."""
+        return ledger_delete_inventory(db_path=db_path, inventory_id=inventory_id)
+
+    # --- Professional Fee CRUD (Phase 15) ---
+
+    @mcp.tool()
+    def mcp_ledger_add_professional_fee(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a professional fee (tax accountant etc.) entry."""
+        parsed = ProfessionalFeeInput(**detail)
+        return ledger_add_professional_fee(
+            db_path=db_path, fiscal_year=fiscal_year, detail=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_list_professional_fees(db_path: str, fiscal_year: int) -> dict:
+        """List all professional fee entries for a fiscal year."""
+        return ledger_list_professional_fees(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_professional_fee(db_path: str, professional_fee_id: int) -> dict:
+        """Delete a professional fee entry."""
+        return ledger_delete_professional_fee(
+            db_path=db_path, professional_fee_id=professional_fee_id
+        )
+
+    # --- Stock Trading CRUD (Phase 12) ---
+
+    @mcp.tool()
+    def mcp_ledger_add_stock_trading_account(
+        db_path: str, fiscal_year: int, detail: dict
+    ) -> dict:
+        """Add a stock trading account entry."""
+        parsed = StockTradingAccountInput(**detail)
+        return ledger_add_stock_trading_account(
+            db_path=db_path, fiscal_year=fiscal_year, detail=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_list_stock_trading_accounts(db_path: str, fiscal_year: int) -> dict:
+        """List all stock trading accounts for a fiscal year."""
+        return ledger_list_stock_trading_accounts(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_stock_trading_account(
+        db_path: str, stock_trading_account_id: int
+    ) -> dict:
+        """Delete a stock trading account entry."""
+        return ledger_delete_stock_trading_account(
+            db_path=db_path, stock_trading_account_id=stock_trading_account_id
+        )
+
+    @mcp.tool()
+    def mcp_ledger_add_stock_loss_carryforward(
+        db_path: str, fiscal_year: int, detail: dict
+    ) -> dict:
+        """Add a stock loss carryforward entry."""
+        parsed = StockLossCarryforwardInput(**detail)
+        return ledger_add_stock_loss_carryforward(
+            db_path=db_path, fiscal_year=fiscal_year, detail=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_list_stock_loss_carryforward(db_path: str, fiscal_year: int) -> dict:
+        """List all stock loss carryforward entries for a fiscal year."""
+        return ledger_list_stock_loss_carryforward(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_stock_loss_carryforward(
+        db_path: str, stock_loss_carryforward_id: int
+    ) -> dict:
+        """Delete a stock loss carryforward entry."""
+        return ledger_delete_stock_loss_carryforward(
+            db_path=db_path, stock_loss_carryforward_id=stock_loss_carryforward_id
+        )
+
+    # --- FX Trading CRUD (Phase 13) ---
+
+    @mcp.tool()
+    def mcp_ledger_add_fx_trading(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add an FX trading record."""
+        parsed = FXTradingInput(**detail)
+        return ledger_add_fx_trading(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_fx_trading(db_path: str, fiscal_year: int) -> dict:
+        """List all FX trading records for a fiscal year."""
+        return ledger_list_fx_trading(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_fx_trading(db_path: str, fx_trading_id: int) -> dict:
+        """Delete an FX trading record."""
+        return ledger_delete_fx_trading(db_path=db_path, fx_trading_id=fx_trading_id)
+
+    @mcp.tool()
+    def mcp_ledger_add_fx_loss_carryforward(
+        db_path: str, fiscal_year: int, detail: dict
+    ) -> dict:
+        """Add an FX loss carryforward entry."""
+        parsed = FXLossCarryforwardInput(**detail)
+        return ledger_add_fx_loss_carryforward(
+            db_path=db_path, fiscal_year=fiscal_year, detail=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_list_fx_loss_carryforward(db_path: str, fiscal_year: int) -> dict:
+        """List all FX loss carryforward entries for a fiscal year."""
+        return ledger_list_fx_loss_carryforward(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_fx_loss_carryforward(
+        db_path: str, fx_loss_carryforward_id: int
+    ) -> dict:
+        """Delete an FX loss carryforward entry."""
+        return ledger_delete_fx_loss_carryforward(
+            db_path=db_path, fx_loss_carryforward_id=fx_loss_carryforward_id
         )
 
 
@@ -1288,5 +1527,781 @@ def ledger_delete_housing_loan_detail(*, db_path: str, housing_loan_detail_id: i
         conn.execute("DELETE FROM housing_loan_details WHERE id = ?", (housing_loan_detail_id,))
         conn.commit()
         return {"status": "ok", "housing_loan_detail_id": housing_loan_detail_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Spouse CRUD (Phase 2)
+# ============================================================
+
+
+def ledger_set_spouse(*, db_path: str, fiscal_year: int, detail: SpouseInput) -> dict:
+    """Upsert spouse info for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO spouse_info "
+            "(fiscal_year, name, date_of_birth, income, disability, cohabiting, "
+            "other_taxpayer_dependent) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(fiscal_year) DO UPDATE SET "
+            "name=excluded.name, date_of_birth=excluded.date_of_birth, "
+            "income=excluded.income, disability=excluded.disability, "
+            "cohabiting=excluded.cohabiting, "
+            "other_taxpayer_dependent=excluded.other_taxpayer_dependent",
+            (
+                fiscal_year,
+                detail.name,
+                detail.date_of_birth,
+                detail.income,
+                detail.disability,
+                1 if detail.cohabiting else 0,
+                1 if detail.other_taxpayer_dependent else 0,
+            ),
+        )
+        conn.commit()
+        return {"status": "ok", "fiscal_year": fiscal_year}
+    finally:
+        conn.close()
+
+
+def ledger_get_spouse(*, db_path: str, fiscal_year: int) -> dict:
+    """Get spouse info for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id, fiscal_year, name, date_of_birth, income, disability, "
+            "cohabiting, other_taxpayer_dependent FROM spouse_info WHERE fiscal_year = ?",
+            (fiscal_year,),
+        ).fetchone()
+        if row is None:
+            return {"status": "ok", "spouse": None}
+        return {
+            "status": "ok",
+            "spouse": {
+                "id": row[0],
+                "fiscal_year": row[1],
+                "name": row[2],
+                "date_of_birth": row[3],
+                "income": row[4],
+                "disability": row[5],
+                "cohabiting": bool(row[6]),
+                "other_taxpayer_dependent": bool(row[7]),
+            },
+        }
+    finally:
+        conn.close()
+
+
+def ledger_delete_spouse(*, db_path: str, fiscal_year: int) -> dict:
+    """Delete spouse info for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute("DELETE FROM spouse_info WHERE fiscal_year = ?", (fiscal_year,))
+        conn.commit()
+        return {"status": "ok", "fiscal_year": fiscal_year}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Dependent CRUD (Phase 2)
+# ============================================================
+
+
+def ledger_add_dependent(*, db_path: str, fiscal_year: int, detail: DependentInput) -> dict:
+    """Add a dependent."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO dependents "
+            "(fiscal_year, name, relationship, date_of_birth, income, disability, cohabiting) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.name,
+                detail.relationship,
+                detail.date_of_birth,
+                detail.income,
+                detail.disability,
+                1 if detail.cohabiting else 0,
+            ),
+        )
+        conn.commit()
+        return {"status": "ok", "dependent_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_dependents(*, db_path: str, fiscal_year: int) -> dict:
+    """List dependents for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, name, relationship, date_of_birth, "
+            "income, disability, cohabiting FROM dependents WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0],
+                "fiscal_year": r[1],
+                "name": r[2],
+                "relationship": r[3],
+                "date_of_birth": r[4],
+                "income": r[5],
+                "disability": r[6],
+                "cohabiting": bool(r[7]),
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "dependents": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_dependent(*, db_path: str, dependent_id: int) -> dict:
+    """Delete a dependent."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute("SELECT id FROM dependents WHERE id = ?", (dependent_id,)).fetchone()
+        if row is None:
+            return {"status": "error", "message": f"Dependent {dependent_id} not found"}
+        conn.execute("DELETE FROM dependents WHERE id = ?", (dependent_id,))
+        conn.commit()
+        return {"status": "ok", "dependent_id": dependent_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Withholding Slip CRUD (Phase 6)
+# ============================================================
+
+
+def ledger_save_withholding_slip(
+    *, db_path: str, fiscal_year: int, detail: WithholdingSlipInput
+) -> dict:
+    """Save a withholding slip."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO withholding_slips "
+            "(fiscal_year, payer_name, payment_amount, withheld_tax, social_insurance, "
+            "life_insurance_deduction, earthquake_insurance_deduction, housing_loan_deduction, "
+            "spouse_deduction, dependent_deduction, basic_deduction, "
+            "life_insurance_general_new, life_insurance_general_old, "
+            "life_insurance_medical_care, life_insurance_annuity_new, "
+            "life_insurance_annuity_old, national_pension_premium, "
+            "old_long_term_insurance_premium, source_file) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.payer_name,
+                detail.payment_amount,
+                detail.withheld_tax,
+                detail.social_insurance,
+                detail.life_insurance_deduction,
+                detail.earthquake_insurance_deduction,
+                detail.housing_loan_deduction,
+                detail.spouse_deduction,
+                detail.dependent_deduction,
+                detail.basic_deduction,
+                detail.life_insurance_general_new,
+                detail.life_insurance_general_old,
+                detail.life_insurance_medical_care,
+                detail.life_insurance_annuity_new,
+                detail.life_insurance_annuity_old,
+                detail.national_pension_premium,
+                detail.old_long_term_insurance_premium,
+                detail.source_file,
+            ),
+        )
+        conn.commit()
+        return {"status": "ok", "withholding_slip_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_withholding_slips(*, db_path: str, fiscal_year: int) -> dict:
+    """List withholding slips for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, payer_name, payment_amount, withheld_tax, "
+            "social_insurance, life_insurance_deduction, earthquake_insurance_deduction, "
+            "housing_loan_deduction, spouse_deduction, dependent_deduction, basic_deduction, "
+            "life_insurance_general_new, life_insurance_general_old, "
+            "life_insurance_medical_care, life_insurance_annuity_new, "
+            "life_insurance_annuity_old, national_pension_premium, "
+            "old_long_term_insurance_premium, source_file "
+            "FROM withholding_slips WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0], "fiscal_year": r[1], "payer_name": r[2],
+                "payment_amount": r[3], "withheld_tax": r[4], "social_insurance": r[5],
+                "life_insurance_deduction": r[6], "earthquake_insurance_deduction": r[7],
+                "housing_loan_deduction": r[8], "spouse_deduction": r[9],
+                "dependent_deduction": r[10], "basic_deduction": r[11],
+                "life_insurance_general_new": r[12], "life_insurance_general_old": r[13],
+                "life_insurance_medical_care": r[14], "life_insurance_annuity_new": r[15],
+                "life_insurance_annuity_old": r[16], "national_pension_premium": r[17],
+                "old_long_term_insurance_premium": r[18], "source_file": r[19],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "slips": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_withholding_slip(*, db_path: str, withholding_slip_id: int) -> dict:
+    """Delete a withholding slip."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM withholding_slips WHERE id = ?", (withholding_slip_id,)
+        ).fetchone()
+        if row is None:
+            return {"status": "error", "message": f"Withholding slip {withholding_slip_id} not found"}
+        conn.execute("DELETE FROM withholding_slips WHERE id = ?", (withholding_slip_id,))
+        conn.commit()
+        return {"status": "ok", "withholding_slip_id": withholding_slip_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Other Income CRUD (Phase 10)
+# ============================================================
+
+
+def ledger_add_other_income(
+    *, db_path: str, fiscal_year: int, detail: OtherIncomeInput
+) -> dict:
+    """Add an other income item."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO other_income_items "
+            "(fiscal_year, income_type, description, revenue, expenses, "
+            "withheld_tax, payer_name, payer_address) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.income_type,
+                detail.description,
+                detail.revenue,
+                detail.expenses,
+                detail.withheld_tax,
+                detail.payer_name,
+                detail.payer_address,
+            ),
+        )
+        conn.commit()
+        return {"status": "ok", "other_income_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_other_income(*, db_path: str, fiscal_year: int) -> dict:
+    """List other income items for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, income_type, description, revenue, expenses, "
+            "withheld_tax, payer_name, payer_address "
+            "FROM other_income_items WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0], "fiscal_year": r[1], "income_type": r[2],
+                "description": r[3], "revenue": r[4], "expenses": r[5],
+                "withheld_tax": r[6], "payer_name": r[7], "payer_address": r[8],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "items": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_other_income(*, db_path: str, other_income_id: int) -> dict:
+    """Delete an other income item."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM other_income_items WHERE id = ?", (other_income_id,)
+        ).fetchone()
+        if row is None:
+            return {"status": "error", "message": f"Other income {other_income_id} not found"}
+        conn.execute("DELETE FROM other_income_items WHERE id = ?", (other_income_id,))
+        conn.commit()
+        return {"status": "ok", "other_income_id": other_income_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Crypto Income CRUD (Phase 11)
+# ============================================================
+
+
+def ledger_add_crypto_income(
+    *, db_path: str, fiscal_year: int, detail: CryptoIncomeInput
+) -> dict:
+    """Add a crypto income record (upsert by exchange)."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO crypto_income_records "
+            "(fiscal_year, exchange_name, gains, expenses) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(fiscal_year, exchange_name) DO UPDATE SET "
+            "gains=excluded.gains, expenses=excluded.expenses",
+            (fiscal_year, detail.exchange_name, detail.gains, detail.expenses),
+        )
+        conn.commit()
+        return {"status": "ok", "crypto_income_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_crypto_income(*, db_path: str, fiscal_year: int) -> dict:
+    """List crypto income records for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, exchange_name, gains, expenses "
+            "FROM crypto_income_records WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {"id": r[0], "fiscal_year": r[1], "exchange_name": r[2], "gains": r[3], "expenses": r[4]}
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "records": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_crypto_income(*, db_path: str, crypto_income_id: int) -> dict:
+    """Delete a crypto income record."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM crypto_income_records WHERE id = ?", (crypto_income_id,)
+        ).fetchone()
+        if row is None:
+            return {"status": "error", "message": f"Crypto income {crypto_income_id} not found"}
+        conn.execute("DELETE FROM crypto_income_records WHERE id = ?", (crypto_income_id,))
+        conn.commit()
+        return {"status": "ok", "crypto_income_id": crypto_income_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Inventory CRUD (Phase 14)
+# ============================================================
+
+
+def ledger_set_inventory(*, db_path: str, fiscal_year: int, detail: InventoryInput) -> dict:
+    """Upsert inventory record by fiscal_year + period."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO inventory_records "
+            "(fiscal_year, period, amount, method, details) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(fiscal_year, period) DO UPDATE SET "
+            "amount=excluded.amount, method=excluded.method, details=excluded.details",
+            (fiscal_year, detail.period, detail.amount, detail.method, detail.details),
+        )
+        conn.commit()
+        return {"status": "ok", "fiscal_year": fiscal_year, "period": detail.period}
+    finally:
+        conn.close()
+
+
+def ledger_list_inventory(*, db_path: str, fiscal_year: int) -> dict:
+    """List inventory records for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, period, amount, method, details "
+            "FROM inventory_records WHERE fiscal_year = ? ORDER BY period",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0], "fiscal_year": r[1], "period": r[2],
+                "amount": r[3], "method": r[4], "details": r[5],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "records": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_inventory(*, db_path: str, inventory_id: int) -> dict:
+    """Delete an inventory record."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM inventory_records WHERE id = ?", (inventory_id,)
+        ).fetchone()
+        if row is None:
+            return {"status": "error", "message": f"Inventory record {inventory_id} not found"}
+        conn.execute("DELETE FROM inventory_records WHERE id = ?", (inventory_id,))
+        conn.commit()
+        return {"status": "ok", "inventory_id": inventory_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Professional Fee CRUD (Phase 15)
+# ============================================================
+
+
+def ledger_add_professional_fee(
+    *, db_path: str, fiscal_year: int, detail: ProfessionalFeeInput
+) -> dict:
+    """Add a professional fee entry."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO professional_fees "
+            "(fiscal_year, payer_address, payer_name, fee_amount, "
+            "expense_deduction, withheld_tax) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.payer_address,
+                detail.payer_name,
+                detail.fee_amount,
+                detail.expense_deduction,
+                detail.withheld_tax,
+            ),
+        )
+        conn.commit()
+        return {"status": "ok", "professional_fee_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_professional_fees(*, db_path: str, fiscal_year: int) -> dict:
+    """List professional fees for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, payer_address, payer_name, fee_amount, "
+            "expense_deduction, withheld_tax "
+            "FROM professional_fees WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0], "fiscal_year": r[1], "payer_address": r[2],
+                "payer_name": r[3], "fee_amount": r[4],
+                "expense_deduction": r[5], "withheld_tax": r[6],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "fees": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_professional_fee(*, db_path: str, professional_fee_id: int) -> dict:
+    """Delete a professional fee entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM professional_fees WHERE id = ?", (professional_fee_id,)
+        ).fetchone()
+        if row is None:
+            return {"status": "error", "message": f"Professional fee {professional_fee_id} not found"}
+        conn.execute("DELETE FROM professional_fees WHERE id = ?", (professional_fee_id,))
+        conn.commit()
+        return {"status": "ok", "professional_fee_id": professional_fee_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# Stock Trading CRUD (Phase 12)
+# ============================================================
+
+
+def ledger_add_stock_trading_account(
+    *, db_path: str, fiscal_year: int, detail: StockTradingAccountInput
+) -> dict:
+    """Add a stock trading account (upsert by account_type + broker)."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO stock_trading_accounts "
+            "(fiscal_year, account_type, broker_name, gains, losses, "
+            "withheld_income_tax, withheld_residential_tax, "
+            "dividend_income, dividend_withheld_tax) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(fiscal_year, account_type, broker_name) DO UPDATE SET "
+            "gains=excluded.gains, losses=excluded.losses, "
+            "withheld_income_tax=excluded.withheld_income_tax, "
+            "withheld_residential_tax=excluded.withheld_residential_tax, "
+            "dividend_income=excluded.dividend_income, "
+            "dividend_withheld_tax=excluded.dividend_withheld_tax",
+            (
+                fiscal_year,
+                detail.account_type,
+                detail.broker_name,
+                detail.gains,
+                detail.losses,
+                detail.withheld_income_tax,
+                detail.withheld_residential_tax,
+                detail.dividend_income,
+                detail.dividend_withheld_tax,
+            ),
+        )
+        conn.commit()
+        return {"status": "ok", "stock_trading_account_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_stock_trading_accounts(*, db_path: str, fiscal_year: int) -> dict:
+    """List stock trading accounts for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, account_type, broker_name, gains, losses, "
+            "withheld_income_tax, withheld_residential_tax, "
+            "dividend_income, dividend_withheld_tax "
+            "FROM stock_trading_accounts WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0], "fiscal_year": r[1], "account_type": r[2],
+                "broker_name": r[3], "gains": r[4], "losses": r[5],
+                "withheld_income_tax": r[6], "withheld_residential_tax": r[7],
+                "dividend_income": r[8], "dividend_withheld_tax": r[9],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "accounts": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_stock_trading_account(
+    *, db_path: str, stock_trading_account_id: int
+) -> dict:
+    """Delete a stock trading account."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM stock_trading_accounts WHERE id = ?", (stock_trading_account_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Stock trading account {stock_trading_account_id} not found",
+            }
+        conn.execute(
+            "DELETE FROM stock_trading_accounts WHERE id = ?", (stock_trading_account_id,)
+        )
+        conn.commit()
+        return {"status": "ok", "stock_trading_account_id": stock_trading_account_id}
+    finally:
+        conn.close()
+
+
+def ledger_add_stock_loss_carryforward(
+    *, db_path: str, fiscal_year: int, detail: StockLossCarryforwardInput
+) -> dict:
+    """Add a stock loss carryforward entry."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO stock_loss_carryforward "
+            "(fiscal_year, loss_year, amount) VALUES (?, ?, ?)",
+            (fiscal_year, detail.loss_year, detail.amount),
+        )
+        conn.commit()
+        return {"status": "ok", "stock_loss_carryforward_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_stock_loss_carryforward(*, db_path: str, fiscal_year: int) -> dict:
+    """List stock loss carryforward entries for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, loss_year, amount, used_amount "
+            "FROM stock_loss_carryforward WHERE fiscal_year = ? ORDER BY loss_year",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {"id": r[0], "fiscal_year": r[1], "loss_year": r[2], "amount": r[3], "used_amount": r[4]}
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "entries": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_stock_loss_carryforward(
+    *, db_path: str, stock_loss_carryforward_id: int
+) -> dict:
+    """Delete a stock loss carryforward entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM stock_loss_carryforward WHERE id = ?", (stock_loss_carryforward_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Stock loss carryforward {stock_loss_carryforward_id} not found",
+            }
+        conn.execute(
+            "DELETE FROM stock_loss_carryforward WHERE id = ?", (stock_loss_carryforward_id,)
+        )
+        conn.commit()
+        return {"status": "ok", "stock_loss_carryforward_id": stock_loss_carryforward_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# FX Trading CRUD (Phase 13)
+# ============================================================
+
+
+def ledger_add_fx_trading(*, db_path: str, fiscal_year: int, detail: FXTradingInput) -> dict:
+    """Add an FX trading record (upsert by broker)."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO fx_trading_records "
+            "(fiscal_year, broker_name, realized_gains, swap_income, expenses) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(fiscal_year, broker_name) DO UPDATE SET "
+            "realized_gains=excluded.realized_gains, swap_income=excluded.swap_income, "
+            "expenses=excluded.expenses",
+            (
+                fiscal_year,
+                detail.broker_name,
+                detail.realized_gains,
+                detail.swap_income,
+                detail.expenses,
+            ),
+        )
+        conn.commit()
+        return {"status": "ok", "fx_trading_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_fx_trading(*, db_path: str, fiscal_year: int) -> dict:
+    """List FX trading records for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, broker_name, realized_gains, swap_income, expenses "
+            "FROM fx_trading_records WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0], "fiscal_year": r[1], "broker_name": r[2],
+                "realized_gains": r[3], "swap_income": r[4], "expenses": r[5],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "records": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_fx_trading(*, db_path: str, fx_trading_id: int) -> dict:
+    """Delete an FX trading record."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM fx_trading_records WHERE id = ?", (fx_trading_id,)
+        ).fetchone()
+        if row is None:
+            return {"status": "error", "message": f"FX trading {fx_trading_id} not found"}
+        conn.execute("DELETE FROM fx_trading_records WHERE id = ?", (fx_trading_id,))
+        conn.commit()
+        return {"status": "ok", "fx_trading_id": fx_trading_id}
+    finally:
+        conn.close()
+
+
+def ledger_add_fx_loss_carryforward(
+    *, db_path: str, fiscal_year: int, detail: FXLossCarryforwardInput
+) -> dict:
+    """Add an FX loss carryforward entry."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO fx_loss_carryforward "
+            "(fiscal_year, loss_year, amount) VALUES (?, ?, ?)",
+            (fiscal_year, detail.loss_year, detail.amount),
+        )
+        conn.commit()
+        return {"status": "ok", "fx_loss_carryforward_id": cursor.lastrowid}
+    finally:
+        conn.close()
+
+
+def ledger_list_fx_loss_carryforward(*, db_path: str, fiscal_year: int) -> dict:
+    """List FX loss carryforward entries for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, loss_year, amount, used_amount "
+            "FROM fx_loss_carryforward WHERE fiscal_year = ? ORDER BY loss_year",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {"id": r[0], "fiscal_year": r[1], "loss_year": r[2], "amount": r[3], "used_amount": r[4]}
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "entries": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_fx_loss_carryforward(
+    *, db_path: str, fx_loss_carryforward_id: int
+) -> dict:
+    """Delete an FX loss carryforward entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM fx_loss_carryforward WHERE id = ?", (fx_loss_carryforward_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"FX loss carryforward {fx_loss_carryforward_id} not found",
+            }
+        conn.execute(
+            "DELETE FROM fx_loss_carryforward WHERE id = ?", (fx_loss_carryforward_id,)
+        )
+        conn.commit()
+        return {"status": "ok", "fx_loss_carryforward_id": fx_loss_carryforward_id}
     finally:
         conn.close()

@@ -1,4 +1,4 @@
--- shinkoku schema v1
+-- shinkoku schema v2
 -- 確定申告自動化のための複式簿記データベース
 
 -- スキーマバージョン管理
@@ -91,6 +91,13 @@ CREATE TABLE IF NOT EXISTS withholding_slips (
     spouse_deduction INTEGER NOT NULL DEFAULT 0,
     dependent_deduction INTEGER NOT NULL DEFAULT 0,
     basic_deduction INTEGER NOT NULL DEFAULT 0,
+    life_insurance_general_new INTEGER NOT NULL DEFAULT 0,
+    life_insurance_general_old INTEGER NOT NULL DEFAULT 0,
+    life_insurance_medical_care INTEGER NOT NULL DEFAULT 0,
+    life_insurance_annuity_new INTEGER NOT NULL DEFAULT 0,
+    life_insurance_annuity_old INTEGER NOT NULL DEFAULT 0,
+    national_pension_premium INTEGER NOT NULL DEFAULT 0,
+    old_long_term_insurance_premium INTEGER NOT NULL DEFAULT 0,
     source_file TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -182,6 +189,133 @@ CREATE TABLE IF NOT EXISTS furusato_donations (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 配偶者情報
+CREATE TABLE IF NOT EXISTS spouse_info (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    name TEXT NOT NULL,
+    date_of_birth TEXT NOT NULL,
+    income INTEGER NOT NULL DEFAULT 0,
+    disability TEXT CHECK (disability IN ('general','special','special_cohabiting') OR disability IS NULL),
+    cohabiting INTEGER NOT NULL DEFAULT 1,
+    other_taxpayer_dependent INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year)
+);
+
+-- 扶養親族
+CREATE TABLE IF NOT EXISTS dependents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    name TEXT NOT NULL,
+    relationship TEXT NOT NULL,
+    date_of_birth TEXT NOT NULL,
+    income INTEGER NOT NULL DEFAULT 0,
+    disability TEXT CHECK (disability IN ('general','special','special_cohabiting') OR disability IS NULL),
+    cohabiting INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- その他所得（雑所得/配当所得/一時所得）
+CREATE TABLE IF NOT EXISTS other_income_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    income_type TEXT NOT NULL CHECK (income_type IN (
+        'miscellaneous', 'dividend_comprehensive', 'one_time'
+    )),
+    description TEXT NOT NULL,
+    revenue INTEGER NOT NULL CHECK (revenue >= 0),
+    expenses INTEGER NOT NULL DEFAULT 0,
+    withheld_tax INTEGER NOT NULL DEFAULT 0,
+    payer_name TEXT,
+    payer_address TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 仮想通貨取引
+CREATE TABLE IF NOT EXISTS crypto_income_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    exchange_name TEXT NOT NULL,
+    gains INTEGER NOT NULL DEFAULT 0,
+    expenses INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, exchange_name)
+);
+
+-- 在庫棚卸
+CREATE TABLE IF NOT EXISTS inventory_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    period TEXT NOT NULL CHECK (period IN ('beginning', 'ending')),
+    amount INTEGER NOT NULL CHECK (amount >= 0),
+    method TEXT NOT NULL DEFAULT 'cost',
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, period)
+);
+
+-- 税理士等報酬
+CREATE TABLE IF NOT EXISTS professional_fees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    payer_address TEXT NOT NULL,
+    payer_name TEXT NOT NULL,
+    fee_amount INTEGER NOT NULL CHECK (fee_amount > 0),
+    expense_deduction INTEGER NOT NULL DEFAULT 0,
+    withheld_tax INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 株式取引口座
+CREATE TABLE IF NOT EXISTS stock_trading_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    account_type TEXT NOT NULL CHECK (account_type IN (
+        'tokutei_withholding', 'tokutei_no_withholding',
+        'ippan_listed', 'ippan_unlisted'
+    )),
+    broker_name TEXT NOT NULL,
+    gains INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    withheld_income_tax INTEGER NOT NULL DEFAULT 0,
+    withheld_residential_tax INTEGER NOT NULL DEFAULT 0,
+    dividend_income INTEGER NOT NULL DEFAULT 0,
+    dividend_withheld_tax INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, account_type, broker_name)
+);
+
+-- 株式譲渡損失の繰越
+CREATE TABLE IF NOT EXISTS stock_loss_carryforward (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    loss_year INTEGER NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    used_amount INTEGER NOT NULL DEFAULT 0
+);
+
+-- FX取引
+CREATE TABLE IF NOT EXISTS fx_trading_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    broker_name TEXT NOT NULL,
+    realized_gains INTEGER NOT NULL DEFAULT 0,
+    swap_income INTEGER NOT NULL DEFAULT 0,
+    expenses INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, broker_name)
+);
+
+-- FX損失の繰越
+CREATE TABLE IF NOT EXISTS fx_loss_carryforward (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    loss_year INTEGER NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    used_amount INTEGER NOT NULL DEFAULT 0
+);
+
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_journals_fiscal_year ON journals(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_journals_date ON journals(date);
@@ -201,3 +335,13 @@ CREATE INDEX IF NOT EXISTS idx_medical_expense_details_fiscal_year ON medical_ex
 CREATE INDEX IF NOT EXISTS idx_rent_details_fiscal_year ON rent_details(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_housing_loan_details_fiscal_year ON housing_loan_details(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_furusato_donations_fiscal_year ON furusato_donations(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_spouse_info_fiscal_year ON spouse_info(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_dependents_fiscal_year ON dependents(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_other_income_items_fiscal_year ON other_income_items(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_crypto_income_records_fiscal_year ON crypto_income_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_inventory_records_fiscal_year ON inventory_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_professional_fees_fiscal_year ON professional_fees(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_stock_trading_accounts_fiscal_year ON stock_trading_accounts(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_stock_loss_carryforward_fiscal_year ON stock_loss_carryforward(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_fx_trading_records_fiscal_year ON fx_trading_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_fx_loss_carryforward_fiscal_year ON fx_loss_carryforward(fiscal_year);

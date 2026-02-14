@@ -9,6 +9,7 @@ dependencies = [
     "reportlab>=4.0",
     "pypdf>=4.0",
     "pdfplumber>=0.10",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]
@@ -41,3 +42,8 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[dependency-groups]
+dev = [
+    "types-pyyaml>=6.0.12.20250915",
+]

@@ -6,13 +6,24 @@ import sqlite3
 import pytest
 from shinkoku.models import (
     BusinessWithholdingInput,
+    CryptoIncomeInput,
+    DependentInput,
+    FXLossCarryforwardInput,
+    FXTradingInput,
     HousingLoanDetailInput,
+    InventoryInput,
     JournalEntry,
     JournalLine,
     JournalSearchParams,
     LossCarryforwardInput,
     MedicalExpenseInput,
+    OtherIncomeInput,
+    ProfessionalFeeInput,
     RentDetailInput,
+    SpouseInput,
+    StockLossCarryforwardInput,
+    StockTradingAccountInput,
+    WithholdingSlipInput,
 )
 from shinkoku.tools.ledger import (
     ledger_init,
@@ -40,6 +51,47 @@ from shinkoku.tools.ledger import (
     ledger_add_housing_loan_detail,
     ledger_list_housing_loan_details,
     ledger_delete_housing_loan_detail,
+    # Phase 2: Spouse + Dependents
+    ledger_set_spouse,
+    ledger_get_spouse,
+    ledger_delete_spouse,
+    ledger_add_dependent,
+    ledger_list_dependents,
+    ledger_delete_dependent,
+    # Phase 6: Withholding Slips
+    ledger_save_withholding_slip,
+    ledger_list_withholding_slips,
+    ledger_delete_withholding_slip,
+    # Phase 10: Other Income
+    ledger_add_other_income,
+    ledger_list_other_income,
+    ledger_delete_other_income,
+    # Phase 11: Crypto
+    ledger_add_crypto_income,
+    ledger_list_crypto_income,
+    ledger_delete_crypto_income,
+    # Phase 14: Inventory
+    ledger_set_inventory,
+    ledger_list_inventory,
+    ledger_delete_inventory,
+    # Phase 15: Professional Fees
+    ledger_add_professional_fee,
+    ledger_list_professional_fees,
+    ledger_delete_professional_fee,
+    # Phase 12: Stock Trading
+    ledger_add_stock_trading_account,
+    ledger_list_stock_trading_accounts,
+    ledger_delete_stock_trading_account,
+    ledger_add_stock_loss_carryforward,
+    ledger_list_stock_loss_carryforward,
+    ledger_delete_stock_loss_carryforward,
+    # Phase 13: FX Trading
+    ledger_add_fx_trading,
+    ledger_list_fx_trading,
+    ledger_delete_fx_trading,
+    ledger_add_fx_loss_carryforward,
+    ledger_list_fx_loss_carryforward,
+    ledger_delete_fx_loss_carryforward,
 )
 
 
@@ -1140,3 +1192,572 @@ class TestHousingLoanDetails:
         ledger_add_housing_loan_detail(db_path=db_path, fiscal_year=2025, detail=detail)
         result = ledger_list_housing_loan_details(db_path=db_path, fiscal_year=2025)
         assert result["details"][0]["is_new_construction"] is False
+
+
+# ============================================================
+# Phase 2: Spouse CRUD
+# ============================================================
+
+
+class TestSpouseCRUD:
+    """配偶者情報の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_set_and_get_spouse(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = SpouseInput(
+            name="山田花子",
+            date_of_birth="1992-03-15",
+            income=500_000,
+        )
+        r = ledger_set_spouse(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        g = ledger_get_spouse(db_path=db_path, fiscal_year=2025)
+        assert g["spouse"]["name"] == "山田花子"
+        assert g["spouse"]["income"] == 500_000
+
+    def test_upsert_overwrites(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        d1 = SpouseInput(name="A", date_of_birth="1990-01-01", income=100_000)
+        ledger_set_spouse(db_path=db_path, fiscal_year=2025, detail=d1)
+
+        d2 = SpouseInput(name="B", date_of_birth="1990-01-01", income=200_000)
+        ledger_set_spouse(db_path=db_path, fiscal_year=2025, detail=d2)
+
+        g = ledger_get_spouse(db_path=db_path, fiscal_year=2025)
+        assert g["spouse"]["name"] == "B"
+        assert g["spouse"]["income"] == 200_000
+
+    def test_get_no_spouse(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        g = ledger_get_spouse(db_path=db_path, fiscal_year=2025)
+        assert g["spouse"] is None
+
+    def test_delete_spouse(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = SpouseInput(name="A", date_of_birth="1990-01-01", income=0)
+        ledger_set_spouse(db_path=db_path, fiscal_year=2025, detail=detail)
+        r = ledger_delete_spouse(db_path=db_path, fiscal_year=2025)
+        assert r["status"] == "ok"
+        g = ledger_get_spouse(db_path=db_path, fiscal_year=2025)
+        assert g["spouse"] is None
+
+
+# ============================================================
+# Phase 2: Dependent CRUD
+# ============================================================
+
+
+class TestDependentCRUD:
+    """扶養親族の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list_dependent(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = DependentInput(
+            name="山田太郎Jr",
+            relationship="子",
+            date_of_birth="2010-05-20",
+            income=0,
+        )
+        r = ledger_add_dependent(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+        assert "dependent_id" in r
+
+        lst = ledger_list_dependents(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["dependents"][0]["name"] == "山田太郎Jr"
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        lst = ledger_list_dependents(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_delete_dependent(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = DependentInput(
+            name="子供A", relationship="子", date_of_birth="2015-01-01", income=0,
+        )
+        r = ledger_add_dependent(db_path=db_path, fiscal_year=2025, detail=detail)
+        did = r["dependent_id"]
+        dr = ledger_delete_dependent(db_path=db_path, dependent_id=did)
+        assert dr["status"] == "ok"
+        lst = ledger_list_dependents(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_multiple_dependents(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        for i in range(3):
+            d = DependentInput(
+                name=f"子供{i}", relationship="子", date_of_birth=f"201{i}-01-01", income=0,
+            )
+            ledger_add_dependent(db_path=db_path, fiscal_year=2025, detail=d)
+        lst = ledger_list_dependents(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 3
+
+
+# ============================================================
+# Phase 6: Withholding Slip CRUD
+# ============================================================
+
+
+class TestWithholdingSlipCRUD:
+    """源泉徴収票の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_save_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = WithholdingSlipInput(
+            payer_name="株式会社テスト",
+            payment_amount=5_000_000,
+            withheld_tax=200_000,
+            social_insurance=600_000,
+        )
+        r = ledger_save_withholding_slip(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_withholding_slips(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        slip = lst["slips"][0]
+        assert slip["payer_name"] == "株式会社テスト"
+        assert slip["payment_amount"] == 5_000_000
+
+    def test_delete_slip(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = WithholdingSlipInput(
+            payer_name="A社", payment_amount=3_000_000, withheld_tax=100_000,
+        )
+        r = ledger_save_withholding_slip(db_path=db_path, fiscal_year=2025, detail=detail)
+        sid = r["withholding_slip_id"]
+        dr = ledger_delete_withholding_slip(db_path=db_path, withholding_slip_id=sid)
+        assert dr["status"] == "ok"
+        lst = ledger_list_withholding_slips(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_with_life_insurance_detail(self, tmp_path):
+        """新フィールド（生命保険5区分）が保存・取得できるか。"""
+        db_path = self._init_db(tmp_path)
+        detail = WithholdingSlipInput(
+            payer_name="B社",
+            payment_amount=6_000_000,
+            withheld_tax=250_000,
+            life_insurance_general_new=80_000,
+            life_insurance_general_old=50_000,
+            life_insurance_medical_care=40_000,
+            life_insurance_annuity_new=60_000,
+            life_insurance_annuity_old=30_000,
+            national_pension_premium=200_000,
+            old_long_term_insurance_premium=10_000,
+        )
+        ledger_save_withholding_slip(db_path=db_path, fiscal_year=2025, detail=detail)
+        lst = ledger_list_withholding_slips(db_path=db_path, fiscal_year=2025)
+        slip = lst["slips"][0]
+        assert slip["life_insurance_general_new"] == 80_000
+        assert slip["life_insurance_annuity_old"] == 30_000
+        assert slip["national_pension_premium"] == 200_000
+        assert slip["old_long_term_insurance_premium"] == 10_000
+
+
+# ============================================================
+# Phase 10: Other Income CRUD
+# ============================================================
+
+
+class TestOtherIncomeCRUD:
+    """雑所得/配当所得/一時所得の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list_miscellaneous(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = OtherIncomeInput(
+            income_type="miscellaneous",
+            description="原稿料",
+            revenue=300_000,
+            expenses=50_000,
+        )
+        r = ledger_add_other_income(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_other_income(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["items"][0]["description"] == "原稿料"
+        assert lst["items"][0]["revenue"] == 300_000
+
+    def test_add_dividend_comprehensive(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = OtherIncomeInput(
+            income_type="dividend_comprehensive",
+            description="上場株式配当",
+            revenue=200_000,
+            withheld_tax=30_000,
+        )
+        r = ledger_add_other_income(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = OtherIncomeInput(
+            income_type="one_time",
+            description="保険金",
+            revenue=500_000,
+        )
+        r = ledger_add_other_income(db_path=db_path, fiscal_year=2025, detail=detail)
+        oid = r["other_income_id"]
+        dr = ledger_delete_other_income(db_path=db_path, other_income_id=oid)
+        assert dr["status"] == "ok"
+        lst = ledger_list_other_income(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+
+# ============================================================
+# Phase 11: Crypto Income CRUD
+# ============================================================
+
+
+class TestCryptoIncomeCRUD:
+    """仮想通貨所得の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = CryptoIncomeInput(
+            exchange_name="bitFlyer",
+            gains=500_000,
+            expenses=10_000,
+        )
+        r = ledger_add_crypto_income(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_crypto_income(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["records"][0]["exchange_name"] == "bitFlyer"
+        assert lst["records"][0]["gains"] == 500_000
+
+    def test_upsert_same_exchange(self, tmp_path):
+        """同一取引所の再登録はupsert。"""
+        db_path = self._init_db(tmp_path)
+        d1 = CryptoIncomeInput(exchange_name="Coincheck", gains=100_000)
+        ledger_add_crypto_income(db_path=db_path, fiscal_year=2025, detail=d1)
+        d2 = CryptoIncomeInput(exchange_name="Coincheck", gains=200_000)
+        ledger_add_crypto_income(db_path=db_path, fiscal_year=2025, detail=d2)
+        lst = ledger_list_crypto_income(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["records"][0]["gains"] == 200_000
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = CryptoIncomeInput(exchange_name="GMO", gains=300_000)
+        r = ledger_add_crypto_income(db_path=db_path, fiscal_year=2025, detail=detail)
+        cid = r["crypto_income_id"]
+        dr = ledger_delete_crypto_income(db_path=db_path, crypto_income_id=cid)
+        assert dr["status"] == "ok"
+        lst = ledger_list_crypto_income(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+
+# ============================================================
+# Phase 14: Inventory CRUD
+# ============================================================
+
+
+class TestInventoryCRUD:
+    """在庫棚卸の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_set_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = InventoryInput(period="ending", amount=500_000)
+        r = ledger_set_inventory(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_inventory(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["records"][0]["period"] == "ending"
+        assert lst["records"][0]["amount"] == 500_000
+
+    def test_upsert_same_period(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        d1 = InventoryInput(period="beginning", amount=100_000)
+        ledger_set_inventory(db_path=db_path, fiscal_year=2025, detail=d1)
+        d2 = InventoryInput(period="beginning", amount=200_000)
+        ledger_set_inventory(db_path=db_path, fiscal_year=2025, detail=d2)
+        lst = ledger_list_inventory(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["records"][0]["amount"] == 200_000
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = InventoryInput(period="ending", amount=300_000)
+        ledger_set_inventory(db_path=db_path, fiscal_year=2025, detail=detail)
+        lst = ledger_list_inventory(db_path=db_path, fiscal_year=2025)
+        iid = lst["records"][0]["id"]
+        dr = ledger_delete_inventory(db_path=db_path, inventory_id=iid)
+        assert dr["status"] == "ok"
+        lst2 = ledger_list_inventory(db_path=db_path, fiscal_year=2025)
+        assert lst2["count"] == 0
+
+
+# ============================================================
+# Phase 15: Professional Fee CRUD
+# ============================================================
+
+
+class TestProfessionalFeeCRUD:
+    """税理士報酬の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = ProfessionalFeeInput(
+            payer_address="東京都千代田区",
+            payer_name="田中税理士事務所",
+            fee_amount=500_000,
+            withheld_tax=50_000,
+        )
+        r = ledger_add_professional_fee(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_professional_fees(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["fees"][0]["payer_name"] == "田中税理士事務所"
+        assert lst["fees"][0]["fee_amount"] == 500_000
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = ProfessionalFeeInput(
+            payer_address="大阪府",
+            payer_name="佐藤弁護士",
+            fee_amount=300_000,
+        )
+        r = ledger_add_professional_fee(db_path=db_path, fiscal_year=2025, detail=detail)
+        fid = r["professional_fee_id"]
+        dr = ledger_delete_professional_fee(db_path=db_path, professional_fee_id=fid)
+        assert dr["status"] == "ok"
+        lst = ledger_list_professional_fees(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+
+# ============================================================
+# Phase 12: Stock Trading Account CRUD
+# ============================================================
+
+
+class TestStockTradingAccountCRUD:
+    """株式取引口座の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = StockTradingAccountInput(
+            account_type="tokutei_withholding",
+            broker_name="SBI証券",
+            gains=1_000_000,
+            losses=200_000,
+            withheld_income_tax=120_000,
+            withheld_residential_tax=40_000,
+        )
+        r = ledger_add_stock_trading_account(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_stock_trading_accounts(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        acct = lst["accounts"][0]
+        assert acct["broker_name"] == "SBI証券"
+        assert acct["gains"] == 1_000_000
+
+    def test_upsert_same_broker_type(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        d1 = StockTradingAccountInput(
+            account_type="tokutei_withholding", broker_name="楽天証券", gains=500_000,
+        )
+        ledger_add_stock_trading_account(db_path=db_path, fiscal_year=2025, detail=d1)
+        d2 = StockTradingAccountInput(
+            account_type="tokutei_withholding", broker_name="楽天証券", gains=800_000,
+        )
+        ledger_add_stock_trading_account(db_path=db_path, fiscal_year=2025, detail=d2)
+        lst = ledger_list_stock_trading_accounts(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["accounts"][0]["gains"] == 800_000
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = StockTradingAccountInput(
+            account_type="ippan_listed", broker_name="マネックス", gains=100_000,
+        )
+        r = ledger_add_stock_trading_account(db_path=db_path, fiscal_year=2025, detail=detail)
+        sid = r["stock_trading_account_id"]
+        dr = ledger_delete_stock_trading_account(
+            db_path=db_path, stock_trading_account_id=sid
+        )
+        assert dr["status"] == "ok"
+        lst = ledger_list_stock_trading_accounts(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+
+# ============================================================
+# Phase 12: Stock Loss Carryforward CRUD
+# ============================================================
+
+
+class TestStockLossCarryforwardCRUD:
+    """株式繰越損失の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = StockLossCarryforwardInput(loss_year=2023, amount=500_000)
+        r = ledger_add_stock_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_stock_loss_carryforward(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["entries"][0]["loss_year"] == 2023
+        assert lst["entries"][0]["amount"] == 500_000
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = StockLossCarryforwardInput(loss_year=2024, amount=300_000)
+        r = ledger_add_stock_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
+        sid = r["stock_loss_carryforward_id"]
+        dr = ledger_delete_stock_loss_carryforward(
+            db_path=db_path, stock_loss_carryforward_id=sid
+        )
+        assert dr["status"] == "ok"
+        lst = ledger_list_stock_loss_carryforward(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+
+# ============================================================
+# Phase 13: FX Trading CRUD
+# ============================================================
+
+
+class TestFxTradingCRUD:
+    """FX取引の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = FXTradingInput(
+            broker_name="DMM FX",
+            realized_gains=800_000,
+            swap_income=50_000,
+            expenses=20_000,
+        )
+        r = ledger_add_fx_trading(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_fx_trading(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        rec = lst["records"][0]
+        assert rec["broker_name"] == "DMM FX"
+        assert rec["realized_gains"] == 800_000
+
+    def test_upsert_same_broker(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        d1 = FXTradingInput(broker_name="GMOクリック", realized_gains=100_000)
+        ledger_add_fx_trading(db_path=db_path, fiscal_year=2025, detail=d1)
+        d2 = FXTradingInput(broker_name="GMOクリック", realized_gains=200_000)
+        ledger_add_fx_trading(db_path=db_path, fiscal_year=2025, detail=d2)
+        lst = ledger_list_fx_trading(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["records"][0]["realized_gains"] == 200_000
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = FXTradingInput(broker_name="SBI FX", realized_gains=500_000)
+        r = ledger_add_fx_trading(db_path=db_path, fiscal_year=2025, detail=detail)
+        fid = r["fx_trading_id"]
+        dr = ledger_delete_fx_trading(db_path=db_path, fx_trading_id=fid)
+        assert dr["status"] == "ok"
+        lst = ledger_list_fx_trading(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+
+# ============================================================
+# Phase 13: FX Loss Carryforward CRUD
+# ============================================================
+
+
+class TestFxLossCarryforwardCRUD:
+    """FX繰越損失の CRUD テスト。"""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = FXLossCarryforwardInput(loss_year=2024, amount=400_000)
+        r = ledger_add_fx_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_fx_loss_carryforward(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["entries"][0]["loss_year"] == 2024
+        assert lst["entries"][0]["amount"] == 400_000
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = FXLossCarryforwardInput(loss_year=2023, amount=200_000)
+        r = ledger_add_fx_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
+        fid = r["fx_loss_carryforward_id"]
+        dr = ledger_delete_fx_loss_carryforward(
+            db_path=db_path, fx_loss_carryforward_id=fid
+        )
+        assert dr["status"] == "ok"
+        lst = ledger_list_fx_loss_carryforward(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0

@@ -131,6 +131,24 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 期末に在庫がある場合、棚卸高を計上する。
 
+#### 在庫データの登録
+
+まず `ledger_list_inventory` で登録済みの棚卸データを確認する。
+未登録の場合は `ledger_set_inventory` で期首・期末の棚卸高を登録する:
+
+```
+パラメータ:
+  db_path: str
+  fiscal_year: int
+  detail:
+    period: str    — "beginning"（期首）または "ending"（期末）
+    amount: int    — 棚卸高（円）
+    method: str    — 評価方法（"cost" = 原価法、デフォルト）
+    details: str   — 品目の明細等（任意）
+```
+
+#### 棚卸仕訳の登録
+
 ```
 期末棚卸仕訳:
 借方: 棚卸資産(1030) / 貸方: 仕入(5001)  金額: 期末棚卸高
@@ -141,6 +159,8 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 - 期末の在庫数量と単価をユーザーに確認する
 - 評価方法（最終仕入原価法等）を確認する
+- **売上原価の計算**: 期首棚卸高 + 仕入高 - 期末棚卸高
+- 登録した棚卸データは `ledger_pl` と青色申告決算書 PDF に自動反映される
 
 ### 2-3. 未払費用の計上
 
