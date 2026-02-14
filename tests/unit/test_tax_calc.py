@@ -4,6 +4,7 @@ from shinkoku.tools.tax_calc import (
     calc_basic_deduction,
     calc_salary_deduction,
     calc_deductions,
+    calc_dependents_deduction,
     calc_life_insurance_deduction,
     calc_spouse_deduction,
     calc_furusato_deduction,
@@ -15,6 +16,8 @@ from shinkoku.tools.tax_calc import (
 )
 from shinkoku.models import (
     DeductionsResult,
+    DependentInfo,
+    HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
     ConsumptionTaxInput,
@@ -826,3 +829,547 @@ class TestEstimatedTaxPayment:
             )
         )
         assert r.estimated_tax_payment == 50_000
+
+
+# ============================================================
+# iDeCo（小規模企業共済等掛金控除）
+# ============================================================
+
+
+class TestIDeCoDeduction:
+    """iDeCo掛金は全額所得控除。"""
+
+    def test_ideco_full_deduction(self):
+        """iDeCo掛金が全額控除される。"""
+        r = calc_deductions(total_income=5_000_000, ideco_contribution=276_000)
+        ideco = [d for d in r.income_deductions if d.type == "small_business_mutual_aid"]
+        assert len(ideco) == 1
+        assert ideco[0].amount == 276_000
+        assert ideco[0].details == "iDeCo"
+
+    def test_ideco_zero(self):
+        """iDeCo掛金0の場合は控除項目に含まれない。"""
+        r = calc_deductions(total_income=5_000_000, ideco_contribution=0)
+        ideco = [d for d in r.income_deductions if d.type == "small_business_mutual_aid"]
+        assert len(ideco) == 0
+
+    def test_ideco_in_total_deductions(self):
+        """iDeCo掛金がtotal_income_deductionsに含まれる。"""
+        without = calc_deductions(total_income=5_000_000)
+        with_ideco = calc_deductions(total_income=5_000_000, ideco_contribution=276_000)
+        assert with_ideco.total_income_deductions == without.total_income_deductions + 276_000
+
+    def test_ideco_reduces_income_tax(self):
+        """iDeCo掛金により所得税が減少する。"""
+        base = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+            )
+        )
+        with_ideco = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                ideco_contribution=276_000,
+            )
+        )
+        # total_income は変わらない
+        assert with_ideco.total_income == base.total_income
+        # 所得控除が増える
+        assert with_ideco.total_income_deductions == base.total_income_deductions + 276_000
+        # 税額が減る
+        assert with_ideco.total_tax < base.total_tax
+
+    def test_ideco_max_self_employed(self):
+        """自営業の場合の上限額（816,000円/年）でも全額控除される。"""
+        r = calc_deductions(total_income=10_000_000, ideco_contribution=816_000)
+        ideco = [d for d in r.income_deductions if d.type == "small_business_mutual_aid"]
+        assert ideco[0].amount == 816_000
+
+
+# ============================================================
+# 扶養控除・障害者控除
+# ============================================================
+
+
+class TestDependentsDeduction:
+    """扶養控除の計算テスト。"""
+
+    def test_general_dependent(self):
+        """一般扶養親族（16歳以上、特定扶養でない） → 38万円。"""
+        # 2025年末時点で17歳 → 一般扶養
+        deps = [DependentInfo(name="太郎", relationship="子", birth_date="2008-06-01")]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 1
+        assert dep_items[0].amount == 380_000
+        assert "一般扶養" in (dep_items[0].details or "")
+
+    def test_specific_dependent(self):
+        """特定扶養親族（19歳以上23歳未満） → 63万円。"""
+        deps = [DependentInfo(name="花子", relationship="子", birth_date="2004-03-15")]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 1
+        assert dep_items[0].amount == 630_000
+        assert "特定扶養" in (dep_items[0].details or "")
+
+    def test_elderly_cohabiting(self):
+        """老人扶養親族（70歳以上・同居） → 58万円。"""
+        deps = [
+            DependentInfo(name="祖母", relationship="親", birth_date="1950-01-01", cohabiting=True)
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 1
+        assert dep_items[0].amount == 580_000
+        assert "同居" in (dep_items[0].details or "")
+
+    def test_elderly_not_cohabiting(self):
+        """老人扶養親族（70歳以上・別居） → 48万円。"""
+        deps = [
+            DependentInfo(name="祖父", relationship="親", birth_date="1950-01-01", cohabiting=False)
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 1
+        assert dep_items[0].amount == 480_000
+        assert "別居" in (dep_items[0].details or "")
+
+    def test_under_16_no_deduction(self):
+        """16歳未満は扶養控除なし。"""
+        deps = [DependentInfo(name="次郎", relationship="子", birth_date="2012-09-01")]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 0
+
+    def test_income_over_480000_excluded(self):
+        """所得48万超の親族は扶養控除対象外。"""
+        deps = [
+            DependentInfo(name="太郎", relationship="子", birth_date="2005-06-01", income=500_000)
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        assert len(items) == 0
+
+    def test_spouse_excluded(self):
+        """配偶者は扶養控除ではなく配偶者控除で処理するため除外。"""
+        deps = [DependentInfo(name="妻", relationship="配偶者", birth_date="1990-01-01")]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        assert len(items) == 0
+
+    def test_disability_general(self):
+        """一般障害者 → 27万円。"""
+        deps = [
+            DependentInfo(
+                name="次郎",
+                relationship="子",
+                birth_date="2012-09-01",
+                disability="general",
+            )
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dis = [i for i in items if i.type == "disability"]
+        assert len(dis) == 1
+        assert dis[0].amount == 270_000
+
+    def test_disability_special(self):
+        """特別障害者 → 40万円。"""
+        deps = [
+            DependentInfo(
+                name="太郎",
+                relationship="子",
+                birth_date="2005-06-01",
+                disability="special",
+            )
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dis = [i for i in items if i.type == "disability"]
+        assert len(dis) == 1
+        assert dis[0].amount == 400_000
+
+    def test_disability_special_cohabiting(self):
+        """同居特別障害者 → 75万円。"""
+        deps = [
+            DependentInfo(
+                name="母",
+                relationship="親",
+                birth_date="1950-01-01",
+                disability="special_cohabiting",
+            )
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dis = [i for i in items if i.type == "disability"]
+        assert len(dis) == 1
+        assert dis[0].amount == 750_000
+
+    def test_disability_under_16_still_applies(self):
+        """16歳未満でも障害者控除は適用される。"""
+        deps = [
+            DependentInfo(
+                name="三郎",
+                relationship="子",
+                birth_date="2015-01-01",
+                disability="general",
+            )
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        # 扶養控除なし（16歳未満）
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 0
+        # 障害者控除あり
+        dis = [i for i in items if i.type == "disability"]
+        assert len(dis) == 1
+        assert dis[0].amount == 270_000
+
+    def test_multiple_dependents(self):
+        """複数の扶養親族。"""
+        deps = [
+            DependentInfo(name="長男", relationship="子", birth_date="2004-05-01"),  # 特定扶養
+            DependentInfo(name="次男", relationship="子", birth_date="2008-03-01"),  # 一般扶養
+            DependentInfo(name="母", relationship="親", birth_date="1950-06-01"),  # 老人同居
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        total = sum(i.amount for i in dep_items)
+        assert total == 630_000 + 380_000 + 580_000
+
+    def test_dependents_via_calc_income_tax(self):
+        """calc_income_tax 経由で扶養控除が適用される。"""
+        base = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+            )
+        )
+        with_deps = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                dependents=[
+                    # 2025年末時点で17歳 → 一般扶養（38万円）
+                    DependentInfo(name="子", relationship="子", birth_date="2008-01-01"),
+                ],
+            )
+        )
+        # 扶養控除38万円分、所得控除が増える
+        assert with_deps.total_income_deductions == base.total_income_deductions + 380_000
+        assert with_deps.total_tax < base.total_tax
+
+
+# ============================================================
+# 住宅ローン控除（詳細版）
+# ============================================================
+
+
+class TestHousingLoanDetailedCredit:
+    """住宅区分別の年末残高上限での控除計算テスト。"""
+
+    def test_certified_new_within_limit(self):
+        """認定住宅（新築）5,000万円上限内 → balance * 0.7%。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="certified",
+            move_in_date="2024-03-01",
+            year_end_balance=40_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(40_000_000, detail=detail)
+        assert credit == 280_000  # 4,000万 * 0.7%
+
+    def test_certified_new_over_limit(self):
+        """認定住宅（新築）残高が上限5,000万超 → 上限適用。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="certified",
+            move_in_date="2024-03-01",
+            year_end_balance=60_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(60_000_000, detail=detail)
+        # 上限5,000万 * 0.7% = 350,000
+        assert credit == 350_000
+
+    def test_zeh_new(self):
+        """ZEH水準省エネ（新築）4,500万円上限。"""
+        detail = HousingLoanDetail(
+            housing_type="new_subdivision",
+            housing_category="zeh",
+            move_in_date="2024-06-01",
+            year_end_balance=50_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(50_000_000, detail=detail)
+        # 上限4,500万 * 0.7% = 315,000
+        assert credit == 315_000
+
+    def test_energy_efficient_new(self):
+        """省エネ基準適合（新築）4,000万円上限。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="energy_efficient",
+            move_in_date="2024-01-15",
+            year_end_balance=45_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(45_000_000, detail=detail)
+        # 上限4,000万 * 0.7% = 280,000
+        assert credit == 280_000
+
+    def test_general_new(self):
+        """一般住宅（新築）3,000万円上限。"""
+        detail = HousingLoanDetail(
+            housing_type="new_subdivision",
+            housing_category="general",
+            move_in_date="2024-04-01",
+            year_end_balance=35_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(35_000_000, detail=detail)
+        # 上限3,000万 * 0.7% = 210,000
+        assert credit == 210_000
+
+    def test_used_general(self):
+        """一般住宅（中古）2,000万円上限。"""
+        detail = HousingLoanDetail(
+            housing_type="used",
+            housing_category="general",
+            move_in_date="2024-08-01",
+            year_end_balance=25_000_000,
+            is_new_construction=False,
+        )
+        credit = calc_housing_loan_credit(25_000_000, detail=detail)
+        # 上限2,000万 * 0.7% = 140,000
+        assert credit == 140_000
+
+    def test_used_certified(self):
+        """認定住宅（中古）3,000万円上限。"""
+        detail = HousingLoanDetail(
+            housing_type="resale",
+            housing_category="certified",
+            move_in_date="2024-05-01",
+            year_end_balance=35_000_000,
+            is_new_construction=False,
+        )
+        credit = calc_housing_loan_credit(35_000_000, detail=detail)
+        # 上限3,000万 * 0.7% = 210,000
+        assert credit == 210_000
+
+    def test_backward_compat_no_detail(self):
+        """detail=None の場合は従来通り balance * 0.7%。"""
+        credit = calc_housing_loan_credit(35_000_000, detail=None)
+        assert credit == 245_000
+
+    def test_via_calc_income_tax(self):
+        """calc_income_tax 経由で詳細住宅ローン控除が適用される。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="certified",
+            move_in_date="2024-03-01",
+            year_end_balance=40_000_000,
+            is_new_construction=True,
+        )
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=8_000_000,
+                business_revenue=2_000_000,
+                housing_loan_detail=detail,
+            )
+        )
+        # 4,000万 * 0.7% = 280,000 の税額控除
+        assert r.total_tax_credits == 280_000
+
+
+# ============================================================
+# 事業所得の源泉徴収（Business Withholding）
+# ============================================================
+
+
+class TestBusinessWithheldTax:
+    """事業所得の源泉徴収税額が税額計算に反映される。"""
+
+    def test_business_withheld_reduces_tax_due(self):
+        """事業源泉徴収税額が tax_due から差し引かれる。"""
+        base = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+            )
+        )
+        with_bw = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                business_withheld_tax=50_000,
+            )
+        )
+        # total_tax は同じ
+        assert with_bw.total_tax == base.total_tax
+        # tax_due が事業源泉分だけ減る
+        assert with_bw.tax_due == base.tax_due - 50_000
+        assert with_bw.business_withheld_tax == 50_000
+
+    def test_business_withheld_zero_backward_compatible(self):
+        """事業源泉0（デフォルト） → 従来計算と同じ。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                business_withheld_tax=0,
+            )
+        )
+        assert r.business_withheld_tax == 0
+        assert r.tax_due == r.total_tax - r.withheld_tax
+
+    def test_business_withheld_causes_refund(self):
+        """事業源泉+給与源泉により還付になるケース。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                business_withheld_tax=400_000,
+            )
+        )
+        # total_tax = 805,400; tax_due = 805,400 - 466,800 - 400,000 = -61,400
+        assert r.tax_due < 0
+
+    def test_combined_with_estimated_tax(self):
+        """事業源泉+予定納税の両方がある場合。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                business_withheld_tax=50_000,
+                estimated_tax_payment=100_000,
+            )
+        )
+        expected_due = r.total_tax - 466_800 - 50_000 - 100_000
+        assert r.tax_due == expected_due
+
+    def test_business_withheld_in_result(self):
+        """business_withheld_tax が結果モデルに含まれる。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=5_000_000,
+                business_revenue=1_000_000,
+                business_withheld_tax=30_000,
+            )
+        )
+        assert r.business_withheld_tax == 30_000
+
+
+# ============================================================
+# 損失繰越（Loss Carryforward）
+# ============================================================
+
+
+class TestLossCarryforward:
+    """繰越損失の適用テスト。"""
+
+    def test_loss_reduces_total_income(self):
+        """繰越損失が総所得金額から控除される。"""
+        base = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+            )
+        )
+        with_loss = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                loss_carryforward_amount=1_000_000,
+            )
+        )
+        # 総所得から繰越損失分が差し引かれる
+        assert with_loss.total_income == base.total_income - 1_000_000
+        assert with_loss.loss_carryforward_applied == 1_000_000
+        assert with_loss.total_tax < base.total_tax
+
+    def test_loss_capped_at_total_income(self):
+        """繰越損失が総所得を超える場合、総所得分のみ適用。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=3_000_000,
+                business_revenue=500_000,
+                loss_carryforward_amount=10_000_000,
+            )
+        )
+        # salary_after = 3,000K - 980K(給与所得控除) = 2,020K
+        # business = 500K - 650K = -150K
+        # total_income_raw = 2,020K + (-150K) = 1,870K
+        assert r.loss_carryforward_applied == 1_870_000
+        assert r.total_income == 0
+        assert r.total_tax == 0
+
+    def test_loss_zero_backward_compatible(self):
+        """繰越損失0（デフォルト） → 従来計算と同じ。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+            )
+        )
+        assert r.loss_carryforward_applied == 0
+
+    def test_loss_not_applied_when_negative_income(self):
+        """損益通算後に所得が0以下の場合、繰越損失は適用されない。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=1_000_000,
+                business_revenue=0,
+                business_expenses=2_000_000,
+                loss_carryforward_amount=500_000,
+            )
+        )
+        # salary_after = 1,000K - 650K = 350K
+        # business = 0 - 2,000K - 650K = -2,650K
+        # total_income_raw = 350K + (-2,650K) = -2,300K (negative)
+        assert r.loss_carryforward_applied == 0
+        assert r.total_income == 0
+
+    def test_loss_partial_application(self):
+        """繰越損失が一部だけ適用されるケース。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=4_000_000,
+                business_revenue=1_000_000,
+                loss_carryforward_amount=500_000,
+            )
+        )
+        assert r.loss_carryforward_applied == 500_000
+        # total_income は500K分減少
+        base = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=4_000_000,
+                business_revenue=1_000_000,
+            )
+        )
+        assert r.total_income == base.total_income - 500_000

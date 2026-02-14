@@ -41,6 +41,11 @@ def register(mcp) -> None:
         return import_furusato_receipt(file_path=file_path)
 
     @mcp.tool()
+    def mcp_import_payment_statement(file_path: str) -> dict:
+        """Extract data from a payment statement (支払調書) PDF or image."""
+        return import_payment_statement(file_path=file_path)
+
+    @mcp.tool()
     def mcp_import_check_csv_imported(db_path: str, fiscal_year: int, file_path: str) -> dict:
         """Check if a CSV file has already been imported."""
         return import_check_csv_imported(
@@ -350,6 +355,31 @@ def import_furusato_receipt(*, file_path: str) -> dict:
         "amount": None,
         "date": None,
         "receipt_number": None,
+    }
+
+
+def import_payment_statement(*, file_path: str) -> dict:
+    """Check payment statement file and return template for data extraction.
+
+    支払調書（報酬、料金、契約金及び賞金の支払調書）の読み取り。
+    PDF の場合はテキスト抽出し、画像の場合は Claude Vision に委任する。
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {file_path}"}
+
+    extracted_text = ""
+    if path.suffix.lower() == ".pdf":
+        extracted_text = _extract_pdf_text(file_path)
+
+    return {
+        "status": "ok",
+        "file_path": file_path,
+        "extracted_text": extracted_text,
+        "payer_name": None,
+        "category": None,  # 区分（報酬/料金/契約金等）
+        "gross_amount": None,  # 支払金額
+        "withholding_tax": None,  # 源泉徴収税額
     }
 
 

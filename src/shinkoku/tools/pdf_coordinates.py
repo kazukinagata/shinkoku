@@ -175,3 +175,166 @@ for i in range(10):
         "font_size": 8,
         "type": "number",
     }
+
+
+# ============================================================
+# Additional Income Tax Form B Fields (Phase 1-3)
+# ============================================================
+
+# iDeCo / 小規模企業共済等掛金控除
+INCOME_TAX_FORM_B["ideco_deduction"] = {
+    "x": 95 * mm,
+    "y": 127 * mm,
+    "font_size": 8,
+    "type": "number",
+}
+# 扶養控除
+INCOME_TAX_FORM_B["dependent_deduction"] = {
+    "x": 95 * mm,
+    "y": 119 * mm,
+    "font_size": 8,
+    "type": "number",
+}
+# 医療費控除
+INCOME_TAX_FORM_B["medical_deduction"] = {
+    "x": 95 * mm,
+    "y": 111 * mm,
+    "font_size": 8,
+    "type": "number",
+}
+# 事業所得の源泉徴収税額
+INCOME_TAX_FORM_B["business_withheld_tax"] = {
+    "x": 150 * mm,
+    "y": 45 * mm,
+    "font_size": 8,
+    "type": "number",
+}
+# 予定納税額
+INCOME_TAX_FORM_B["estimated_tax_payment"] = {
+    "x": 150 * mm,
+    "y": 55 * mm,
+    "font_size": 8,
+    "type": "number",
+}
+# 繰越損失適用額
+INCOME_TAX_FORM_B["loss_carryforward_applied"] = {
+    "x": 150 * mm,
+    "y": 195 * mm,
+    "font_size": 8,
+    "type": "number",
+}
+
+
+# ============================================================
+# Medical Expense Detail Form (医療費控除の明細書)
+# ============================================================
+
+MEDICAL_EXPENSE_DETAIL_FORM: dict[str, dict] = {
+    "taxpayer_name": {"x": 60 * mm, "y": 270 * mm, "font_size": 10, "type": "text"},
+    "fiscal_year": {"x": 120 * mm, "y": 280 * mm, "font_size": 10, "type": "text"},
+    "total_amount": {"x": 170 * mm, "y": 50 * mm, "font_size": 9, "type": "number"},
+    "total_reimbursement": {"x": 170 * mm, "y": 42 * mm, "font_size": 9, "type": "number"},
+    "net_amount": {"x": 170 * mm, "y": 34 * mm, "font_size": 9, "type": "number"},
+    "deduction_amount": {"x": 170 * mm, "y": 26 * mm, "font_size": 10, "type": "number"},
+}
+
+# Dynamic medical expense lines (up to 15)
+for i in range(15):
+    y_offset = 250 * mm - i * 12 * mm
+    MEDICAL_EXPENSE_DETAIL_FORM[f"line_{i}_institution"] = {
+        "x": 30 * mm,
+        "y": y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    MEDICAL_EXPENSE_DETAIL_FORM[f"line_{i}_patient"] = {
+        "x": 80 * mm,
+        "y": y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    MEDICAL_EXPENSE_DETAIL_FORM[f"line_{i}_amount"] = {
+        "x": 130 * mm,
+        "y": y_offset,
+        "font_size": 7,
+        "type": "number",
+    }
+    MEDICAL_EXPENSE_DETAIL_FORM[f"line_{i}_reimbursement"] = {
+        "x": 170 * mm,
+        "y": y_offset,
+        "font_size": 7,
+        "type": "number",
+    }
+
+
+# ============================================================
+# Rent Detail Form (地代家賃の内訳書)
+# ============================================================
+
+RENT_DETAIL_FORM: dict[str, dict] = {
+    "taxpayer_name": {"x": 60 * mm, "y": 270 * mm, "font_size": 10, "type": "text"},
+    "fiscal_year": {"x": 120 * mm, "y": 280 * mm, "font_size": 10, "type": "text"},
+    "total_annual_rent": {"x": 170 * mm, "y": 50 * mm, "font_size": 9, "type": "number"},
+}
+
+# Dynamic rent detail lines (up to 5)
+for i in range(5):
+    y_offset = 240 * mm - i * 30 * mm
+    RENT_DETAIL_FORM[f"line_{i}_usage"] = {
+        "x": 30 * mm,
+        "y": y_offset,
+        "font_size": 8,
+        "type": "text",
+    }
+    RENT_DETAIL_FORM[f"line_{i}_landlord_name"] = {
+        "x": 30 * mm,
+        "y": y_offset - 8 * mm,
+        "font_size": 8,
+        "type": "text",
+    }
+    RENT_DETAIL_FORM[f"line_{i}_landlord_address"] = {
+        "x": 30 * mm,
+        "y": y_offset - 16 * mm,
+        "font_size": 7,
+        "type": "text",
+    }
+    RENT_DETAIL_FORM[f"line_{i}_monthly_rent"] = {
+        "x": 130 * mm,
+        "y": y_offset,
+        "font_size": 8,
+        "type": "number",
+    }
+    RENT_DETAIL_FORM[f"line_{i}_annual_rent"] = {
+        "x": 170 * mm,
+        "y": y_offset,
+        "font_size": 8,
+        "type": "number",
+    }
+    RENT_DETAIL_FORM[f"line_{i}_business_ratio"] = {
+        "x": 170 * mm,
+        "y": y_offset - 8 * mm,
+        "font_size": 8,
+        "type": "text",
+    }
+
+
+# ============================================================
+# Housing Loan Detail Form (住宅借入金等特別控除の計算明細書)
+# ============================================================
+
+HOUSING_LOAN_DETAIL_FORM: dict[str, dict] = {
+    "taxpayer_name": {"x": 60 * mm, "y": 270 * mm, "font_size": 10, "type": "text"},
+    "fiscal_year": {"x": 120 * mm, "y": 275 * mm, "font_size": 10, "type": "text"},
+    # 住宅情報
+    "housing_type": {"x": 100 * mm, "y": 250 * mm, "font_size": 8, "type": "text"},
+    "housing_category": {"x": 100 * mm, "y": 240 * mm, "font_size": 8, "type": "text"},
+    "move_in_date": {"x": 100 * mm, "y": 230 * mm, "font_size": 8, "type": "text"},
+    "is_new_construction": {"x": 100 * mm, "y": 220 * mm, "font_size": 8, "type": "text"},
+    # 控除額の計算
+    "year_end_balance": {"x": 170 * mm, "y": 198 * mm, "font_size": 8, "type": "number"},
+    "balance_limit": {"x": 170 * mm, "y": 188 * mm, "font_size": 8, "type": "number"},
+    "capped_balance": {"x": 170 * mm, "y": 178 * mm, "font_size": 8, "type": "number"},
+    "credit_rate": {"x": 170 * mm, "y": 168 * mm, "font_size": 8, "type": "text"},
+    "credit_period": {"x": 170 * mm, "y": 158 * mm, "font_size": 8, "type": "text"},
+    "credit_amount": {"x": 170 * mm, "y": 143 * mm, "font_size": 10, "type": "number"},
+}

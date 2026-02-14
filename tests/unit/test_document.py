@@ -325,3 +325,363 @@ class TestGenerateDeductionDetailPdf:
             output_path=output,
         )
         assert os.path.exists(result)
+
+
+# ============================================================
+# Medical Expense Detail PDF
+# ============================================================
+
+
+class TestGenerateMedicalExpenseDetailPdf:
+    def test_generates_pdf_file(self, tmp_path):
+        from shinkoku.tools.document import generate_medical_expense_detail_pdf
+
+        output = str(tmp_path / "medical.pdf")
+        expenses = [
+            {
+                "medical_institution": "○○病院",
+                "patient_name": "太郎",
+                "amount": 50_000,
+                "insurance_reimbursement": 10_000,
+            },
+            {
+                "medical_institution": "△△歯科",
+                "patient_name": "太郎",
+                "amount": 30_000,
+                "insurance_reimbursement": 0,
+            },
+        ]
+        result = generate_medical_expense_detail_pdf(
+            expenses=expenses,
+            fiscal_year=2025,
+            total_income=5_000_000,
+            output_path=output,
+            taxpayer_name="テスト太郎",
+        )
+        assert os.path.exists(result)
+
+    def test_pdf_starts_with_magic(self, tmp_path):
+        from shinkoku.tools.document import generate_medical_expense_detail_pdf
+
+        output = str(tmp_path / "medical.pdf")
+        result = generate_medical_expense_detail_pdf(
+            expenses=[{"medical_institution": "病院", "patient_name": "花子", "amount": 20_000}],
+            fiscal_year=2025,
+            output_path=output,
+        )
+        with open(result, "rb") as f:
+            assert f.read(5) == b"%PDF-"
+
+    def test_empty_expenses(self, tmp_path):
+        from shinkoku.tools.document import generate_medical_expense_detail_pdf
+
+        output = str(tmp_path / "medical_empty.pdf")
+        result = generate_medical_expense_detail_pdf(
+            expenses=[],
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+    def test_max_15_lines(self, tmp_path):
+        from shinkoku.tools.document import generate_medical_expense_detail_pdf
+
+        output = str(tmp_path / "medical_max.pdf")
+        expenses = [
+            {"medical_institution": f"病院{i}", "patient_name": "太郎", "amount": 10_000 * (i + 1)}
+            for i in range(20)
+        ]
+        result = generate_medical_expense_detail_pdf(
+            expenses=expenses,
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+    def test_low_income_threshold(self, tmp_path):
+        """Medical deduction threshold is 5% of income when income < 2M."""
+        from shinkoku.tools.document import generate_medical_expense_detail_pdf
+
+        output = str(tmp_path / "medical_low.pdf")
+        result = generate_medical_expense_detail_pdf(
+            expenses=[{"medical_institution": "病院", "patient_name": "太郎", "amount": 150_000}],
+            fiscal_year=2025,
+            total_income=1_000_000,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+
+# ============================================================
+# Rent Detail PDF
+# ============================================================
+
+
+class TestGenerateRentDetailPdf:
+    def test_generates_pdf_file(self, tmp_path):
+        from shinkoku.tools.document import generate_rent_detail_pdf
+
+        output = str(tmp_path / "rent.pdf")
+        details = [
+            {
+                "usage": "自宅兼事務所",
+                "property_type": "事務所",
+                "landlord_name": "○○不動産",
+                "landlord_address": "東京都渋谷区1-1-1",
+                "monthly_rent": 100_000,
+                "annual_rent": 1_200_000,
+                "business_ratio": 40,
+            },
+        ]
+        result = generate_rent_detail_pdf(
+            rent_details=details,
+            fiscal_year=2025,
+            output_path=output,
+            taxpayer_name="テスト太郎",
+        )
+        assert os.path.exists(result)
+
+    def test_pdf_starts_with_magic(self, tmp_path):
+        from shinkoku.tools.document import generate_rent_detail_pdf
+
+        output = str(tmp_path / "rent.pdf")
+        result = generate_rent_detail_pdf(
+            rent_details=[{"usage": "事務所", "landlord_name": "A", "monthly_rent": 50_000}],
+            fiscal_year=2025,
+            output_path=output,
+        )
+        with open(result, "rb") as f:
+            assert f.read(5) == b"%PDF-"
+
+    def test_empty_details(self, tmp_path):
+        from shinkoku.tools.document import generate_rent_detail_pdf
+
+        output = str(tmp_path / "rent_empty.pdf")
+        result = generate_rent_detail_pdf(
+            rent_details=[],
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+    def test_multiple_properties(self, tmp_path):
+        from shinkoku.tools.document import generate_rent_detail_pdf
+
+        output = str(tmp_path / "rent_multi.pdf")
+        details = [
+            {
+                "usage": "事務所",
+                "property_type": "事務所",
+                "landlord_name": f"不動産{i}",
+                "monthly_rent": 80_000 + i * 10_000,
+                "annual_rent": (80_000 + i * 10_000) * 12,
+                "business_ratio": 100,
+            }
+            for i in range(4)
+        ]
+        result = generate_rent_detail_pdf(
+            rent_details=details,
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+    def test_max_5_lines(self, tmp_path):
+        from shinkoku.tools.document import generate_rent_detail_pdf
+
+        output = str(tmp_path / "rent_max.pdf")
+        details = [
+            {"usage": f"用途{i}", "landlord_name": f"大家{i}", "monthly_rent": 50_000}
+            for i in range(8)
+        ]
+        result = generate_rent_detail_pdf(
+            rent_details=details,
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+
+# ============================================================
+# Housing Loan Detail PDF
+# ============================================================
+
+
+class TestGenerateHousingLoanDetailPdf:
+    def test_generates_pdf_new_certified(self, tmp_path):
+        from shinkoku.tools.document import generate_housing_loan_detail_pdf
+
+        output = str(tmp_path / "housing.pdf")
+        detail = {
+            "housing_type": "new_custom",
+            "housing_category": "certified",
+            "move_in_date": "2025-03-15",
+            "year_end_balance": 40_000_000,
+            "is_new_construction": True,
+        }
+        result = generate_housing_loan_detail_pdf(
+            housing_detail=detail,
+            credit_amount=280_000,
+            fiscal_year=2025,
+            output_path=output,
+            taxpayer_name="住宅太郎",
+        )
+        assert os.path.exists(result)
+
+    def test_pdf_starts_with_magic(self, tmp_path):
+        from shinkoku.tools.document import generate_housing_loan_detail_pdf
+
+        output = str(tmp_path / "housing.pdf")
+        result = generate_housing_loan_detail_pdf(
+            housing_detail={"housing_type": "resale", "housing_category": "general"},
+            credit_amount=100_000,
+            fiscal_year=2025,
+            output_path=output,
+        )
+        with open(result, "rb") as f:
+            assert f.read(5) == b"%PDF-"
+
+    def test_used_general(self, tmp_path):
+        from shinkoku.tools.document import generate_housing_loan_detail_pdf
+
+        output = str(tmp_path / "housing_used.pdf")
+        detail = {
+            "housing_type": "used",
+            "housing_category": "general",
+            "move_in_date": "2025-06-01",
+            "year_end_balance": 15_000_000,
+            "is_new_construction": False,
+        }
+        result = generate_housing_loan_detail_pdf(
+            housing_detail=detail,
+            credit_amount=105_000,
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+    def test_balance_over_limit(self, tmp_path):
+        """Year-end balance exceeding the limit is capped."""
+        from shinkoku.tools.document import generate_housing_loan_detail_pdf
+
+        output = str(tmp_path / "housing_over.pdf")
+        detail = {
+            "housing_type": "new_subdivision",
+            "housing_category": "general",
+            "year_end_balance": 50_000_000,
+            "is_new_construction": True,
+        }
+        result = generate_housing_loan_detail_pdf(
+            housing_detail=detail,
+            credit_amount=210_000,  # 30_000_000 * 0.007
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+    def test_empty_detail(self, tmp_path):
+        from shinkoku.tools.document import generate_housing_loan_detail_pdf
+
+        output = str(tmp_path / "housing_empty.pdf")
+        result = generate_housing_loan_detail_pdf(
+            housing_detail={},
+            credit_amount=0,
+            fiscal_year=2025,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+
+# ============================================================
+# Income Tax PDF with New Fields (business_withheld, estimated, loss_carryforward)
+# ============================================================
+
+
+class TestIncomeTaxPdfWithNewFields:
+    def test_with_business_withheld_tax(self, tmp_path):
+        output = str(tmp_path / "income_tax_bw.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            salary_income_after_deduction=0,
+            business_income=5_000_000,
+            total_income=5_000_000,
+            total_income_deductions=880_000,
+            taxable_income=4_120_000,
+            income_tax_base=396_500,
+            total_tax_credits=0,
+            income_tax_after_credits=396_500,
+            reconstruction_tax=8_326,
+            total_tax=404_800,
+            withheld_tax=0,
+            tax_due=304_800,
+            business_withheld_tax=100_000,
+        )
+        result = generate_income_tax_pdf(tax_result=tax_result, output_path=output)
+        assert os.path.exists(result)
+
+    def test_with_estimated_tax_payment(self, tmp_path):
+        output = str(tmp_path / "income_tax_est.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            salary_income_after_deduction=0,
+            business_income=8_000_000,
+            total_income=8_000_000,
+            total_income_deductions=880_000,
+            taxable_income=7_120_000,
+            income_tax_base=1_013_600,
+            total_tax_credits=0,
+            income_tax_after_credits=1_013_600,
+            reconstruction_tax=21_285,
+            total_tax=1_034_800,
+            withheld_tax=0,
+            tax_due=534_800,
+            estimated_tax_payment=500_000,
+        )
+        result = generate_income_tax_pdf(tax_result=tax_result, output_path=output)
+        assert os.path.exists(result)
+
+    def test_with_loss_carryforward(self, tmp_path):
+        output = str(tmp_path / "income_tax_loss.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            salary_income_after_deduction=0,
+            business_income=3_000_000,
+            total_income=3_000_000,
+            total_income_deductions=880_000,
+            taxable_income=2_120_000,
+            income_tax_base=114_500,
+            total_tax_credits=0,
+            income_tax_after_credits=114_500,
+            reconstruction_tax=2_404,
+            total_tax=116_900,
+            withheld_tax=0,
+            tax_due=116_900,
+            loss_carryforward_applied=1_000_000,
+        )
+        result = generate_income_tax_pdf(tax_result=tax_result, output_path=output)
+        assert os.path.exists(result)
+
+    def test_with_all_new_fields(self, tmp_path):
+        output = str(tmp_path / "income_tax_all.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            salary_income_after_deduction=4_000_000,
+            business_income=3_000_000,
+            total_income=7_000_000,
+            total_income_deductions=1_500_000,
+            taxable_income=5_500_000,
+            income_tax_base=672_500,
+            total_tax_credits=200_000,
+            income_tax_after_credits=472_500,
+            reconstruction_tax=9_922,
+            total_tax=482_400,
+            withheld_tax=200_000,
+            tax_due=32_400,
+            business_withheld_tax=50_000,
+            estimated_tax_payment=200_000,
+            loss_carryforward_applied=500_000,
+        )
+        result = generate_income_tax_pdf(
+            tax_result=tax_result, output_path=output, taxpayer_name="全フィールド太郎"
+        )
+        assert os.path.exists(result)

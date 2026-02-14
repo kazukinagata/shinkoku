@@ -8,7 +8,15 @@ from shinkoku.db import init_db, get_connection
 from shinkoku.duplicate_detection import check_duplicate_on_insert, find_duplicate_pairs
 from shinkoku.hashing import compute_journal_hash
 from shinkoku.master_accounts import MASTER_ACCOUNTS
-from shinkoku.models import JournalEntry, JournalSearchParams
+from shinkoku.models import (
+    BusinessWithholdingInput,
+    HousingLoanDetailInput,
+    JournalEntry,
+    JournalSearchParams,
+    LossCarryforwardInput,
+    MedicalExpenseInput,
+    RentDetailInput,
+)
 
 
 def register(mcp) -> None:
@@ -86,6 +94,104 @@ def register(mcp) -> None:
         """Scan all journals for duplicate pairs."""
         return ledger_check_duplicates(
             db_path=db_path, fiscal_year=fiscal_year, threshold=threshold
+        )
+
+    # --- Business Withholding CRUD ---
+
+    @mcp.tool()
+    def mcp_ledger_add_business_withholding(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a per-client business withholding entry."""
+        parsed = BusinessWithholdingInput(**detail)
+        return ledger_add_business_withholding(
+            db_path=db_path, fiscal_year=fiscal_year, detail=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_list_business_withholding(db_path: str, fiscal_year: int) -> dict:
+        """List all per-client business withholding entries for a fiscal year."""
+        return ledger_list_business_withholding(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_business_withholding(db_path: str, withholding_id: int) -> dict:
+        """Delete a business withholding entry."""
+        return ledger_delete_business_withholding(db_path=db_path, withholding_id=withholding_id)
+
+    # --- Loss Carryforward CRUD ---
+
+    @mcp.tool()
+    def mcp_ledger_add_loss_carryforward(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a loss carryforward entry."""
+        parsed = LossCarryforwardInput(**detail)
+        return ledger_add_loss_carryforward(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_loss_carryforward(db_path: str, fiscal_year: int) -> dict:
+        """List all loss carryforward entries for a fiscal year."""
+        return ledger_list_loss_carryforward(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_loss_carryforward(db_path: str, loss_carryforward_id: int) -> dict:
+        """Delete a loss carryforward entry."""
+        return ledger_delete_loss_carryforward(
+            db_path=db_path, loss_carryforward_id=loss_carryforward_id
+        )
+
+    # --- Medical Expense Details CRUD ---
+
+    @mcp.tool()
+    def mcp_ledger_add_medical_expense(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a medical expense detail entry."""
+        parsed = MedicalExpenseInput(**detail)
+        return ledger_add_medical_expense(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_medical_expenses(db_path: str, fiscal_year: int) -> dict:
+        """List all medical expense details for a fiscal year."""
+        return ledger_list_medical_expenses(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_medical_expense(db_path: str, medical_expense_id: int) -> dict:
+        """Delete a medical expense detail entry."""
+        return ledger_delete_medical_expense(db_path=db_path, medical_expense_id=medical_expense_id)
+
+    # --- Rent Details CRUD ---
+
+    @mcp.tool()
+    def mcp_ledger_add_rent_detail(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a rent payment detail entry."""
+        parsed = RentDetailInput(**detail)
+        return ledger_add_rent_detail(db_path=db_path, fiscal_year=fiscal_year, detail=parsed)
+
+    @mcp.tool()
+    def mcp_ledger_list_rent_details(db_path: str, fiscal_year: int) -> dict:
+        """List all rent payment details for a fiscal year."""
+        return ledger_list_rent_details(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_rent_detail(db_path: str, rent_detail_id: int) -> dict:
+        """Delete a rent payment detail entry."""
+        return ledger_delete_rent_detail(db_path=db_path, rent_detail_id=rent_detail_id)
+
+    # --- Housing Loan Details CRUD ---
+
+    @mcp.tool()
+    def mcp_ledger_add_housing_loan_detail(db_path: str, fiscal_year: int, detail: dict) -> dict:
+        """Add a housing loan detail entry for a fiscal year."""
+        parsed = HousingLoanDetailInput(**detail)
+        return ledger_add_housing_loan_detail(
+            db_path=db_path, fiscal_year=fiscal_year, detail=parsed
+        )
+
+    @mcp.tool()
+    def mcp_ledger_list_housing_loan_details(db_path: str, fiscal_year: int) -> dict:
+        """List all housing loan details for a fiscal year."""
+        return ledger_list_housing_loan_details(db_path=db_path, fiscal_year=fiscal_year)
+
+    @mcp.tool()
+    def mcp_ledger_delete_housing_loan_detail(db_path: str, housing_loan_detail_id: int) -> dict:
+        """Delete a housing loan detail entry."""
+        return ledger_delete_housing_loan_detail(
+            db_path=db_path, housing_loan_detail_id=housing_loan_detail_id
         )
 
 
@@ -734,5 +840,453 @@ def ledger_bs(*, db_path: str, fiscal_year: int) -> dict:
             "total_equity": total_equity,
             "net_income": net_income,
         }
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 地代家賃の内訳 (Rent Details)
+# ============================================================
+
+
+def ledger_add_rent_detail(*, db_path: str, fiscal_year: int, detail: RentDetailInput) -> dict:
+    """Add a rent payment detail entry."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO rent_details "
+            "(fiscal_year, property_type, usage, landlord_name, landlord_address, "
+            "monthly_rent, annual_rent, deposit, business_ratio) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.property_type,
+                detail.usage,
+                detail.landlord_name,
+                detail.landlord_address,
+                detail.monthly_rent,
+                detail.annual_rent,
+                detail.deposit,
+                detail.business_ratio,
+            ),
+        )
+        conn.commit()
+        return {
+            "status": "ok",
+            "rent_detail_id": cursor.lastrowid,
+            "fiscal_year": fiscal_year,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_list_rent_details(*, db_path: str, fiscal_year: int) -> dict:
+    """List all rent payment details for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, property_type, usage, landlord_name, "
+            "landlord_address, monthly_rent, annual_rent, deposit, business_ratio "
+            "FROM rent_details WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        details = [
+            {
+                "id": r[0],
+                "fiscal_year": r[1],
+                "property_type": r[2],
+                "usage": r[3],
+                "landlord_name": r[4],
+                "landlord_address": r[5],
+                "monthly_rent": r[6],
+                "annual_rent": r[7],
+                "deposit": r[8],
+                "business_ratio": r[9],
+            }
+            for r in rows
+        ]
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "count": len(details),
+            "details": details,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_delete_rent_detail(*, db_path: str, rent_detail_id: int) -> dict:
+    """Delete a rent payment detail entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute("SELECT id FROM rent_details WHERE id = ?", (rent_detail_id,)).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Rent detail {rent_detail_id} not found",
+            }
+        conn.execute("DELETE FROM rent_details WHERE id = ?", (rent_detail_id,))
+        conn.commit()
+        return {"status": "ok", "rent_detail_id": rent_detail_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 事業所得の源泉徴収 (Business Withholding)
+# ============================================================
+
+
+def ledger_add_business_withholding(
+    *, db_path: str, fiscal_year: int, detail: BusinessWithholdingInput
+) -> dict:
+    """Add a per-client business withholding entry."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO business_withholding "
+            "(fiscal_year, client_name, gross_amount, withholding_tax) "
+            "VALUES (?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.client_name,
+                detail.gross_amount,
+                detail.withholding_tax,
+            ),
+        )
+        conn.commit()
+        return {
+            "status": "ok",
+            "withholding_id": cursor.lastrowid,
+            "fiscal_year": fiscal_year,
+        }
+    except Exception as e:
+        if "UNIQUE constraint" in str(e):
+            return {
+                "status": "error",
+                "message": f"取引先 '{detail.client_name}' は既に登録されています",
+            }
+        raise
+    finally:
+        conn.close()
+
+
+def ledger_list_business_withholding(*, db_path: str, fiscal_year: int) -> dict:
+    """List all per-client business withholding entries for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, client_name, gross_amount, withholding_tax "
+            "FROM business_withholding WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        details = [
+            {
+                "id": r[0],
+                "fiscal_year": r[1],
+                "client_name": r[2],
+                "gross_amount": r[3],
+                "withholding_tax": r[4],
+            }
+            for r in rows
+        ]
+        total_gross = sum(d["gross_amount"] for d in details)
+        total_withholding = sum(d["withholding_tax"] for d in details)
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "count": len(details),
+            "total_gross_amount": total_gross,
+            "total_withholding_tax": total_withholding,
+            "details": details,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_delete_business_withholding(*, db_path: str, withholding_id: int) -> dict:
+    """Delete a business withholding entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM business_withholding WHERE id = ?", (withholding_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Business withholding {withholding_id} not found",
+            }
+        conn.execute("DELETE FROM business_withholding WHERE id = ?", (withholding_id,))
+        conn.commit()
+        return {"status": "ok", "withholding_id": withholding_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 損失繰越 (Loss Carryforward)
+# ============================================================
+
+
+def ledger_add_loss_carryforward(
+    *, db_path: str, fiscal_year: int, detail: LossCarryforwardInput
+) -> dict:
+    """Add a loss carryforward entry."""
+    conn = get_connection(db_path)
+    try:
+        # 青色申告の3年繰越チェック
+        if detail.loss_year < fiscal_year - 3:
+            return {
+                "status": "error",
+                "message": (
+                    f"繰越損失の対象は過去3年以内です "
+                    f"(損失年: {detail.loss_year}, 申告年: {fiscal_year})"
+                ),
+            }
+        cursor = conn.execute(
+            "INSERT INTO loss_carryforward "
+            "(fiscal_year, loss_year, amount, used_amount) "
+            "VALUES (?, ?, ?, 0)",
+            (fiscal_year, detail.loss_year, detail.amount),
+        )
+        conn.commit()
+        return {
+            "status": "ok",
+            "loss_carryforward_id": cursor.lastrowid,
+            "fiscal_year": fiscal_year,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_list_loss_carryforward(*, db_path: str, fiscal_year: int) -> dict:
+    """List all loss carryforward entries for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, loss_year, amount, used_amount "
+            "FROM loss_carryforward WHERE fiscal_year = ? ORDER BY loss_year",
+            (fiscal_year,),
+        ).fetchall()
+        details = [
+            {
+                "id": r[0],
+                "fiscal_year": r[1],
+                "loss_year": r[2],
+                "amount": r[3],
+                "used_amount": r[4],
+                "remaining": r[3] - r[4],
+            }
+            for r in rows
+        ]
+        total_amount = sum(d["amount"] for d in details)
+        total_remaining = sum(d["remaining"] for d in details)
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "count": len(details),
+            "total_amount": total_amount,
+            "total_remaining": total_remaining,
+            "details": details,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_delete_loss_carryforward(*, db_path: str, loss_carryforward_id: int) -> dict:
+    """Delete a loss carryforward entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM loss_carryforward WHERE id = ?", (loss_carryforward_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Loss carryforward {loss_carryforward_id} not found",
+            }
+        conn.execute("DELETE FROM loss_carryforward WHERE id = ?", (loss_carryforward_id,))
+        conn.commit()
+        return {"status": "ok", "loss_carryforward_id": loss_carryforward_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 医療費明細 (Medical Expense Details)
+# ============================================================
+
+
+def ledger_add_medical_expense(
+    *, db_path: str, fiscal_year: int, detail: MedicalExpenseInput
+) -> dict:
+    """Add a medical expense detail entry."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO medical_expense_details "
+            "(fiscal_year, date, patient_name, medical_institution, "
+            "amount, insurance_reimbursement, description) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.date,
+                detail.patient_name,
+                detail.medical_institution,
+                detail.amount,
+                detail.insurance_reimbursement,
+                detail.description,
+            ),
+        )
+        conn.commit()
+        return {
+            "status": "ok",
+            "medical_expense_id": cursor.lastrowid,
+            "fiscal_year": fiscal_year,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_list_medical_expenses(*, db_path: str, fiscal_year: int) -> dict:
+    """List all medical expense details for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, date, patient_name, medical_institution, "
+            "amount, insurance_reimbursement, description "
+            "FROM medical_expense_details WHERE fiscal_year = ? ORDER BY date, id",
+            (fiscal_year,),
+        ).fetchall()
+        details = [
+            {
+                "id": r[0],
+                "fiscal_year": r[1],
+                "date": r[2],
+                "patient_name": r[3],
+                "medical_institution": r[4],
+                "amount": r[5],
+                "insurance_reimbursement": r[6],
+                "description": r[7],
+            }
+            for r in rows
+        ]
+        total_amount = sum(d["amount"] for d in details)
+        total_reimbursement = sum(d["insurance_reimbursement"] for d in details)
+        net_amount = total_amount - total_reimbursement
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "count": len(details),
+            "total_amount": total_amount,
+            "total_reimbursement": total_reimbursement,
+            "net_amount": net_amount,
+            "details": details,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_delete_medical_expense(*, db_path: str, medical_expense_id: int) -> dict:
+    """Delete a medical expense detail entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM medical_expense_details WHERE id = ?", (medical_expense_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Medical expense {medical_expense_id} not found",
+            }
+        conn.execute("DELETE FROM medical_expense_details WHERE id = ?", (medical_expense_id,))
+        conn.commit()
+        return {"status": "ok", "medical_expense_id": medical_expense_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 住宅ローン控除詳細 (Housing Loan Details)
+# ============================================================
+
+
+def ledger_add_housing_loan_detail(
+    *, db_path: str, fiscal_year: int, detail: HousingLoanDetailInput
+) -> dict:
+    """Add a housing loan detail entry."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "INSERT INTO housing_loan_details "
+            "(fiscal_year, housing_type, housing_category, move_in_date, "
+            "year_end_balance, is_new_construction) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                fiscal_year,
+                detail.housing_type,
+                detail.housing_category,
+                detail.move_in_date,
+                detail.year_end_balance,
+                1 if detail.is_new_construction else 0,
+            ),
+        )
+        conn.commit()
+        return {
+            "status": "ok",
+            "housing_loan_detail_id": cursor.lastrowid,
+            "fiscal_year": fiscal_year,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_list_housing_loan_details(*, db_path: str, fiscal_year: int) -> dict:
+    """List all housing loan details for a fiscal year."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, housing_type, housing_category, "
+            "move_in_date, year_end_balance, is_new_construction "
+            "FROM housing_loan_details WHERE fiscal_year = ? ORDER BY id",
+            (fiscal_year,),
+        ).fetchall()
+        details = [
+            {
+                "id": r[0],
+                "fiscal_year": r[1],
+                "housing_type": r[2],
+                "housing_category": r[3],
+                "move_in_date": r[4],
+                "year_end_balance": r[5],
+                "is_new_construction": bool(r[6]),
+            }
+            for r in rows
+        ]
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "count": len(details),
+            "details": details,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_delete_housing_loan_detail(*, db_path: str, housing_loan_detail_id: int) -> dict:
+    """Delete a housing loan detail entry."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM housing_loan_details WHERE id = ?", (housing_loan_detail_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Housing loan detail {housing_loan_detail_id} not found",
+            }
+        conn.execute("DELETE FROM housing_loan_details WHERE id = ?", (housing_loan_detail_id,))
+        conn.commit()
+        return {"status": "ok", "housing_loan_detail_id": housing_loan_detail_id}
     finally:
         conn.close()

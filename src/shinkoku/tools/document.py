@@ -424,6 +424,22 @@ def generate_income_tax_pdf(
     )
     y -= 12 * mm
 
+    # Loss carryforward (if applied)
+    if tax_result.loss_carryforward_applied > 0:
+        fields.append(
+            {"type": "text", "x": 30 * mm, "y": y, "value": "繰越損失適用額", "font_size": 8}
+        )
+        fields.append(
+            {
+                "type": "number",
+                "x": 150 * mm,
+                "y": y,
+                "value": tax_result.loss_carryforward_applied,
+                "font_size": 8,
+            }
+        )
+        y -= 10 * mm
+
     # Tax calculation section
     tax_items = [
         ("課税所得金額", tax_result.taxable_income),
@@ -432,9 +448,18 @@ def generate_income_tax_pdf(
         ("税額控除後", tax_result.income_tax_after_credits),
         ("復興特別所得税", tax_result.reconstruction_tax),
         ("申告納税額", tax_result.total_tax),
-        ("源泉徴収税額", tax_result.withheld_tax),
-        ("差引納付/還付", tax_result.tax_due),
+        ("源泉徴収税額（給与）", tax_result.withheld_tax),
     ]
+
+    # 事業所得の源泉徴収税額（0より大きい場合のみ表示）
+    if tax_result.business_withheld_tax > 0:
+        tax_items.append(("源泉徴収税額（事業）", tax_result.business_withheld_tax))
+
+    # 予定納税額（0より大きい場合のみ表示）
+    if tax_result.estimated_tax_payment > 0:
+        tax_items.append(("予定納税額", tax_result.estimated_tax_payment))
+
+    tax_items.append(("差引納付/還付", tax_result.tax_due))
     for label, value in tax_items:
         fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
         fields.append({"type": "number", "x": 150 * mm, "y": y, "value": value, "font_size": 9})
@@ -651,6 +676,363 @@ def generate_deduction_detail_pdf(
 
 
 # ============================================================
+# Medical Expense Detail PDF
+# ============================================================
+
+
+def generate_medical_expense_detail_pdf(
+    expenses: list[dict],
+    fiscal_year: int,
+    total_income: int = 0,
+    output_path: str = "output/medical_expense_detail.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """Generate medical expense detail form PDF (医療費控除の明細書)."""
+    fields: list[dict[str, Any]] = []
+
+    # Title
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "医療費控除の明細書",
+            "font_size": 12,
+        }
+    )
+
+    if taxpayer_name:
+        fields.append(
+            {"type": "text", "x": 60 * mm, "y": 270 * mm, "value": taxpayer_name, "font_size": 10}
+        )
+
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
+
+    # Detail lines
+    y = 250 * mm
+    total_amount = 0
+    total_reimbursement = 0
+
+    for exp in expenses[:15]:  # 最大15行
+        institution = exp.get("medical_institution", "")
+        patient = exp.get("patient_name", "")
+        amount = exp.get("amount", 0)
+        reimbursement = exp.get("insurance_reimbursement", 0)
+
+        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": institution, "font_size": 7})
+        fields.append({"type": "text", "x": 80 * mm, "y": y, "value": patient, "font_size": 7})
+        fields.append({"type": "number", "x": 130 * mm, "y": y, "value": amount, "font_size": 7})
+        if reimbursement > 0:
+            fields.append(
+                {"type": "number", "x": 170 * mm, "y": y, "value": reimbursement, "font_size": 7}
+            )
+        y -= 12 * mm
+        total_amount += amount
+        total_reimbursement += reimbursement
+
+    # Summary
+    y -= 10 * mm
+    net_amount = total_amount - total_reimbursement
+    medical_threshold = min(100_000, total_income * 5 // 100) if total_income > 0 else 100_000
+    deduction = max(0, min(net_amount - medical_threshold, 2_000_000))
+
+    summary_items = [
+        ("医療費合計", total_amount),
+        ("保険金等の補填額", total_reimbursement),
+        ("差引金額", net_amount),
+        ("控除額", deduction),
+    ]
+    for label, value in summary_items:
+        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 9})
+        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": value, "font_size": 9})
+        y -= 10 * mm
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
+
+
+# ============================================================
+# Rent Detail PDF
+# ============================================================
+
+
+def generate_rent_detail_pdf(
+    rent_details: list[dict],
+    fiscal_year: int,
+    output_path: str = "output/rent_detail.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """Generate rent payment detail form PDF (地代家賃の内訳書)."""
+    fields: list[dict[str, Any]] = []
+
+    # Title
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "地代家賃の内訳書",
+            "font_size": 12,
+        }
+    )
+
+    if taxpayer_name:
+        fields.append(
+            {"type": "text", "x": 60 * mm, "y": 270 * mm, "value": taxpayer_name, "font_size": 10}
+        )
+
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
+
+    # Column headers
+    y = 252 * mm
+    headers = [
+        (30 * mm, "用途/物件種類"),
+        (80 * mm, "賃貸先"),
+        (130 * mm, "月額"),
+        (155 * mm, "年額"),
+        (180 * mm, "事業割合"),
+    ]
+    for x, label in headers:
+        fields.append({"type": "text", "x": x, "y": y, "value": label, "font_size": 8})
+
+    # Detail lines
+    y = 240 * mm
+    total_annual = 0
+
+    for detail in rent_details[:5]:  # 最大5行
+        usage = detail.get("usage", "")
+        property_type = detail.get("property_type", "")
+        landlord_name = detail.get("landlord_name", "")
+        landlord_address = detail.get("landlord_address", "")
+        monthly_rent = detail.get("monthly_rent", 0)
+        annual_rent = detail.get("annual_rent", 0)
+        business_ratio = detail.get("business_ratio", 100)
+
+        fields.append(
+            {
+                "type": "text",
+                "x": 30 * mm,
+                "y": y,
+                "value": f"{usage}/{property_type}",
+                "font_size": 8,
+            }
+        )
+        fields.append(
+            {"type": "text", "x": 80 * mm, "y": y, "value": landlord_name, "font_size": 8}
+        )
+        fields.append(
+            {"type": "number", "x": 130 * mm, "y": y, "value": monthly_rent, "font_size": 8}
+        )
+        fields.append(
+            {"type": "number", "x": 155 * mm, "y": y, "value": annual_rent, "font_size": 8}
+        )
+        fields.append(
+            {
+                "type": "text",
+                "x": 180 * mm,
+                "y": y,
+                "value": f"{business_ratio}%",
+                "font_size": 8,
+            }
+        )
+        # Address on next line
+        if landlord_address:
+            fields.append(
+                {
+                    "type": "text",
+                    "x": 80 * mm,
+                    "y": y - 8 * mm,
+                    "value": landlord_address,
+                    "font_size": 7,
+                }
+            )
+        y -= 24 * mm
+        total_annual += annual_rent
+
+    # Total
+    y -= 5 * mm
+    fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "年間合計", "font_size": 9})
+    fields.append({"type": "number", "x": 155 * mm, "y": y, "value": total_annual, "font_size": 9})
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
+
+
+# ============================================================
+# Housing Loan Credit Detail PDF (住宅借入金等特別控除の計算明細書)
+# ============================================================
+
+# 住宅区分ラベル
+_HOUSING_TYPE_LABELS: dict[str, str] = {
+    "new_custom": "注文住宅（新築）",
+    "new_subdivision": "分譲住宅（新築）",
+    "resale": "中古住宅",
+    "used": "既存住宅",
+    "renovation": "増改築等",
+}
+
+_HOUSING_CATEGORY_LABELS: dict[str, str] = {
+    "general": "一般住宅",
+    "certified": "認定住宅（長期優良/低炭素）",
+    "zeh": "ZEH水準省エネ住宅",
+    "energy_efficient": "省エネ基準適合住宅",
+}
+
+# 住宅区分別の年末残高上限額（令和4年〜7年入居）
+_HOUSING_BALANCE_LIMITS: dict[tuple[str, bool], int] = {
+    ("certified", True): 50_000_000,
+    ("zeh", True): 45_000_000,
+    ("energy_efficient", True): 40_000_000,
+    ("general", True): 30_000_000,
+    ("certified", False): 30_000_000,
+    ("zeh", False): 30_000_000,
+    ("energy_efficient", False): 30_000_000,
+    ("general", False): 20_000_000,
+}
+
+
+def generate_housing_loan_detail_pdf(
+    housing_detail: dict,
+    credit_amount: int,
+    fiscal_year: int,
+    output_path: str = "output/housing_loan_detail.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """Generate housing loan credit calculation detail PDF (住宅借入金等特別控除の計算明細書).
+
+    Args:
+        housing_detail: HousingLoanDetail as dict.
+        credit_amount: Calculated housing loan credit amount.
+        fiscal_year: Fiscal year.
+        output_path: Output file path.
+        taxpayer_name: Taxpayer name.
+    """
+    fields: list[dict[str, Any]] = []
+
+    # Title
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "住宅借入金等特別控除額の計算明細書",
+            "font_size": 12,
+        }
+    )
+
+    if taxpayer_name:
+        fields.append(
+            {"type": "text", "x": 60 * mm, "y": 270 * mm, "value": taxpayer_name, "font_size": 10}
+        )
+
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
+
+    # Housing info
+    y = 250 * mm
+    housing_type = housing_detail.get("housing_type", "")
+    housing_category = housing_detail.get("housing_category", "")
+    move_in_date = housing_detail.get("move_in_date", "")
+    year_end_balance = housing_detail.get("year_end_balance", 0)
+    is_new = housing_detail.get("is_new_construction", True)
+
+    type_label = _HOUSING_TYPE_LABELS.get(housing_type, housing_type)
+    category_label = _HOUSING_CATEGORY_LABELS.get(housing_category, housing_category)
+
+    info_items = [
+        ("住宅の区分", type_label),
+        ("住宅の性能", category_label),
+        ("入居年月日", move_in_date),
+        ("新築/中古", "新築" if is_new else "中古"),
+    ]
+    for label, value in info_items:
+        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
+        fields.append({"type": "text", "x": 100 * mm, "y": y, "value": str(value), "font_size": 8})
+        y -= 10 * mm
+
+    # Calculation
+    y -= 10 * mm
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y, "value": "【控除額の計算】", "font_size": 9}
+    )
+    y -= 12 * mm
+
+    # 年末残高
+    fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "年末残高", "font_size": 8})
+    fields.append(
+        {"type": "number", "x": 170 * mm, "y": y, "value": year_end_balance, "font_size": 8}
+    )
+    y -= 10 * mm
+
+    # 上限額
+    key = (housing_category, is_new)
+    balance_limit = _HOUSING_BALANCE_LIMITS.get(key, 30_000_000)
+    fields.append(
+        {
+            "type": "text",
+            "x": 30 * mm,
+            "y": y,
+            "value": "借入金等の年末残高の限度額",
+            "font_size": 8,
+        }
+    )
+    fields.append({"type": "number", "x": 170 * mm, "y": y, "value": balance_limit, "font_size": 8})
+    y -= 10 * mm
+
+    # 控除対象残高
+    capped_balance = min(year_end_balance, balance_limit)
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y, "value": "控除対象借入金等の額", "font_size": 8}
+    )
+    fields.append(
+        {"type": "number", "x": 170 * mm, "y": y, "value": capped_balance, "font_size": 8}
+    )
+    y -= 10 * mm
+
+    # 控除率
+    fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "控除率", "font_size": 8})
+    fields.append({"type": "text", "x": 170 * mm, "y": y, "value": "0.7%", "font_size": 8})
+    y -= 10 * mm
+
+    # 控除期間
+    period = 13 if is_new else 10
+    fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "控除期間", "font_size": 8})
+    fields.append({"type": "text", "x": 170 * mm, "y": y, "value": f"{period}年間", "font_size": 8})
+    y -= 15 * mm
+
+    # 控除額
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y, "value": "住宅借入金等特別控除額", "font_size": 10}
+    )
+    fields.append(
+        {"type": "number", "x": 170 * mm, "y": y, "value": credit_amount, "font_size": 10}
+    )
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
+
+
+# ============================================================
 # MCP Tool Registration
 # ============================================================
 
@@ -774,6 +1156,58 @@ def register(mcp) -> None:
         )
         path = generate_consumption_tax_pdf(
             tax_result=tax_result,
+            output_path=output_path,
+            taxpayer_name=taxpayer_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_medical_expense_detail(
+        fiscal_year: int,
+        expenses: list[dict] | None = None,
+        total_income: int = 0,
+        output_path: str = "output/medical_expense_detail.pdf",
+        taxpayer_name: str = "",
+    ) -> dict:
+        """Generate medical expense detail form PDF (医療費控除の明細書)."""
+        path = generate_medical_expense_detail_pdf(
+            expenses=expenses or [],
+            fiscal_year=fiscal_year,
+            total_income=total_income,
+            output_path=output_path,
+            taxpayer_name=taxpayer_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_rent_detail(
+        fiscal_year: int,
+        rent_details: list[dict] | None = None,
+        output_path: str = "output/rent_detail.pdf",
+        taxpayer_name: str = "",
+    ) -> dict:
+        """Generate rent payment detail form PDF (地代家賃の内訳書)."""
+        path = generate_rent_detail_pdf(
+            rent_details=rent_details or [],
+            fiscal_year=fiscal_year,
+            output_path=output_path,
+            taxpayer_name=taxpayer_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_housing_loan_detail(
+        fiscal_year: int,
+        housing_detail: dict | None = None,
+        credit_amount: int = 0,
+        output_path: str = "output/housing_loan_detail.pdf",
+        taxpayer_name: str = "",
+    ) -> dict:
+        """Generate housing loan credit calculation detail PDF (住宅借入金等特別控除の計算明細書)."""
+        path = generate_housing_loan_detail_pdf(
+            housing_detail=housing_detail or {},
+            credit_amount=credit_amount,
+            fiscal_year=fiscal_year,
             output_path=output_path,
             taxpayer_name=taxpayer_name,
         )

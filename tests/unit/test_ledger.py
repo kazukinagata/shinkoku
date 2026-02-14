@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import sqlite3
 import pytest
-from shinkoku.models import JournalEntry, JournalLine, JournalSearchParams
+from shinkoku.models import (
+    BusinessWithholdingInput,
+    HousingLoanDetailInput,
+    JournalEntry,
+    JournalLine,
+    JournalSearchParams,
+    LossCarryforwardInput,
+    MedicalExpenseInput,
+    RentDetailInput,
+)
 from shinkoku.tools.ledger import (
     ledger_init,
     ledger_add_journal,
@@ -16,6 +25,21 @@ from shinkoku.tools.ledger import (
     ledger_pl,
     ledger_bs,
     ledger_check_duplicates,
+    ledger_add_business_withholding,
+    ledger_list_business_withholding,
+    ledger_delete_business_withholding,
+    ledger_add_loss_carryforward,
+    ledger_list_loss_carryforward,
+    ledger_delete_loss_carryforward,
+    ledger_add_medical_expense,
+    ledger_list_medical_expenses,
+    ledger_delete_medical_expense,
+    ledger_add_rent_detail,
+    ledger_list_rent_details,
+    ledger_delete_rent_detail,
+    ledger_add_housing_loan_detail,
+    ledger_list_housing_loan_details,
+    ledger_delete_housing_loan_detail,
 )
 
 
@@ -713,3 +737,406 @@ class TestDuplicateDetection:
         result = ledger_check_duplicates(db_path=db_path, fiscal_year=2025)
         assert result["status"] == "ok"
         assert len(result["pairs"]) >= 1
+
+
+# ============================================================
+# 地代家賃の内訳 (Rent Details)
+# ============================================================
+
+
+class TestRentDetails:
+    """地代家賃の内訳CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_rent_detail(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = RentDetailInput(
+            property_type="事務所",
+            usage="事務所",
+            landlord_name="テスト不動産",
+            landlord_address="東京都渋谷区1-1-1",
+            monthly_rent=100_000,
+            annual_rent=1_200_000,
+            deposit=200_000,
+            business_ratio=50,
+        )
+        result = ledger_add_rent_detail(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert result["status"] == "ok"
+        assert result["rent_detail_id"] > 0
+
+    def test_list_rent_details(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = RentDetailInput(
+            property_type="自宅兼事務所",
+            usage="自宅兼事務所",
+            landlord_name="ABC不動産",
+            landlord_address="東京都新宿区2-2-2",
+            monthly_rent=150_000,
+            annual_rent=1_800_000,
+            business_ratio=30,
+        )
+        ledger_add_rent_detail(db_path=db_path, fiscal_year=2025, detail=detail)
+        result = ledger_list_rent_details(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 1
+        assert result["details"][0]["landlord_name"] == "ABC不動産"
+        assert result["details"][0]["business_ratio"] == 30
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_list_rent_details(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 0
+
+    def test_delete_rent_detail(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = RentDetailInput(
+            property_type="駐車場",
+            usage="事務所",
+            landlord_name="XYZ駐車場",
+            landlord_address="東京都港区3-3-3",
+            monthly_rent=30_000,
+            annual_rent=360_000,
+        )
+        add_result = ledger_add_rent_detail(db_path=db_path, fiscal_year=2025, detail=detail)
+        rid = add_result["rent_detail_id"]
+        del_result = ledger_delete_rent_detail(db_path=db_path, rent_detail_id=rid)
+        assert del_result["status"] == "ok"
+        # Verify deleted
+        list_result = ledger_list_rent_details(db_path=db_path, fiscal_year=2025)
+        assert list_result["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_delete_rent_detail(db_path=db_path, rent_detail_id=999)
+        assert result["status"] == "error"
+
+
+# ============================================================
+# 事業所得の源泉徴収 (Business Withholding)
+# ============================================================
+
+
+class TestBusinessWithholding:
+    """事業所得の源泉徴収（取引先別）CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_business_withholding(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = BusinessWithholdingInput(
+            client_name="株式会社テスト",
+            gross_amount=1_000_000,
+            withholding_tax=102_100,
+        )
+        result = ledger_add_business_withholding(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert result["status"] == "ok"
+        assert result["withholding_id"] > 0
+
+    def test_list_business_withholding(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        d1 = BusinessWithholdingInput(
+            client_name="A社", gross_amount=500_000, withholding_tax=51_050
+        )
+        d2 = BusinessWithholdingInput(
+            client_name="B社", gross_amount=300_000, withholding_tax=30_630
+        )
+        ledger_add_business_withholding(db_path=db_path, fiscal_year=2025, detail=d1)
+        ledger_add_business_withholding(db_path=db_path, fiscal_year=2025, detail=d2)
+        result = ledger_list_business_withholding(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 2
+        assert result["total_gross_amount"] == 800_000
+        assert result["total_withholding_tax"] == 81_680
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_list_business_withholding(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 0
+
+    def test_delete_business_withholding(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = BusinessWithholdingInput(
+            client_name="削除テスト社", gross_amount=200_000, withholding_tax=20_420
+        )
+        add_result = ledger_add_business_withholding(
+            db_path=db_path, fiscal_year=2025, detail=detail
+        )
+        wid = add_result["withholding_id"]
+        del_result = ledger_delete_business_withholding(db_path=db_path, withholding_id=wid)
+        assert del_result["status"] == "ok"
+        list_result = ledger_list_business_withholding(db_path=db_path, fiscal_year=2025)
+        assert list_result["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_delete_business_withholding(db_path=db_path, withholding_id=999)
+        assert result["status"] == "error"
+
+    def test_duplicate_client_rejected(self, tmp_path):
+        """同一取引先の重複登録はエラー。"""
+        db_path = self._init_db(tmp_path)
+        detail = BusinessWithholdingInput(
+            client_name="重複テスト社", gross_amount=500_000, withholding_tax=51_050
+        )
+        ledger_add_business_withholding(db_path=db_path, fiscal_year=2025, detail=detail)
+        result = ledger_add_business_withholding(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert result["status"] == "error"
+        assert "既に登録" in result["message"]
+
+
+# ============================================================
+# 損失繰越 (Loss Carryforward)
+# ============================================================
+
+
+class TestLossCarryforwardCRUD:
+    """損失繰越CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_loss_carryforward(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = LossCarryforwardInput(loss_year=2023, amount=500_000)
+        result = ledger_add_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert result["status"] == "ok"
+        assert result["loss_carryforward_id"] > 0
+
+    def test_list_loss_carryforward(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        d1 = LossCarryforwardInput(loss_year=2022, amount=300_000)
+        d2 = LossCarryforwardInput(loss_year=2024, amount=200_000)
+        ledger_add_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=d1)
+        ledger_add_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=d2)
+        result = ledger_list_loss_carryforward(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 2
+        assert result["total_amount"] == 500_000
+        assert result["total_remaining"] == 500_000
+        # 古い年度順にソートされる
+        assert result["details"][0]["loss_year"] == 2022
+        assert result["details"][1]["loss_year"] == 2024
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_list_loss_carryforward(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 0
+
+    def test_delete_loss_carryforward(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = LossCarryforwardInput(loss_year=2024, amount=100_000)
+        add_result = ledger_add_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
+        lid = add_result["loss_carryforward_id"]
+        del_result = ledger_delete_loss_carryforward(db_path=db_path, loss_carryforward_id=lid)
+        assert del_result["status"] == "ok"
+        list_result = ledger_list_loss_carryforward(db_path=db_path, fiscal_year=2025)
+        assert list_result["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_delete_loss_carryforward(db_path=db_path, loss_carryforward_id=999)
+        assert result["status"] == "error"
+
+    def test_loss_year_too_old_rejected(self, tmp_path):
+        """4年以上前の損失はエラー（青色申告の3年繰越制限）。"""
+        db_path = self._init_db(tmp_path)
+        detail = LossCarryforwardInput(loss_year=2021, amount=100_000)
+        result = ledger_add_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert result["status"] == "error"
+        assert "3年以内" in result["message"]
+
+
+# ============================================================
+# 医療費明細 (Medical Expense Details)
+# ============================================================
+
+
+class TestMedicalExpenseDetails:
+    """医療費明細CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_medical_expense(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = MedicalExpenseInput(
+            date="2025-03-15",
+            patient_name="山田太郎",
+            medical_institution="東京病院",
+            amount=15_000,
+            insurance_reimbursement=5_000,
+            description="内科受診",
+        )
+        result = ledger_add_medical_expense(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert result["status"] == "ok"
+        assert result["medical_expense_id"] > 0
+
+    def test_list_medical_expenses(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        d1 = MedicalExpenseInput(
+            date="2025-01-10",
+            patient_name="山田太郎",
+            medical_institution="A病院",
+            amount=10_000,
+            insurance_reimbursement=3_000,
+        )
+        d2 = MedicalExpenseInput(
+            date="2025-06-20",
+            patient_name="山田花子",
+            medical_institution="B歯科",
+            amount=50_000,
+            insurance_reimbursement=0,
+        )
+        ledger_add_medical_expense(db_path=db_path, fiscal_year=2025, detail=d1)
+        ledger_add_medical_expense(db_path=db_path, fiscal_year=2025, detail=d2)
+        result = ledger_list_medical_expenses(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 2
+        assert result["total_amount"] == 60_000
+        assert result["total_reimbursement"] == 3_000
+        assert result["net_amount"] == 57_000
+        # 日付順ソート
+        assert result["details"][0]["date"] == "2025-01-10"
+        assert result["details"][1]["date"] == "2025-06-20"
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_list_medical_expenses(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 0
+        assert result["net_amount"] == 0
+
+    def test_delete_medical_expense(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = MedicalExpenseInput(
+            date="2025-05-01",
+            patient_name="テスト患者",
+            medical_institution="テスト医院",
+            amount=20_000,
+        )
+        add_result = ledger_add_medical_expense(db_path=db_path, fiscal_year=2025, detail=detail)
+        mid = add_result["medical_expense_id"]
+        del_result = ledger_delete_medical_expense(db_path=db_path, medical_expense_id=mid)
+        assert del_result["status"] == "ok"
+        list_result = ledger_list_medical_expenses(db_path=db_path, fiscal_year=2025)
+        assert list_result["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_delete_medical_expense(db_path=db_path, medical_expense_id=999)
+        assert result["status"] == "error"
+
+    def test_no_reimbursement_defaults_to_zero(self, tmp_path):
+        """insurance_reimbursement のデフォルトは0。"""
+        db_path = self._init_db(tmp_path)
+        detail = MedicalExpenseInput(
+            date="2025-07-01",
+            patient_name="山田太郎",
+            medical_institution="C医院",
+            amount=8_000,
+        )
+        ledger_add_medical_expense(db_path=db_path, fiscal_year=2025, detail=detail)
+        result = ledger_list_medical_expenses(db_path=db_path, fiscal_year=2025)
+        assert result["details"][0]["insurance_reimbursement"] == 0
+
+
+# ============================================================
+# 住宅ローン控除詳細 (Housing Loan Details)
+# ============================================================
+
+
+class TestHousingLoanDetails:
+    """住宅ローン控除詳細CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_housing_loan_detail(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = HousingLoanDetailInput(
+            housing_type="new_custom",
+            housing_category="certified",
+            move_in_date="2025-03-15",
+            year_end_balance=40_000_000,
+            is_new_construction=True,
+        )
+        result = ledger_add_housing_loan_detail(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert result["status"] == "ok"
+        assert result["housing_loan_detail_id"] > 0
+
+    def test_list_housing_loan_details(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = HousingLoanDetailInput(
+            housing_type="new_subdivision",
+            housing_category="zeh",
+            move_in_date="2025-06-01",
+            year_end_balance=35_000_000,
+            is_new_construction=True,
+        )
+        ledger_add_housing_loan_detail(db_path=db_path, fiscal_year=2025, detail=detail)
+        result = ledger_list_housing_loan_details(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 1
+        assert result["details"][0]["housing_type"] == "new_subdivision"
+        assert result["details"][0]["housing_category"] == "zeh"
+        assert result["details"][0]["year_end_balance"] == 35_000_000
+        assert result["details"][0]["is_new_construction"] is True
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_list_housing_loan_details(db_path=db_path, fiscal_year=2025)
+        assert result["status"] == "ok"
+        assert result["count"] == 0
+
+    def test_delete_housing_loan_detail(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = HousingLoanDetailInput(
+            housing_type="used",
+            housing_category="general",
+            move_in_date="2025-09-01",
+            year_end_balance=15_000_000,
+            is_new_construction=False,
+        )
+        add_result = ledger_add_housing_loan_detail(
+            db_path=db_path, fiscal_year=2025, detail=detail
+        )
+        hid = add_result["housing_loan_detail_id"]
+        del_result = ledger_delete_housing_loan_detail(db_path=db_path, housing_loan_detail_id=hid)
+        assert del_result["status"] == "ok"
+        list_result = ledger_list_housing_loan_details(db_path=db_path, fiscal_year=2025)
+        assert list_result["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        result = ledger_delete_housing_loan_detail(db_path=db_path, housing_loan_detail_id=999)
+        assert result["status"] == "error"
+
+    def test_is_new_construction_false(self, tmp_path):
+        """is_new_construction=False が正しくDBに保存・取得されるか。"""
+        db_path = self._init_db(tmp_path)
+        detail = HousingLoanDetailInput(
+            housing_type="resale",
+            housing_category="energy_efficient",
+            move_in_date="2025-04-01",
+            year_end_balance=20_000_000,
+            is_new_construction=False,
+        )
+        ledger_add_housing_loan_detail(db_path=db_path, fiscal_year=2025, detail=detail)
+        result = ledger_list_housing_loan_details(db_path=db_path, fiscal_year=2025)
+        assert result["details"][0]["is_new_construction"] is False

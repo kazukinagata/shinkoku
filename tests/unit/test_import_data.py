@@ -156,3 +156,46 @@ class TestImportWithholding:
         assert result["payment_amount"] == 0
         assert result["withheld_tax"] == 0
         assert result["social_insurance"] == 0
+
+
+# ============================================================
+# import_payment_statement
+# ============================================================
+
+
+class TestImportPaymentStatement:
+    def test_file_not_found(self):
+        from shinkoku.tools.import_data import import_payment_statement
+
+        result = import_payment_statement(file_path="/nonexistent/statement.pdf")
+        assert result["status"] == "error"
+
+    def test_pdf_file(self, tmp_path):
+        from shinkoku.tools.import_data import import_payment_statement
+
+        p = tmp_path / "statement.pdf"
+        p.write_text("not a real pdf")
+        result = import_payment_statement(file_path=str(p))
+        assert result["status"] == "ok"
+        assert result["file_path"] == str(p)
+        assert "extracted_text" in result
+
+    def test_image_file(self, tmp_path):
+        from shinkoku.tools.import_data import import_payment_statement
+
+        p = tmp_path / "statement.jpg"
+        p.write_bytes(b"\xff\xd8\xff")
+        result = import_payment_statement(file_path=str(p))
+        assert result["status"] == "ok"
+        assert result["extracted_text"] == ""
+
+    def test_template_fields(self, tmp_path):
+        from shinkoku.tools.import_data import import_payment_statement
+
+        p = tmp_path / "statement.png"
+        p.write_bytes(b"\x89PNG")
+        result = import_payment_statement(file_path=str(p))
+        assert result["payer_name"] is None
+        assert result["category"] is None
+        assert result["gross_amount"] is None
+        assert result["withholding_tax"] is None

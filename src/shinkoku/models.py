@@ -238,6 +238,61 @@ class DepreciationResult(BaseModel):
     total_depreciation: int
 
 
+class DependentInfo(BaseModel):
+    """扶養親族の情報。"""
+
+    name: str
+    relationship: str  # 配偶者/子/親 等
+    birth_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    income: int = 0  # 年間所得
+    disability: str | None = Field(default=None, pattern=r"^(general|special|special_cohabiting)$")
+    cohabiting: bool = True  # 同居
+
+
+class HousingLoanDetail(BaseModel):
+    """住宅ローン控除の詳細情報。"""
+
+    housing_type: str = Field(
+        pattern=r"^(new_custom|new_subdivision|resale|used|renovation)$",
+        description="住宅区分: new_custom=注文新築, new_subdivision=分譲新築, "
+        "resale=中古, used=既存, renovation=増改築",
+    )
+    housing_category: str = Field(
+        pattern=r"^(general|certified|zeh|energy_efficient)$",
+        description="住宅性能区分: general=一般, certified=認定住宅, "
+        "zeh=ZEH水準省エネ, energy_efficient=省エネ基準適合",
+    )
+    move_in_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    year_end_balance: int  # 年末残高
+    is_new_construction: bool = True  # 新築=True, 中古=False
+
+
+class HousingLoanDetailInput(BaseModel):
+    """住宅ローン控除詳細の登録入力。"""
+
+    housing_type: str = Field(
+        pattern=r"^(new_custom|new_subdivision|resale|used|renovation)$",
+    )
+    housing_category: str = Field(
+        pattern=r"^(general|certified|zeh|energy_efficient)$",
+    )
+    move_in_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    year_end_balance: int = Field(ge=0, description="年末残高（円）")
+    is_new_construction: bool = True
+
+
+class HousingLoanDetailRecord(BaseModel):
+    """住宅ローン控除詳細のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    housing_type: str
+    housing_category: str
+    move_in_date: str
+    year_end_balance: int
+    is_new_construction: bool
+
+
 class IncomeTaxInput(BaseModel):
     """所得税計算の入力。"""
 
@@ -253,8 +308,13 @@ class IncomeTaxInput(BaseModel):
     furusato_nozei: int = 0
     housing_loan_balance: int = 0
     housing_loan_year: int | None = None
+    housing_loan_detail: HousingLoanDetail | None = None
     spouse_income: int | None = None
-    withheld_tax: int = 0
+    dependents: list[DependentInfo] = Field(default_factory=list)
+    ideco_contribution: int = 0  # iDeCo掛金（小規模企業共済等掛金控除）
+    withheld_tax: int = 0  # 給与の源泉徴収税額
+    business_withheld_tax: int = 0  # 事業所得の源泉徴収税額（取引先別合計）
+    loss_carryforward_amount: int = 0  # 繰越損失額
     estimated_tax_payment: int = 0  # 予定納税額（第1期+第2期）
 
 
@@ -276,9 +336,12 @@ class IncomeTaxResult(BaseModel):
     reconstruction_tax: int = 0
     total_tax: int = 0
     withheld_tax: int = 0
+    business_withheld_tax: int = 0  # 事業所得の源泉徴収税額
     estimated_tax_payment: int = 0  # 予定納税額
+    loss_carryforward_applied: int = 0  # 適用した繰越損失額
     tax_due: int = Field(
-        description="正:納付、負:還付 = total_tax - withheld_tax - estimated_tax_payment"
+        description="正:納付、負:還付 = total_tax - withheld_tax - "
+        "business_withheld_tax - estimated_tax_payment"
     )
     # 内訳
     deductions_detail: DeductionsResult | None = None
@@ -361,6 +424,105 @@ class FurusatoDonationSummary(BaseModel):
         description="確定申告が必要か（副業ユーザーは常にTrue）",
     )
     donations: list[FurusatoDonationRecord] = Field(default_factory=list)
+
+
+# --- 事業所得の源泉徴収 (business withholding) ---
+
+
+class BusinessWithholdingInput(BaseModel):
+    """取引先別の源泉徴収入力。"""
+
+    client_name: str
+    gross_amount: int = Field(gt=0, description="支払金額（円）")
+    withholding_tax: int = Field(ge=0, description="源泉徴収税額（円）")
+
+
+class BusinessWithholdingRecord(BaseModel):
+    """取引先別の源泉徴収DBレコード。"""
+
+    id: int
+    fiscal_year: int
+    client_name: str
+    gross_amount: int
+    withholding_tax: int
+
+
+# --- 損失繰越 (loss carryforward) ---
+
+
+class LossCarryforwardInput(BaseModel):
+    """損失繰越の入力。"""
+
+    loss_year: int  # 損失が発生した年
+    amount: int = Field(gt=0, description="繰越損失額（円）")
+
+
+class LossCarryforwardRecord(BaseModel):
+    """損失繰越のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    loss_year: int
+    amount: int
+    used_amount: int
+
+
+# --- 医療費明細 (medical expense details) ---
+
+
+class MedicalExpenseInput(BaseModel):
+    """医療費明細の入力。"""
+
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    patient_name: str
+    medical_institution: str
+    amount: int = Field(gt=0, description="医療費（円）")
+    insurance_reimbursement: int = 0  # 保険補填額
+    description: str | None = None
+
+
+class MedicalExpenseRecord(BaseModel):
+    """医療費明細のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    date: str
+    patient_name: str
+    medical_institution: str
+    amount: int
+    insurance_reimbursement: int
+    description: str | None
+
+
+# --- 地代家賃の内訳 (rent details) ---
+
+
+class RentDetailInput(BaseModel):
+    """地代家賃の内訳入力。"""
+
+    property_type: str  # 事務所/自宅兼事務所/駐車場
+    usage: str  # 事務所/自宅兼事務所
+    landlord_name: str
+    landlord_address: str
+    monthly_rent: int = Field(gt=0, description="月額賃料（円）")
+    annual_rent: int = Field(gt=0, description="年間賃料（円）")
+    deposit: int = 0  # 権利金等
+    business_ratio: int = Field(default=100, ge=1, le=100, description="事業割合（%）")
+
+
+class RentDetailRecord(BaseModel):
+    """地代家賃の内訳DBレコード。"""
+
+    id: int
+    fiscal_year: int
+    property_type: str
+    usage: str
+    landlord_name: str
+    landlord_address: str
+    monthly_rent: int
+    annual_rent: int
+    deposit: int
+    business_ratio: int
 
 
 # --- 重複検出 (duplicate detection) ---

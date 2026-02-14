@@ -106,6 +106,68 @@ CREATE TABLE IF NOT EXISTS import_sources (
     imported_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 事業所得の源泉徴収（取引先別）
+CREATE TABLE IF NOT EXISTS business_withholding (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    client_name TEXT NOT NULL,
+    gross_amount INTEGER NOT NULL CHECK (gross_amount > 0),
+    withholding_tax INTEGER NOT NULL CHECK (withholding_tax >= 0),
+    UNIQUE(fiscal_year, client_name)
+);
+
+-- 損失繰越
+CREATE TABLE IF NOT EXISTS loss_carryforward (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    loss_year INTEGER NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    used_amount INTEGER NOT NULL DEFAULT 0
+);
+
+-- 医療費明細
+CREATE TABLE IF NOT EXISTS medical_expense_details (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    date TEXT NOT NULL,
+    patient_name TEXT NOT NULL,
+    medical_institution TEXT NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    insurance_reimbursement INTEGER DEFAULT 0,
+    description TEXT
+);
+
+-- 地代家賃の内訳
+CREATE TABLE IF NOT EXISTS rent_details (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    property_type TEXT NOT NULL,
+    usage TEXT NOT NULL,
+    landlord_name TEXT NOT NULL,
+    landlord_address TEXT NOT NULL,
+    monthly_rent INTEGER NOT NULL CHECK (monthly_rent > 0),
+    annual_rent INTEGER NOT NULL CHECK (annual_rent > 0),
+    deposit INTEGER DEFAULT 0,
+    business_ratio INTEGER DEFAULT 100 CHECK (business_ratio BETWEEN 1 AND 100),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 住宅ローン控除詳細
+CREATE TABLE IF NOT EXISTS housing_loan_details (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    housing_type TEXT NOT NULL CHECK (housing_type IN (
+        'new_custom', 'new_subdivision', 'resale', 'used', 'renovation'
+    )),
+    housing_category TEXT NOT NULL CHECK (housing_category IN (
+        'general', 'certified', 'zeh', 'energy_efficient'
+    )),
+    move_in_date TEXT NOT NULL,
+    year_end_balance INTEGER NOT NULL CHECK (year_end_balance >= 0),
+    is_new_construction INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ふるさと納税寄附データ
 CREATE TABLE IF NOT EXISTS furusato_donations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,4 +195,9 @@ CREATE INDEX IF NOT EXISTS idx_deductions_fiscal_year ON deductions(fiscal_year)
 CREATE INDEX IF NOT EXISTS idx_withholding_slips_fiscal_year ON withholding_slips(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_import_sources_fiscal_year ON import_sources(fiscal_year);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_import_sources_file_hash ON import_sources(fiscal_year, file_hash);
+CREATE INDEX IF NOT EXISTS idx_business_withholding_fiscal_year ON business_withholding(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_loss_carryforward_fiscal_year ON loss_carryforward(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_medical_expense_details_fiscal_year ON medical_expense_details(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_rent_details_fiscal_year ON rent_details(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_housing_loan_details_fiscal_year ON housing_loan_details(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_furusato_donations_fiscal_year ON furusato_donations(fiscal_year);

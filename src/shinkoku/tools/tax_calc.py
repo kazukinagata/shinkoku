@@ -13,6 +13,8 @@ from __future__ import annotations
 from shinkoku.models import (
     DeductionItem,
     DeductionsResult,
+    DependentInfo,
+    HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
     ConsumptionTaxInput,
@@ -168,6 +170,125 @@ def calc_spouse_deduction(taxpayer_income: int, spouse_income: int | None) -> in
 
 
 # ============================================================
+# Dependent Deduction (扶養控除)
+# ============================================================
+
+
+def _calc_age(birth_date: str, fiscal_year_end: str = "2025-12-31") -> int:
+    """Calculate age at end of fiscal year from birth_date (YYYY-MM-DD)."""
+    by, bm, bd = (int(x) for x in birth_date.split("-"))
+    ey, em, ed = (int(x) for x in fiscal_year_end.split("-"))
+    age = ey - by
+    if (em, ed) < (bm, bd):
+        age -= 1
+    return age
+
+
+def calc_dependents_deduction(
+    dependents: list[DependentInfo],
+    taxpayer_income: int,
+    fiscal_year: int = 2025,
+) -> list[DeductionItem]:
+    """Calculate deductions for dependents (扶養控除 + 障害者控除).
+
+    扶養控除（配偶者以外の親族で所得48万以下）:
+    - 一般扶養: 38万円（16歳以上）
+    - 特定扶養: 63万円（19歳以上23歳未満）
+    - 老人扶養（同居）: 58万円（70歳以上、同居）
+    - 老人扶養（別居）: 48万円（70歳以上、別居）
+    - 16歳未満: 扶養控除なし（児童手当対象）
+
+    障害者控除:
+    - 一般障害者: 27万円
+    - 特別障害者: 40万円
+    - 同居特別障害者: 75万円
+    """
+    items: list[DeductionItem] = []
+    fiscal_year_end = f"{fiscal_year}-12-31"
+
+    for dep in dependents:
+        # 配偶者は配偶者控除で処理するため除外
+        if dep.relationship == "配偶者":
+            continue
+
+        # 所得要件: 48万円以下
+        if dep.income > 480_000:
+            continue
+
+        age = _calc_age(dep.birth_date, fiscal_year_end)
+
+        # 扶養控除（16歳以上のみ）
+        if age >= 70:
+            # 老人扶養親族
+            if dep.cohabiting:
+                deduction = 580_000  # 同居老親等
+                detail = f"{dep.name}（老人扶養・同居）"
+            else:
+                deduction = 480_000  # 別居
+                detail = f"{dep.name}（老人扶養・別居）"
+            items.append(
+                DeductionItem(
+                    type="dependent",
+                    name="扶養控除",
+                    amount=deduction,
+                    details=detail,
+                )
+            )
+        elif age >= 19 and age < 23:
+            # 特定扶養親族（19歳以上23歳未満）
+            items.append(
+                DeductionItem(
+                    type="dependent",
+                    name="扶養控除",
+                    amount=630_000,
+                    details=f"{dep.name}（特定扶養）",
+                )
+            )
+        elif age >= 16:
+            # 一般扶養親族
+            items.append(
+                DeductionItem(
+                    type="dependent",
+                    name="扶養控除",
+                    amount=380_000,
+                    details=f"{dep.name}（一般扶養）",
+                )
+            )
+        # 16歳未満: 扶養控除なし
+
+        # 障害者控除（年齢制限なし）
+        if dep.disability == "special_cohabiting":
+            items.append(
+                DeductionItem(
+                    type="disability",
+                    name="障害者控除",
+                    amount=750_000,
+                    details=f"{dep.name}（同居特別障害者）",
+                )
+            )
+        elif dep.disability == "special":
+            items.append(
+                DeductionItem(
+                    type="disability",
+                    name="障害者控除",
+                    amount=400_000,
+                    details=f"{dep.name}（特別障害者）",
+                )
+            )
+        elif dep.disability == "general":
+            items.append(
+                DeductionItem(
+                    type="disability",
+                    name="障害者控除",
+                    amount=270_000,
+                    details=f"{dep.name}（一般障害者）",
+                )
+            )
+
+    return items
+
+
+# ============================================================
 # Furusato Nozei (Hometown Tax Donation) Deduction
 # ============================================================
 
@@ -192,11 +313,43 @@ def calc_furusato_deduction(donation: int, total_income: int | None = None) -> i
 # Housing Loan Tax Credit
 # ============================================================
 
+# 住宅区分別の年末残高上限額（令和4年〜7年入居）
+# (housing_category, is_new_construction) -> balance_limit
+_HOUSING_LOAN_LIMITS: dict[tuple[str, bool], int] = {
+    # 新築
+    ("certified", True): 50_000_000,  # 認定住宅（長期優良/低炭素）
+    ("zeh", True): 45_000_000,  # ZEH水準省エネ住宅
+    ("energy_efficient", True): 40_000_000,  # 省エネ基準適合住宅
+    ("general", True): 30_000_000,  # 一般住宅
+    # 中古
+    ("certified", False): 30_000_000,  # 認定住宅（中古）
+    ("zeh", False): 30_000_000,  # ZEH水準省エネ住宅（中古）
+    ("energy_efficient", False): 30_000_000,  # 省エネ基準適合住宅（中古）
+    ("general", False): 20_000_000,  # 一般住宅（中古）
+}
 
-def calc_housing_loan_credit(balance: int) -> int:
-    """Calculate housing loan tax credit = balance * 0.7% (truncated)."""
+
+def calc_housing_loan_credit(
+    balance: int,
+    detail: HousingLoanDetail | None = None,
+) -> int:
+    """Calculate housing loan tax credit.
+
+    控除率: 0.7%（令和4年以降入居）
+    控除期間: 新築13年、中古10年（ここでは年単位の判定は呼び出し側で行う）
+    年末残高上限: 住宅区分別に異なる
+
+    detail が None の場合は従来のシンプル計算（balance * 0.7%）を行う。
+    """
     if balance <= 0:
         return 0
+
+    if detail is not None:
+        key = (detail.housing_category, detail.is_new_construction)
+        limit = _HOUSING_LOAN_LIMITS.get(key, 30_000_000)
+        capped = min(detail.year_end_balance, limit)
+        return int(capped * 7 // 1000)
+
     return int(balance * 7 // 1000)
 
 
@@ -214,6 +367,10 @@ def calc_deductions(
     furusato_nozei: int = 0,
     housing_loan_balance: int = 0,
     spouse_income: int | None = None,
+    ideco_contribution: int = 0,
+    dependents: list[DependentInfo] | None = None,
+    fiscal_year: int = 2025,
+    housing_loan_detail: HousingLoanDetail | None = None,
 ) -> DeductionsResult:
     """Calculate all applicable deductions and return structured result."""
     income_deductions: list[DeductionItem] = []
@@ -257,7 +414,18 @@ def calc_deductions(
             )
         )
 
-    # 5. Medical expenses (所得税法第73条)
+    # 5. iDeCo / 小規模企業共済等掛金控除（全額所得控除）
+    if ideco_contribution > 0:
+        income_deductions.append(
+            DeductionItem(
+                type="small_business_mutual_aid",
+                name="小規模企業共済等掛金控除",
+                amount=ideco_contribution,
+                details="iDeCo",
+            )
+        )
+
+    # 6. Medical expenses (所得税法第73条)
     # Threshold: min(100,000, total_income * 5%)
     medical_threshold = min(100_000, total_income * 5 // 100)
     if medical_expenses > medical_threshold:
@@ -270,7 +438,7 @@ def calc_deductions(
             )
         )
 
-    # 6. Furusato nozei（所得税法第78条: 総所得金額×40%上限）
+    # 7. Furusato nozei（所得税法第78条: 総所得金額×40%上限）
     if furusato_nozei > 0:
         furusato = calc_furusato_deduction(furusato_nozei, total_income=total_income)
         if furusato > 0:
@@ -283,7 +451,7 @@ def calc_deductions(
                 )
             )
 
-    # 7. Spouse deduction
+    # 8. Spouse deduction
     if spouse_income is not None:
         spouse = calc_spouse_deduction(total_income, spouse_income)
         if spouse > 0:
@@ -295,10 +463,22 @@ def calc_deductions(
                 )
             )
 
+    # 9. Dependent deductions (扶養控除 + 障害者控除)
+    if dependents:
+        dep_items = calc_dependents_deduction(
+            dependents=dependents,
+            taxpayer_income=total_income,
+            fiscal_year=fiscal_year,
+        )
+        income_deductions.extend(dep_items)
+
     # Tax credits
     # Housing loan credit
-    if housing_loan_balance > 0:
-        hl_credit = calc_housing_loan_credit(housing_loan_balance)
+    hl_balance = housing_loan_balance
+    if housing_loan_detail is not None:
+        hl_balance = housing_loan_detail.year_end_balance
+    if hl_balance > 0:
+        hl_credit = calc_housing_loan_credit(hl_balance, detail=housing_loan_detail)
         if hl_credit > 0:
             tax_credits.append(
                 DeductionItem(
@@ -411,7 +591,15 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     )
 
     # Step 3: Total income（損益通算後、0円未満にはならない）
-    total_income = max(0, salary_income_after + business_income)
+    total_income_raw = salary_income_after + business_income
+
+    # Step 3.5: 繰越損失の適用（青色申告の場合、3年繰越）
+    loss_applied = 0
+    if input_data.loss_carryforward_amount > 0 and total_income_raw > 0:
+        loss_applied = min(input_data.loss_carryforward_amount, total_income_raw)
+        total_income_raw -= loss_applied
+
+    total_income = max(0, total_income_raw)
 
     # Step 4: Income deductions
     deductions = calc_deductions(
@@ -423,6 +611,10 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         furusato_nozei=input_data.furusato_nozei,
         housing_loan_balance=input_data.housing_loan_balance,
         spouse_income=input_data.spouse_income,
+        ideco_contribution=input_data.ideco_contribution,
+        dependents=input_data.dependents or None,
+        fiscal_year=input_data.fiscal_year,
+        housing_loan_detail=input_data.housing_loan_detail,
     )
 
     total_income_deductions = deductions.total_income_deductions
@@ -445,8 +637,13 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     total_tax_raw = income_tax_after_credits + reconstruction_tax
     total_tax = (total_tax_raw // 100) * 100
 
-    # Step 10: Difference（源泉徴収税額と予定納税額を差し引く）
-    tax_due = total_tax - input_data.withheld_tax - input_data.estimated_tax_payment
+    # Step 10: Difference（給与源泉+事業源泉+予定納税を差し引く）
+    total_withheld = (
+        input_data.withheld_tax
+        + input_data.business_withheld_tax
+        + input_data.estimated_tax_payment
+    )
+    tax_due = total_tax - total_withheld
 
     return IncomeTaxResult(
         fiscal_year=input_data.fiscal_year,
@@ -461,7 +658,9 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         reconstruction_tax=reconstruction_tax,
         total_tax=total_tax,
         withheld_tax=input_data.withheld_tax,
+        business_withheld_tax=input_data.business_withheld_tax,
         estimated_tax_payment=input_data.estimated_tax_payment,
+        loss_carryforward_applied=loss_applied,
         tax_due=tax_due,
         deductions_detail=deductions,
     )
@@ -630,6 +829,7 @@ def register(mcp) -> None:
         furusato_nozei: int = 0,
         housing_loan_balance: int = 0,
         spouse_income: int | None = None,
+        ideco_contribution: int = 0,
     ) -> dict:
         """Calculate applicable deductions for income tax filing."""
         result = calc_deductions(
@@ -641,6 +841,7 @@ def register(mcp) -> None:
             furusato_nozei=furusato_nozei,
             housing_loan_balance=housing_loan_balance,
             spouse_income=spouse_income,
+            ideco_contribution=ideco_contribution,
         )
         return result.model_dump()
 
@@ -659,7 +860,10 @@ def register(mcp) -> None:
         housing_loan_balance: int = 0,
         housing_loan_year: int | None = None,
         spouse_income: int | None = None,
+        ideco_contribution: int = 0,
         withheld_tax: int = 0,
+        business_withheld_tax: int = 0,
+        loss_carryforward_amount: int = 0,
         estimated_tax_payment: int = 0,
     ) -> dict:
         """Calculate income tax for the fiscal year."""
@@ -677,7 +881,10 @@ def register(mcp) -> None:
             housing_loan_balance=housing_loan_balance,
             housing_loan_year=housing_loan_year,
             spouse_income=spouse_income,
+            ideco_contribution=ideco_contribution,
             withheld_tax=withheld_tax,
+            business_withheld_tax=business_withheld_tax,
+            loss_carryforward_amount=loss_carryforward_amount,
             estimated_tax_payment=estimated_tax_payment,
         )
         result = calc_income_tax(input_data)
