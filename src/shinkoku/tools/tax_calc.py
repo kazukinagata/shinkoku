@@ -39,8 +39,11 @@ from shinkoku.tax_constants import (
     FURUSATO_INCOME_RATIO,
     FURUSATO_RESIDENTIAL_TAX_RATIO,
     FURUSATO_SELF_BURDEN,
-    HOUSING_LOAN_BALANCE_LIMITS,
     HOUSING_LOAN_DEFAULT_LIMIT,
+    HOUSING_LOAN_GENERAL_R5_CONFIRMED,
+    HOUSING_LOAN_LIMITS_R4_R5,
+    HOUSING_LOAN_LIMITS_R6_R7,
+    HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE,
     HOUSING_LOAN_RATE,
     HOUSING_LOAN_RATE_DENOMINATOR,
     INCOME_TAX_TABLE,
@@ -481,7 +484,12 @@ def calc_housing_loan_credit(
 
     控除率: 0.7%（令和4年以降入居）
     控除期間: 新築13年、中古10年（ここでは年単位の判定は呼び出し側で行う）
-    年末残高上限: 住宅区分別に異なる
+    年末残高上限: 住宅区分・入居年・世帯区分別に異なる
+
+    入居年による上限テーブル選択:
+    - R4-R5（〜2023年）: 従来の上限額
+    - R6-R7（2024年〜）一般世帯: 引下げ後の上限額
+    - R6-R7（2024年〜）子育て世帯: 従来水準維持
 
     detail が None の場合は従来のシンプル計算（balance * 0.7%）を行う。
     """
@@ -489,8 +497,28 @@ def calc_housing_loan_credit(
         return 0
 
     if detail is not None:
+        move_in_year = int(detail.move_in_date[:4])
         key = (detail.housing_category, detail.is_new_construction)
-        limit = HOUSING_LOAN_BALANCE_LIMITS.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
+
+        # 入居年に応じたテーブル選択
+        if move_in_year <= 2023:
+            limits = HOUSING_LOAN_LIMITS_R4_R5
+        elif detail.is_childcare_household:
+            limits = HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE
+        else:
+            limits = HOUSING_LOAN_LIMITS_R6_R7
+
+        limit = limits.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
+
+        # 一般住宅新築 R6-R7: R5確認済みなら特例上限（2,000万/控除期間10年）
+        if (
+            limit == 0
+            and detail.housing_category == "general"
+            and detail.is_new_construction
+            and detail.has_pre_r6_building_permit
+        ):
+            limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED
+
         capped = min(detail.year_end_balance, limit)
         return int(capped * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR)
 

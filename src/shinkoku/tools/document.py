@@ -33,8 +33,11 @@ from shinkoku.tools.pdf_coordinates import (
     INCOME_TAX_FORM_B,
 )
 from shinkoku.tax_constants import (
-    HOUSING_LOAN_BALANCE_LIMITS,
     HOUSING_LOAN_DEFAULT_LIMIT,
+    HOUSING_LOAN_GENERAL_R5_CONFIRMED,
+    HOUSING_LOAN_LIMITS_R4_R5,
+    HOUSING_LOAN_LIMITS_R6_R7,
+    HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE,
     MEDICAL_EXPENSE_INCOME_RATIO,
     MEDICAL_EXPENSE_MAX,
     MEDICAL_EXPENSE_THRESHOLD,
@@ -981,9 +984,25 @@ def generate_housing_loan_detail_pdf(
     )
     y -= 10 * mm
 
-    # 上限額
+    # 上限額（入居年・世帯区分に基づきテーブル選択）
     key = (housing_category, is_new)
-    balance_limit = HOUSING_LOAN_BALANCE_LIMITS.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
+    is_childcare = housing_detail.get("is_childcare_household", False)
+    has_pre_r6_permit = housing_detail.get("has_pre_r6_building_permit", False)
+    move_in_year = int(move_in_date[:4]) if move_in_date else 2024
+    if move_in_year <= 2023:
+        limits = HOUSING_LOAN_LIMITS_R4_R5
+    elif is_childcare:
+        limits = HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE
+    else:
+        limits = HOUSING_LOAN_LIMITS_R6_R7
+    balance_limit = limits.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
+    if (
+        balance_limit == 0
+        and housing_category == "general"
+        and is_new
+        and has_pre_r6_permit
+    ):
+        balance_limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED
     fields.append(
         {
             "type": "text",

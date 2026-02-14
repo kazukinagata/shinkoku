@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 # v1 → v2: 配偶者/扶養/その他所得/仮想通貨/在庫/税理士報酬/株式/FX テーブル追加
 # + 源泉徴収票に生命保険5区分・国民年金・旧長期損害保険列追加
@@ -145,6 +145,13 @@ CREATE INDEX IF NOT EXISTS idx_fx_loss_carryforward_fiscal_year ON fx_loss_carry
 """
 
 
+# v2 → v3: 住宅ローン控除に子育て世帯・R5確認済みフラグ追加
+_V3_HOUSING_LOAN_COLUMNS = [
+    ("is_childcare_household", "INTEGER NOT NULL DEFAULT 0"),
+    ("has_pre_r6_building_permit", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
 def get_connection(db_path: str) -> sqlite3.Connection:
     """Create a connection with WAL mode and foreign keys enabled."""
     conn = sqlite3.connect(db_path)
@@ -193,6 +200,20 @@ def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
+    """Apply v2 → v3 migration: housing_loan_details に子育て世帯・R5確認済みフラグ追加。"""
+    for col_name, col_def in _V3_HOUSING_LOAN_COLUMNS:
+        if not _has_column(conn, "housing_loan_details", col_name):
+            conn.execute(
+                f"ALTER TABLE housing_loan_details ADD COLUMN {col_name} {col_def}"
+            )
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_version (version) VALUES (?)",
+        (3,),
+    )
+    conn.commit()
+
+
 def migrate(conn: sqlite3.Connection) -> int:
     """Apply schema migrations. Returns the current schema version."""
     current = _get_current_version(conn)
@@ -214,6 +235,8 @@ def migrate(conn: sqlite3.Connection) -> int:
     # Incremental migrations
     if current < 2:
         _migrate_v1_to_v2(conn)
+    if current < 3:
+        _migrate_v2_to_v3(conn)
 
     return CURRENT_SCHEMA_VERSION
 

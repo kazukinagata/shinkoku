@@ -172,6 +172,8 @@ CREATE TABLE IF NOT EXISTS housing_loan_details (
     move_in_date TEXT NOT NULL,
     year_end_balance INTEGER NOT NULL CHECK (year_end_balance >= 0),
     is_new_construction INTEGER NOT NULL DEFAULT 1,
+    is_childcare_household INTEGER NOT NULL DEFAULT 0,
+    has_pre_r6_building_permit INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

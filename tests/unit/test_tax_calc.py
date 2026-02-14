@@ -1082,14 +1082,14 @@ class TestDependentsDeduction:
 
 
 class TestHousingLoanDetailedCredit:
-    """住宅区分別の年末残高上限での控除計算テスト。"""
+    """R4-R5入居（〜2023年）: 住宅区分別の年末残高上限での控除計算テスト。"""
 
     def test_certified_new_within_limit(self):
         """認定住宅（新築）5,000万円上限内 → balance * 0.7%。"""
         detail = HousingLoanDetail(
             housing_type="new_custom",
             housing_category="certified",
-            move_in_date="2024-03-01",
+            move_in_date="2023-03-01",
             year_end_balance=40_000_000,
             is_new_construction=True,
         )
@@ -1101,7 +1101,7 @@ class TestHousingLoanDetailedCredit:
         detail = HousingLoanDetail(
             housing_type="new_custom",
             housing_category="certified",
-            move_in_date="2024-03-01",
+            move_in_date="2023-03-01",
             year_end_balance=60_000_000,
             is_new_construction=True,
         )
@@ -1114,7 +1114,7 @@ class TestHousingLoanDetailedCredit:
         detail = HousingLoanDetail(
             housing_type="new_subdivision",
             housing_category="zeh",
-            move_in_date="2024-06-01",
+            move_in_date="2023-06-01",
             year_end_balance=50_000_000,
             is_new_construction=True,
         )
@@ -1127,7 +1127,7 @@ class TestHousingLoanDetailedCredit:
         detail = HousingLoanDetail(
             housing_type="new_custom",
             housing_category="energy_efficient",
-            move_in_date="2024-01-15",
+            move_in_date="2023-01-15",
             year_end_balance=45_000_000,
             is_new_construction=True,
         )
@@ -1140,7 +1140,7 @@ class TestHousingLoanDetailedCredit:
         detail = HousingLoanDetail(
             housing_type="new_subdivision",
             housing_category="general",
-            move_in_date="2024-04-01",
+            move_in_date="2023-04-01",
             year_end_balance=35_000_000,
             is_new_construction=True,
         )
@@ -1153,7 +1153,7 @@ class TestHousingLoanDetailedCredit:
         detail = HousingLoanDetail(
             housing_type="used",
             housing_category="general",
-            move_in_date="2024-08-01",
+            move_in_date="2023-08-01",
             year_end_balance=25_000_000,
             is_new_construction=False,
         )
@@ -1166,7 +1166,7 @@ class TestHousingLoanDetailedCredit:
         detail = HousingLoanDetail(
             housing_type="resale",
             housing_category="certified",
-            move_in_date="2024-05-01",
+            move_in_date="2023-05-01",
             year_end_balance=35_000_000,
             is_new_construction=False,
         )
@@ -1180,11 +1180,11 @@ class TestHousingLoanDetailedCredit:
         assert credit == 245_000
 
     def test_via_calc_income_tax(self):
-        """calc_income_tax 経由で詳細住宅ローン控除が適用される。"""
+        """calc_income_tax 経由で詳細住宅ローン控除が適用される（R4-R5入居）。"""
         detail = HousingLoanDetail(
             housing_type="new_custom",
             housing_category="certified",
-            move_in_date="2024-03-01",
+            move_in_date="2023-03-01",
             year_end_balance=40_000_000,
             is_new_construction=True,
         )
@@ -1198,6 +1198,183 @@ class TestHousingLoanDetailedCredit:
         )
         # 4,000万 * 0.7% = 280,000 の税額控除
         assert r.total_tax_credits == 280_000
+
+
+# ============================================================
+# 住宅ローン控除（R6-R7 一般世帯）
+# ============================================================
+
+
+class TestHousingLoanR6R7General:
+    """R6-R7入居（2024年〜）一般世帯: 上限引下げの検証。"""
+
+    def test_certified_new(self):
+        """認定住宅（新築）上限4,500万に引下げ。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="certified",
+            move_in_date="2024-03-01",
+            year_end_balance=50_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(50_000_000, detail=detail)
+        # 上限4,500万 * 0.7% = 315,000
+        assert credit == 315_000
+
+    def test_zeh_new(self):
+        """ZEH水準省エネ（新築）上限3,500万に引下げ。"""
+        detail = HousingLoanDetail(
+            housing_type="new_subdivision",
+            housing_category="zeh",
+            move_in_date="2024-06-01",
+            year_end_balance=45_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(45_000_000, detail=detail)
+        # 上限3,500万 * 0.7% = 245,000
+        assert credit == 245_000
+
+    def test_energy_efficient_new(self):
+        """省エネ基準適合（新築）上限3,000万に引下げ。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="energy_efficient",
+            move_in_date="2024-01-15",
+            year_end_balance=40_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(40_000_000, detail=detail)
+        # 上限3,000万 * 0.7% = 210,000
+        assert credit == 210_000
+
+    def test_general_new_not_eligible(self):
+        """一般住宅（新築）R6-R7は原則対象外 → 控除0。"""
+        detail = HousingLoanDetail(
+            housing_type="new_subdivision",
+            housing_category="general",
+            move_in_date="2024-04-01",
+            year_end_balance=30_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(30_000_000, detail=detail)
+        assert credit == 0
+
+    def test_general_new_r5_confirmed(self):
+        """一般住宅（新築）R5確認済み → 特例上限2,000万。"""
+        detail = HousingLoanDetail(
+            housing_type="new_subdivision",
+            housing_category="general",
+            move_in_date="2024-04-01",
+            year_end_balance=30_000_000,
+            is_new_construction=True,
+            has_pre_r6_building_permit=True,
+        )
+        credit = calc_housing_loan_credit(30_000_000, detail=detail)
+        # 上限2,000万 * 0.7% = 140,000
+        assert credit == 140_000
+
+    def test_used_general_unchanged(self):
+        """中古一般住宅はR6-R7でも変更なし（2,000万上限）。"""
+        detail = HousingLoanDetail(
+            housing_type="used",
+            housing_category="general",
+            move_in_date="2024-08-01",
+            year_end_balance=25_000_000,
+            is_new_construction=False,
+        )
+        credit = calc_housing_loan_credit(25_000_000, detail=detail)
+        # 上限2,000万 * 0.7% = 140,000
+        assert credit == 140_000
+
+    def test_used_certified_unchanged(self):
+        """中古認定住宅はR6-R7でも変更なし（3,000万上限）。"""
+        detail = HousingLoanDetail(
+            housing_type="resale",
+            housing_category="certified",
+            move_in_date="2024-05-01",
+            year_end_balance=35_000_000,
+            is_new_construction=False,
+        )
+        credit = calc_housing_loan_credit(35_000_000, detail=detail)
+        # 上限3,000万 * 0.7% = 210,000
+        assert credit == 210_000
+
+    def test_r7_move_in(self):
+        """R7入居（2025年）でもR6-R7テーブルが適用される。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="certified",
+            move_in_date="2025-01-15",
+            year_end_balance=50_000_000,
+            is_new_construction=True,
+        )
+        credit = calc_housing_loan_credit(50_000_000, detail=detail)
+        # 上限4,500万 * 0.7% = 315,000
+        assert credit == 315_000
+
+
+# ============================================================
+# 住宅ローン控除（R6-R7 子育て世帯）
+# ============================================================
+
+
+class TestHousingLoanR6R7Childcare:
+    """R6-R7入居 子育て世帯・若者夫婦世帯: 従来水準維持の検証。"""
+
+    def test_certified_new(self):
+        """認定住宅（新築）子育て世帯 → 上限5,000万（従来水準維持）。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="certified",
+            move_in_date="2024-03-01",
+            year_end_balance=50_000_000,
+            is_new_construction=True,
+            is_childcare_household=True,
+        )
+        credit = calc_housing_loan_credit(50_000_000, detail=detail)
+        # 上限5,000万 * 0.7% = 350,000
+        assert credit == 350_000
+
+    def test_zeh_new(self):
+        """ZEH水準省エネ（新築）子育て世帯 → 上限4,500万（従来水準維持）。"""
+        detail = HousingLoanDetail(
+            housing_type="new_subdivision",
+            housing_category="zeh",
+            move_in_date="2024-06-01",
+            year_end_balance=50_000_000,
+            is_new_construction=True,
+            is_childcare_household=True,
+        )
+        credit = calc_housing_loan_credit(50_000_000, detail=detail)
+        # 上限4,500万 * 0.7% = 315,000
+        assert credit == 315_000
+
+    def test_energy_efficient_new(self):
+        """省エネ基準適合（新築）子育て世帯 → 上限4,000万（従来水準維持）。"""
+        detail = HousingLoanDetail(
+            housing_type="new_custom",
+            housing_category="energy_efficient",
+            move_in_date="2024-01-15",
+            year_end_balance=45_000_000,
+            is_new_construction=True,
+            is_childcare_household=True,
+        )
+        credit = calc_housing_loan_credit(45_000_000, detail=detail)
+        # 上限4,000万 * 0.7% = 280,000
+        assert credit == 280_000
+
+    def test_general_new_still_ineligible(self):
+        """一般住宅（新築）子育て世帯でも対象外 → 控除0。"""
+        detail = HousingLoanDetail(
+            housing_type="new_subdivision",
+            housing_category="general",
+            move_in_date="2024-04-01",
+            year_end_balance=30_000_000,
+            is_new_construction=True,
+            is_childcare_household=True,
+        )
+        credit = calc_housing_loan_credit(30_000_000, detail=detail)
+        assert credit == 0
 
 
 # ============================================================

@@ -190,9 +190,9 @@ FURUSATO_RESIDENTIAL_TAX_RATIO = 20     # 住民税所得割額の20%
 HOUSING_LOAN_RATE = 7                    # 控除率 0.7% = 7/1000
 HOUSING_LOAN_RATE_DENOMINATOR = 1000
 
-# 住宅区分別の年末残高上限額（令和4年〜7年入居）
+# R4-R5 入居（令和4年〜5年）の年末残高上限額
 # (住宅性能区分, 新築かどうか) -> 残高上限
-HOUSING_LOAN_BALANCE_LIMITS: dict[tuple[str, bool], int] = {
+HOUSING_LOAN_LIMITS_R4_R5: dict[tuple[str, bool], int] = {
     # 新築
     ("certified", True): 50_000_000,     # 認定住宅（長期優良/低炭素）
     ("zeh", True): 45_000_000,           # ZEH水準省エネ住宅
@@ -204,6 +204,40 @@ HOUSING_LOAN_BALANCE_LIMITS: dict[tuple[str, bool], int] = {
     ("energy_efficient", False): 30_000_000,
     ("general", False): 20_000_000,
 }
+
+# R6-R7 入居（令和6年〜7年）一般世帯の年末残高上限額
+# 令和5年度税制改正: 一般世帯は上限引下げ
+HOUSING_LOAN_LIMITS_R6_R7: dict[tuple[str, bool], int] = {
+    # 新築
+    ("certified", True): 45_000_000,     # 認定住宅（4,500万に引下げ）
+    ("zeh", True): 35_000_000,           # ZEH水準省エネ（3,500万に引下げ）
+    ("energy_efficient", True): 30_000_000,  # 省エネ基準適合（3,000万に引下げ）
+    ("general", True): 0,               # 一般住宅（原則対象外）
+    # 中古（R4-R7で変更なし）
+    ("certified", False): 30_000_000,
+    ("zeh", False): 30_000_000,
+    ("energy_efficient", False): 30_000_000,
+    ("general", False): 20_000_000,
+}
+
+# R6-R7 入居 子育て世帯・若者夫婦世帯の年末残高上限額
+# 令和5年度税制改正: 子育て世帯は従来水準を維持
+HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE: dict[tuple[str, bool], int] = {
+    # 新築
+    ("certified", True): 50_000_000,     # 認定住宅（従来水準維持）
+    ("zeh", True): 45_000_000,           # ZEH水準省エネ（従来水準維持）
+    ("energy_efficient", True): 40_000_000,  # 省エネ基準適合（従来水準維持）
+    ("general", True): 0,               # 一般住宅（子育てでも対象外）
+    # 中古（R4-R7で変更なし）
+    ("certified", False): 30_000_000,
+    ("zeh", False): 30_000_000,
+    ("energy_efficient", False): 30_000_000,
+    ("general", False): 20_000_000,
+}
+
+# R5確認済み一般住宅の特例上限（R6以降入居でもR5建築確認済みなら適用、控除期間10年）
+HOUSING_LOAN_GENERAL_R5_CONFIRMED = 20_000_000
+
 HOUSING_LOAN_DEFAULT_LIMIT = 30_000_000  # デフォルト上限
 
 # ============================================================

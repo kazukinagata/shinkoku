@@ -265,6 +265,8 @@ class HousingLoanDetail(BaseModel):
     move_in_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     year_end_balance: int  # 年末残高
     is_new_construction: bool = True  # 新築=True, 中古=False
+    is_childcare_household: bool = False  # 子育て世帯・若者夫婦世帯
+    has_pre_r6_building_permit: bool = False  # R5以前の建築確認済み（一般住宅のみ関連）
 
 
 class HousingLoanDetailInput(BaseModel):
@@ -279,6 +281,8 @@ class HousingLoanDetailInput(BaseModel):
     move_in_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     year_end_balance: int = Field(ge=0, description="年末残高（円）")
     is_new_construction: bool = True
+    is_childcare_household: bool = False
+    has_pre_r6_building_permit: bool = False
 
 
 class HousingLoanDetailRecord(BaseModel):
@@ -291,6 +295,8 @@ class HousingLoanDetailRecord(BaseModel):
     move_in_date: str
     year_end_balance: int
     is_new_construction: bool
+    is_childcare_household: bool = False
+    has_pre_r6_building_permit: bool = False
 
 
 class LifeInsurancePremiumInput(BaseModel):
