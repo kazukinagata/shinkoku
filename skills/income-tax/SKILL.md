@@ -14,6 +14,10 @@ description: >
 事業所得・各種控除から所得税額を計算し、確定申告書（申告書B様式）のPDFを生成するスキル。
 settlement スキルで決算書の作成が完了していることを前提とする。
 
+## 設定の読み込み（最初に実行）
+
+このスキルを開始する際、まず `${CLAUDE_PLUGIN_ROOT}/shinkoku.config.yaml` を Read ツールで読み込み、`tax_year` やディレクトリパスを把握すること。ファイルが存在しない場合は `shinkoku.config.example.yaml` をコピーしてセットアップするよう案内すること。
+
 ## 基本方針
 
 - settlement スキルで青色申告決算書が完成しているか確認してから開始する

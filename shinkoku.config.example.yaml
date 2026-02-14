@@ -13,3 +13,15 @@ withholding_slips_dir: /path/to/your/withholding-slips
 
 # 過去の確定申告データ（参考用）
 past_returns_dir: /path/to/your/past-returns
+
+# 適格請求書発行事業者の登録番号（T + 13桁）
+invoice_registration_number:
+
+# 控除関連書類（医療費・ふるさと納税・保険料等の証明書）
+deductions_dir: /path/to/your/deductions
+
+# レシート・領収書
+receipts_dir: /path/to/your/receipts
+
+# 銀行明細CSV
+bank_statements_dir: /path/to/your/bank-statements
