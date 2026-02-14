@@ -18,8 +18,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 try:
     from pypdf import PdfReader, PdfWriter
 except ImportError:
-    PdfReader = None
-    PdfWriter = None
+    PdfReader = None  # type: ignore[misc,assignment]
+    PdfWriter = None  # type: ignore[misc,assignment]
 
 
 # ============================================================

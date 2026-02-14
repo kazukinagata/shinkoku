@@ -196,7 +196,7 @@ def import_csv(*, file_path: str) -> dict:
 
     candidates = []
     skipped_rows = []
-    errors = []
+    errors: list[str] = []
 
     for i, row in enumerate(rows[1:], start=2):
         # Skip empty rows
