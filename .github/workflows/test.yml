@@ -24,11 +24,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
-      - name: Ruff check
-        run: uv run ruff check src/ tests/
-
-      - name: Ruff format check
-        run: uv run ruff format --check src/ tests/
+      - name: Ruff (pre-commit)
+        run: uv run pre-commit run --all-files
 
       - name: Mypy type check
         run: uv run mypy src/shinkoku/ --ignore-missing-imports
