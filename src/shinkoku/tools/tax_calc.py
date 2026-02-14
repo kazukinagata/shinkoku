@@ -32,6 +32,8 @@ from shinkoku.tax_constants import (
     DEPENDENT_ELDERLY,
     DEPENDENT_ELDERLY_COHABITING,
     DEPENDENT_GENERAL,
+    DEPENDENT_AGE_SPECIFIC_MAX,
+    DEPENDENT_AGE_SPECIFIC_MIN,
     DEPENDENT_INCOME_LIMIT,
     DONATION_INCOME_DEDUCTION_RATIO,
     DONATION_SELF_BURDEN,
@@ -99,6 +101,8 @@ from shinkoku.tax_constants import (
     SIMPLIFIED_DEFAULT_RATIO,
     SINGLE_PARENT_DEDUCTION,
     SPECIAL_20PCT_RATE,
+    SPECIFIC_RELATIVE_SPECIAL_DEDUCTION_TABLE,
+    SPECIFIC_RELATIVE_SPECIAL_INCOME_MAX,
     SPOUSE_DEDUCTION_TABLE,
     SPOUSE_DEDUCTION_TABLE_9M,
     SPOUSE_DEDUCTION_TABLE_10M,
@@ -376,14 +380,17 @@ def calc_dependents_deduction(
     taxpayer_income: int,
     fiscal_year: int = 2025,
 ) -> list[DeductionItem]:
-    """Calculate deductions for dependents (扶養控除 + 障害者控除).
+    """Calculate deductions for dependents (扶養控除 + 特定親族特別控除 + 障害者控除).
 
-    扶養控除（配偶者以外の親族で所得48万以下）:
+    扶養控除（配偶者以外の親族で所得58万以下）:
     - 一般扶養: 38万円（16歳以上）
     - 特定扶養: 63万円（19歳以上23歳未満）
     - 老人扶養（同居）: 58万円（70歳以上、同居）
     - 老人扶養（別居）: 48万円（70歳以上、別居）
     - 16歳未満: 扶養控除なし（児童手当対象）
+
+    特定親族特別控除（令和7年新設、19〜22歳で所得58万超〜123万以下）:
+    - 所得金額に応じて63万〜3万の段階的控除
 
     障害者控除:
     - 一般障害者: 27万円
@@ -402,11 +409,16 @@ def calc_dependents_deduction(
         if dep.relationship == "配偶者":
             continue
 
-        # 所得要件: 58万円以下（令和7年改正）
-        if dep.income > DEPENDENT_INCOME_LIMIT:
-            continue
-
         age = _calc_age(dep.birth_date, fiscal_year_end)
+        is_specific_age = DEPENDENT_AGE_SPECIFIC_MIN <= age < DEPENDENT_AGE_SPECIFIC_MAX
+
+        # 所得要件: 19〜22歳は123万まで許容（特定親族特別控除）、それ以外は58万
+        if is_specific_age:
+            if dep.income > SPECIFIC_RELATIVE_SPECIAL_INCOME_MAX:
+                continue
+        else:
+            if dep.income > DEPENDENT_INCOME_LIMIT:
+                continue
 
         # 扶養控除（16歳以上のみ）
         if age >= 70:
@@ -425,16 +437,33 @@ def calc_dependents_deduction(
                     details=detail,
                 )
             )
-        elif age >= 19 and age < 23:
-            # 特定扶養親族（19歳以上23歳未満）
-            items.append(
-                DeductionItem(
-                    type="dependent",
-                    name="扶養控除",
-                    amount=DEPENDENT_SPECIFIC,
-                    details=f"{dep.name}（特定扶養）",
+        elif is_specific_age:
+            if dep.income <= DEPENDENT_INCOME_LIMIT:
+                # 所得58万以下: 通常の特定扶養控除
+                items.append(
+                    DeductionItem(
+                        type="dependent",
+                        name="扶養控除",
+                        amount=DEPENDENT_SPECIFIC,
+                        details=f"{dep.name}（特定扶養）",
+                    )
                 )
-            )
+            else:
+                # 所得58万超〜123万: 特定親族特別控除（段階的逓減）
+                special_amount = 0
+                for threshold, amount in SPECIFIC_RELATIVE_SPECIAL_DEDUCTION_TABLE:
+                    if dep.income <= threshold:
+                        special_amount = amount
+                        break
+                if special_amount > 0:
+                    items.append(
+                        DeductionItem(
+                            type="specific_relative_special",
+                            name="特定親族特別控除",
+                            amount=special_amount,
+                            details=f"{dep.name}（所得{dep.income}円）",
+                        )
+                    )
         elif age >= 16:
             # 一般扶養親族
             items.append(

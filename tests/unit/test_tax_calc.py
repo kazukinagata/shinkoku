@@ -960,10 +960,11 @@ class TestDependentsDeduction:
         dep_items = [i for i in items if i.type == "dependent"]
         assert len(dep_items) == 0
 
-    def test_income_over_580000_excluded(self):
-        """所得58万超の親族は扶養控除対象外（令和7年改正: 48万→58万）。"""
+    def test_income_over_580000_excluded_non_specific_age(self):
+        """19〜22歳以外で所得58万超の親族は扶養控除対象外（令和7年改正: 48万→58万）。"""
+        # 2025年末時点で17歳 → 特定親族特別控除の対象外年齢
         deps = [
-            DependentInfo(name="太郎", relationship="子", birth_date="2005-06-01", income=590_000)
+            DependentInfo(name="太郎", relationship="子", birth_date="2008-06-01", income=590_000)
         ]
         items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
         assert len(items) == 0
