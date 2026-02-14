@@ -6,6 +6,7 @@
 ## アーキテクチャ
 
 ```
+agents/ (*.md)         ← サブエージェント定義（OCR等の委任先）
 skills/ (SKILL.md)     ← 対話フロー定義（9スキル、setup 含む）
   ↓
 src/shinkoku/tools/    ← MCP ツール（register(mcp) で登録）
@@ -116,6 +117,7 @@ uv run ruff format --check src/ tests/              # フォーマットチェ�
 | `src/shinkoku/tools/pdf_utils.py` | PDF生成ユーティリティ |
 | `src/shinkoku/tools/pdf_coordinates.py` | PDF帳票の座標定義 |
 | `skills/setup/SKILL.md` | セットアップウィザード（設定ファイル生成・DB初期化） |
+| `agents/receipt-reader.md` | レシート画像OCRサブエージェント（Vision トークン分離） |
 
 ## 注意事項
 
