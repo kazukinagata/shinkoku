@@ -6,13 +6,17 @@ from tests.helpers.db_helpers import insert_fiscal_year, insert_journal
 
 def test_in_memory_db_has_tables(in_memory_db):
     """in_memory_db fixture should have all schema tables."""
-    cursor = in_memory_db.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    )
+    cursor = in_memory_db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     tables = {row[0] for row in cursor.fetchall()}
     expected = {
-        "schema_version", "fiscal_years", "accounts", "journals",
-        "journal_lines", "fixed_assets", "deductions", "withholding_slips",
+        "schema_version",
+        "fiscal_years",
+        "accounts",
+        "journals",
+        "journal_lines",
+        "fixed_assets",
+        "deductions",
+        "withholding_slips",
     }
     assert expected.issubset(tables)
 
@@ -65,6 +69,7 @@ def test_assert_amount_is_integer_yen():
     assert_amount_is_integer_yen(0, "test")
     assert_amount_is_integer_yen(-500, "test")
     import pytest
+
     with pytest.raises(AssertionError, match="must be an integer"):
         assert_amount_is_integer_yen(100.5, "test")
     with pytest.raises(AssertionError, match="must be an integer"):
@@ -76,7 +81,10 @@ def test_db_helpers_insert_journal(in_memory_db_with_accounts):
     db = in_memory_db_with_accounts
     insert_fiscal_year(db, 2025)
     journal_id = insert_journal(
-        db, 2025, "2025-03-01", "テスト仕訳",
+        db,
+        2025,
+        "2025-03-01",
+        "テスト仕訳",
         [("debit", "1001", 10000), ("credit", "4001", 10000)],
     )
     assert journal_id > 0

@@ -15,9 +15,7 @@ def test_init_db_creates_file(tmp_path):
 def test_init_db_creates_all_tables(tmp_path):
     db_path = str(tmp_path / "test.db")
     conn = init_db(db_path)
-    cursor = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    )
+    cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     tables = {row[0] for row in cursor.fetchall()}
     expected = {
         "schema_version",
@@ -66,9 +64,7 @@ def test_journal_lines_reference_journals(tmp_path):
     db_path = str(tmp_path / "test.db")
     conn = init_db(db_path)
     # journal_id が存在しない journal_lines は挿入できない
-    conn.execute(
-        "INSERT INTO accounts (code, name, category) VALUES ('1001', 'cash', 'asset')"
-    )
+    conn.execute("INSERT INTO accounts (code, name, category) VALUES ('1001', 'cash', 'asset')")
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
             "INSERT INTO journal_lines (journal_id, side, account_code, amount) "

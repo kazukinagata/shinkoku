@@ -12,7 +12,9 @@ def test_master_accounts_has_all_categories():
 def test_master_accounts_codes_unique():
     """Account codes must be unique."""
     codes = [a["code"] for a in MASTER_ACCOUNTS]
-    assert len(codes) == len(set(codes)), f"Duplicate codes found: {len(codes)} vs {len(set(codes))}"
+    assert len(codes) == len(set(codes)), (
+        f"Duplicate codes found: {len(codes)} vs {len(set(codes))}"
+    )
 
 
 def test_master_accounts_code_format():
@@ -61,8 +63,13 @@ def test_master_accounts_has_essential_accounts():
     """Must include key accounts needed for sole proprietor blue return."""
     names = {a["name"] for a in MASTER_ACCOUNTS}
     essential = {
-        "現金", "普通預金", "売掛金", "事業主貸", "事業主借",
-        "売上", "仕入",
+        "現金",
+        "普通預金",
+        "売掛金",
+        "事業主貸",
+        "事業主借",
+        "売上",
+        "仕入",
     }
     missing = essential - names
     assert not missing, f"Missing essential accounts: {missing}"

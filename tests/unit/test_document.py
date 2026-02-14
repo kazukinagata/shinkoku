@@ -1,4 +1,5 @@
 """Tests for document generation module."""
+
 import os
 import pytest
 from shinkoku.tools.document import (
@@ -8,9 +9,14 @@ from shinkoku.tools.document import (
     generate_deduction_detail_pdf,
 )
 from shinkoku.models import (
-    PLResult, PLItem, BSResult, BSItem,
-    IncomeTaxResult, ConsumptionTaxResult,
-    DeductionsResult, DeductionItem,
+    PLResult,
+    PLItem,
+    BSResult,
+    BSItem,
+    IncomeTaxResult,
+    ConsumptionTaxResult,
+    DeductionsResult,
+    DeductionItem,
 )
 
 
@@ -135,6 +141,7 @@ class TestGenerateBsPl:
 # Task 19: Income Tax PDF
 # ============================================================
 
+
 @pytest.fixture
 def sample_income_tax():
     """Sample income tax result for PDF generation."""
@@ -165,11 +172,11 @@ def sample_income_tax():
 
 
 class TestGenerateIncomeTaxPdf:
-
     def test_generates_pdf_file(self, tmp_path, sample_income_tax):
         output = str(tmp_path / "income_tax.pdf")
         result = generate_income_tax_pdf(
-            tax_result=sample_income_tax, output_path=output,
+            tax_result=sample_income_tax,
+            output_path=output,
         )
         assert os.path.exists(result)
 
@@ -182,7 +189,8 @@ class TestGenerateIncomeTaxPdf:
     def test_with_taxpayer_name(self, tmp_path, sample_income_tax):
         output = str(tmp_path / "income_tax.pdf")
         result = generate_income_tax_pdf(
-            tax_result=sample_income_tax, output_path=output,
+            tax_result=sample_income_tax,
+            output_path=output,
             taxpayer_name="確定太郎",
         )
         assert os.path.exists(result)
@@ -196,6 +204,7 @@ class TestGenerateIncomeTaxPdf:
 # ============================================================
 # Task 19: Consumption Tax PDF
 # ============================================================
+
 
 @pytest.fixture
 def sample_consumption_tax():
@@ -212,18 +221,19 @@ def sample_consumption_tax():
 
 
 class TestGenerateConsumptionTaxPdf:
-
     def test_generates_pdf_file(self, tmp_path, sample_consumption_tax):
         output = str(tmp_path / "consumption_tax.pdf")
         result = generate_consumption_tax_pdf(
-            tax_result=sample_consumption_tax, output_path=output,
+            tax_result=sample_consumption_tax,
+            output_path=output,
         )
         assert os.path.exists(result)
 
     def test_pdf_starts_with_magic(self, tmp_path, sample_consumption_tax):
         output = str(tmp_path / "consumption_tax.pdf")
         generate_consumption_tax_pdf(
-            tax_result=sample_consumption_tax, output_path=output,
+            tax_result=sample_consumption_tax,
+            output_path=output,
         )
         with open(output, "rb") as f:
             assert f.read(5) == b"%PDF-"
@@ -231,7 +241,8 @@ class TestGenerateConsumptionTaxPdf:
     def test_with_taxpayer_name(self, tmp_path, sample_consumption_tax):
         output = str(tmp_path / "consumption_tax.pdf")
         result = generate_consumption_tax_pdf(
-            tax_result=sample_consumption_tax, output_path=output,
+            tax_result=sample_consumption_tax,
+            output_path=output,
             taxpayer_name="消費太郎",
         )
         assert os.path.exists(result)
@@ -241,6 +252,7 @@ class TestGenerateConsumptionTaxPdf:
 # Task 19: Deduction Detail PDF
 # ============================================================
 
+
 @pytest.fixture
 def sample_deductions():
     return DeductionsResult(
@@ -248,7 +260,9 @@ def sample_deductions():
             DeductionItem(type="basic", name="基礎控除", amount=880_000),
             DeductionItem(type="social_insurance", name="社会保険料控除", amount=800_000),
             DeductionItem(type="life_insurance", name="生命保険料控除", amount=40_000),
-            DeductionItem(type="furusato_nozei", name="寄附金控除", amount=48_000, details="ふるさと納税"),
+            DeductionItem(
+                type="furusato_nozei", name="寄附金控除", amount=48_000, details="ふるさと納税"
+            ),
         ],
         tax_credits=[
             DeductionItem(type="housing_loan", name="住宅ローン控除", amount=245_000),
@@ -259,18 +273,21 @@ def sample_deductions():
 
 
 class TestGenerateDeductionDetailPdf:
-
     def test_generates_pdf_file(self, tmp_path, sample_deductions):
         output = str(tmp_path / "deduction_detail.pdf")
         result = generate_deduction_detail_pdf(
-            deductions=sample_deductions, fiscal_year=2025, output_path=output,
+            deductions=sample_deductions,
+            fiscal_year=2025,
+            output_path=output,
         )
         assert os.path.exists(result)
 
     def test_pdf_starts_with_magic(self, tmp_path, sample_deductions):
         output = str(tmp_path / "deduction_detail.pdf")
         generate_deduction_detail_pdf(
-            deductions=sample_deductions, fiscal_year=2025, output_path=output,
+            deductions=sample_deductions,
+            fiscal_year=2025,
+            output_path=output,
         )
         with open(output, "rb") as f:
             assert f.read(5) == b"%PDF-"
@@ -278,7 +295,9 @@ class TestGenerateDeductionDetailPdf:
     def test_with_taxpayer_name(self, tmp_path, sample_deductions):
         output = str(tmp_path / "deduction_detail.pdf")
         result = generate_deduction_detail_pdf(
-            deductions=sample_deductions, fiscal_year=2025, output_path=output,
+            deductions=sample_deductions,
+            fiscal_year=2025,
+            output_path=output,
             taxpayer_name="控除太郎",
         )
         assert os.path.exists(result)
@@ -286,17 +305,23 @@ class TestGenerateDeductionDetailPdf:
     def test_empty_deductions(self, tmp_path):
         output = str(tmp_path / "deduction_empty.pdf")
         empty = DeductionsResult(
-            income_deductions=[], tax_credits=[],
-            total_income_deductions=0, total_tax_credits=0,
+            income_deductions=[],
+            tax_credits=[],
+            total_income_deductions=0,
+            total_tax_credits=0,
         )
         result = generate_deduction_detail_pdf(
-            deductions=empty, fiscal_year=2025, output_path=output,
+            deductions=empty,
+            fiscal_year=2025,
+            output_path=output,
         )
         assert os.path.exists(result)
 
     def test_creates_parent_dirs(self, tmp_path, sample_deductions):
         output = str(tmp_path / "a" / "b" / "detail.pdf")
         result = generate_deduction_detail_pdf(
-            deductions=sample_deductions, fiscal_year=2025, output_path=output,
+            deductions=sample_deductions,
+            fiscal_year=2025,
+            output_path=output,
         )
         assert os.path.exists(result)

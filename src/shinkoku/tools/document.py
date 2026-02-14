@@ -38,6 +38,7 @@ from shinkoku.tools.pdf_coordinates import (
 # Blue Return BS/PL (Task 18)
 # ============================================================
 
+
 def _build_pl_fields(
     pl_data: PLResult,
     taxpayer_name: str = "",
@@ -46,66 +47,103 @@ def _build_pl_fields(
     fields: list[dict[str, Any]] = []
 
     # Title
-    fields.append({
-        "type": "text",
-        "x": 105 * mm, "y": 285 * mm,
-        "value": "損益計算書（青色申告決算書）",
-        "font_size": 12,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "損益計算書（青色申告決算書）",
+            "font_size": 12,
+        }
+    )
 
     # Header
     if taxpayer_name:
-        fields.append({
-            "type": "text",
-            "x": BLUE_RETURN_PL["taxpayer_name"]["x"],
-            "y": BLUE_RETURN_PL["taxpayer_name"]["y"],
-            "value": taxpayer_name,
-            "font_size": BLUE_RETURN_PL["taxpayer_name"]["font_size"],
-        })
+        fields.append(
+            {
+                "type": "text",
+                "x": BLUE_RETURN_PL["taxpayer_name"]["x"],
+                "y": BLUE_RETURN_PL["taxpayer_name"]["y"],
+                "value": taxpayer_name,
+                "font_size": BLUE_RETURN_PL["taxpayer_name"]["font_size"],
+            }
+        )
 
-    fields.append({
-        "type": "text",
-        "x": BLUE_RETURN_PL["fiscal_year"]["x"],
-        "y": BLUE_RETURN_PL["fiscal_year"]["y"],
-        "value": f"令和{pl_data.fiscal_year - 2018}年分",
-        "font_size": BLUE_RETURN_PL["fiscal_year"]["font_size"],
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": BLUE_RETURN_PL["fiscal_year"]["x"],
+            "y": BLUE_RETURN_PL["fiscal_year"]["y"],
+            "value": f"令和{pl_data.fiscal_year - 2018}年分",
+            "font_size": BLUE_RETURN_PL["fiscal_year"]["font_size"],
+        }
+    )
 
     # Revenue items
     y_start = 240 * mm
     for i, item in enumerate(pl_data.revenues):
         y = y_start - i * 8 * mm
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8})
-        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8})
+        fields.append(
+            {"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8}
+        )
+        fields.append(
+            {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
+        )
 
     # Total revenue
-    fields.append({
-        "type": "text", "x": 30 * mm, "y": 220 * mm, "value": "収入合計", "font_size": 9,
-    })
-    fields.append({
-        "type": "number",
-        "x": BLUE_RETURN_PL["total_revenue"]["x"],
-        "y": BLUE_RETURN_PL["total_revenue"]["y"],
-        "value": pl_data.total_revenue,
-        "font_size": 9,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 30 * mm,
+            "y": 220 * mm,
+            "value": "収入合計",
+            "font_size": 9,
+        }
+    )
+    fields.append(
+        {
+            "type": "number",
+            "x": BLUE_RETURN_PL["total_revenue"]["x"],
+            "y": BLUE_RETURN_PL["total_revenue"]["y"],
+            "value": pl_data.total_revenue,
+            "font_size": 9,
+        }
+    )
 
     # Expense items
     y_start = 195 * mm
     for i, item in enumerate(pl_data.expenses):
         y = y_start - i * 8 * mm
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8})
-        fields.append({"type": "number", "x": 80 * mm, "y": y, "value": item.amount, "font_size": 8})
+        fields.append(
+            {"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8}
+        )
+        fields.append(
+            {"type": "number", "x": 80 * mm, "y": y, "value": item.amount, "font_size": 8}
+        )
 
     # Total expenses
     y_total_exp = y_start - len(pl_data.expenses) * 8 * mm - 5 * mm
-    fields.append({"type": "text", "x": 30 * mm, "y": y_total_exp, "value": "経費合計", "font_size": 9})
-    fields.append({"type": "number", "x": 170 * mm, "y": y_total_exp, "value": pl_data.total_expense, "font_size": 9})
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y_total_exp, "value": "経費合計", "font_size": 9}
+    )
+    fields.append(
+        {
+            "type": "number",
+            "x": 170 * mm,
+            "y": y_total_exp,
+            "value": pl_data.total_expense,
+            "font_size": 9,
+        }
+    )
 
     # Net income
     y_net = y_total_exp - 12 * mm
-    fields.append({"type": "text", "x": 30 * mm, "y": y_net, "value": "差引金額（所得金額）", "font_size": 9})
-    fields.append({"type": "number", "x": 170 * mm, "y": y_net, "value": pl_data.net_income, "font_size": 10})
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y_net, "value": "差引金額（所得金額）", "font_size": 9}
+    )
+    fields.append(
+        {"type": "number", "x": 170 * mm, "y": y_net, "value": pl_data.net_income, "font_size": 10}
+    )
 
     return fields
 
@@ -118,66 +156,133 @@ def _build_bs_fields(
     fields: list[dict[str, Any]] = []
 
     # Title
-    fields.append({
-        "type": "text",
-        "x": 105 * mm, "y": 285 * mm,
-        "value": "貸借対照表（青色申告決算書）",
-        "font_size": 12,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "貸借対照表（青色申告決算書）",
+            "font_size": 12,
+        }
+    )
 
     # Header
     if taxpayer_name:
-        fields.append({
-            "type": "text",
-            "x": BLUE_RETURN_BS["taxpayer_name"]["x"],
-            "y": BLUE_RETURN_BS["taxpayer_name"]["y"],
-            "value": taxpayer_name,
-            "font_size": BLUE_RETURN_BS["taxpayer_name"]["font_size"],
-        })
+        fields.append(
+            {
+                "type": "text",
+                "x": BLUE_RETURN_BS["taxpayer_name"]["x"],
+                "y": BLUE_RETURN_BS["taxpayer_name"]["y"],
+                "value": taxpayer_name,
+                "font_size": BLUE_RETURN_BS["taxpayer_name"]["font_size"],
+            }
+        )
 
-    fields.append({
-        "type": "text",
-        "x": BLUE_RETURN_BS["fiscal_year_end"]["x"],
-        "y": BLUE_RETURN_BS["fiscal_year_end"]["y"],
-        "value": f"令和{bs_data.fiscal_year - 2018}年12月31日",
-        "font_size": BLUE_RETURN_BS["fiscal_year_end"]["font_size"],
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": BLUE_RETURN_BS["fiscal_year_end"]["x"],
+            "y": BLUE_RETURN_BS["fiscal_year_end"]["y"],
+            "value": f"令和{bs_data.fiscal_year - 2018}年12月31日",
+            "font_size": BLUE_RETURN_BS["fiscal_year_end"]["font_size"],
+        }
+    )
 
     # Assets
-    fields.append({"type": "text", "x": 30 * mm, "y": 250 * mm, "value": "【資産の部】", "font_size": 9})
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": 250 * mm, "value": "【資産の部】", "font_size": 9}
+    )
     y_start = 240 * mm
     for i, item in enumerate(bs_data.assets):
         y = y_start - i * 8 * mm
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8})
-        fields.append({"type": "number", "x": 80 * mm, "y": y, "value": item.amount, "font_size": 8})
+        fields.append(
+            {"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8}
+        )
+        fields.append(
+            {"type": "number", "x": 80 * mm, "y": y, "value": item.amount, "font_size": 8}
+        )
 
     y_total_assets = y_start - len(bs_data.assets) * 8 * mm - 5 * mm
-    fields.append({"type": "text", "x": 30 * mm, "y": y_total_assets, "value": "資産合計", "font_size": 9})
-    fields.append({"type": "number", "x": 80 * mm, "y": y_total_assets, "value": bs_data.total_assets, "font_size": 9})
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y_total_assets, "value": "資産合計", "font_size": 9}
+    )
+    fields.append(
+        {
+            "type": "number",
+            "x": 80 * mm,
+            "y": y_total_assets,
+            "value": bs_data.total_assets,
+            "font_size": 9,
+        }
+    )
 
     # Liabilities
     y_liab_start = y_total_assets - 15 * mm
-    fields.append({"type": "text", "x": 110 * mm, "y": y_liab_start + 10 * mm, "value": "【負債の部】", "font_size": 9})
+    fields.append(
+        {
+            "type": "text",
+            "x": 110 * mm,
+            "y": y_liab_start + 10 * mm,
+            "value": "【負債の部】",
+            "font_size": 9,
+        }
+    )
     for i, item in enumerate(bs_data.liabilities):
         y = y_liab_start - i * 8 * mm
-        fields.append({"type": "text", "x": 110 * mm, "y": y, "value": item.account_name, "font_size": 8})
-        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8})
+        fields.append(
+            {"type": "text", "x": 110 * mm, "y": y, "value": item.account_name, "font_size": 8}
+        )
+        fields.append(
+            {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
+        )
 
     y_total_liab = y_liab_start - len(bs_data.liabilities) * 8 * mm - 5 * mm
-    fields.append({"type": "text", "x": 110 * mm, "y": y_total_liab, "value": "負債合計", "font_size": 9})
-    fields.append({"type": "number", "x": 170 * mm, "y": y_total_liab, "value": bs_data.total_liabilities, "font_size": 9})
+    fields.append(
+        {"type": "text", "x": 110 * mm, "y": y_total_liab, "value": "負債合計", "font_size": 9}
+    )
+    fields.append(
+        {
+            "type": "number",
+            "x": 170 * mm,
+            "y": y_total_liab,
+            "value": bs_data.total_liabilities,
+            "font_size": 9,
+        }
+    )
 
     # Equity
     y_eq_start = y_total_liab - 15 * mm
-    fields.append({"type": "text", "x": 110 * mm, "y": y_eq_start + 10 * mm, "value": "【純資産の部】", "font_size": 9})
+    fields.append(
+        {
+            "type": "text",
+            "x": 110 * mm,
+            "y": y_eq_start + 10 * mm,
+            "value": "【純資産の部】",
+            "font_size": 9,
+        }
+    )
     for i, item in enumerate(bs_data.equity):
         y = y_eq_start - i * 8 * mm
-        fields.append({"type": "text", "x": 110 * mm, "y": y, "value": item.account_name, "font_size": 8})
-        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8})
+        fields.append(
+            {"type": "text", "x": 110 * mm, "y": y, "value": item.account_name, "font_size": 8}
+        )
+        fields.append(
+            {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
+        )
 
     y_total_eq = y_eq_start - len(bs_data.equity) * 8 * mm - 5 * mm
-    fields.append({"type": "text", "x": 110 * mm, "y": y_total_eq, "value": "純資産合計", "font_size": 9})
-    fields.append({"type": "number", "x": 170 * mm, "y": y_total_eq, "value": bs_data.total_equity, "font_size": 9})
+    fields.append(
+        {"type": "text", "x": 110 * mm, "y": y_total_eq, "value": "純資産合計", "font_size": 9}
+    )
+    fields.append(
+        {
+            "type": "number",
+            "x": 170 * mm,
+            "y": y_total_eq,
+            "value": bs_data.total_equity,
+            "font_size": 9,
+        }
+    )
 
     return fields
 
@@ -221,6 +326,7 @@ def generate_bs_pl_pdf(
     # Use template if available
     if template_path and Path(template_path).exists():
         from shinkoku.tools.pdf_utils import create_multi_page_overlay, merge_overlay
+
         overlay_bytes = create_multi_page_overlay(pages)
         return merge_overlay(template_path, overlay_bytes, output_path)
 
@@ -236,6 +342,7 @@ def generate_bs_pl_pdf(
 # Income Tax PDF (Task 19)
 # ============================================================
 
+
 def generate_income_tax_pdf(
     tax_result: IncomeTaxResult,
     output_path: str = "output/income_tax.pdf",
@@ -246,27 +353,37 @@ def generate_income_tax_pdf(
     fields: list[dict[str, Any]] = []
 
     # Title
-    fields.append({
-        "type": "text", "x": 105 * mm, "y": 285 * mm,
-        "value": "所得税及び復興特別所得税の確定申告書B",
-        "font_size": 12,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "所得税及び復興特別所得税の確定申告書B",
+            "font_size": 12,
+        }
+    )
 
     # Header
     if taxpayer_name:
-        fields.append({
-            "type": "text",
-            "x": INCOME_TAX_FORM_B["taxpayer_name"]["x"],
-            "y": INCOME_TAX_FORM_B["taxpayer_name"]["y"],
-            "value": taxpayer_name,
-            "font_size": 10,
-        })
+        fields.append(
+            {
+                "type": "text",
+                "x": INCOME_TAX_FORM_B["taxpayer_name"]["x"],
+                "y": INCOME_TAX_FORM_B["taxpayer_name"]["y"],
+                "value": taxpayer_name,
+                "font_size": 10,
+            }
+        )
 
-    fields.append({
-        "type": "text", "x": 120 * mm, "y": 275 * mm,
-        "value": f"令和{tax_result.fiscal_year - 2018}年分",
-        "font_size": 10,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{tax_result.fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
 
     # Income section
     y = 240 * mm
@@ -287,12 +404,24 @@ def generate_income_tax_pdf(
 
     if tax_result.deductions_detail:
         for item in tax_result.deductions_detail.income_deductions:
-            fields.append({"type": "text", "x": 30 * mm, "y": y, "value": item.name, "font_size": 8})
-            fields.append({"type": "number", "x": 95 * mm, "y": y, "value": item.amount, "font_size": 8})
+            fields.append(
+                {"type": "text", "x": 30 * mm, "y": y, "value": item.name, "font_size": 8}
+            )
+            fields.append(
+                {"type": "number", "x": 95 * mm, "y": y, "value": item.amount, "font_size": 8}
+            )
             y -= 8 * mm
 
     fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "所得控除合計", "font_size": 9})
-    fields.append({"type": "number", "x": 95 * mm, "y": y, "value": tax_result.total_income_deductions, "font_size": 9})
+    fields.append(
+        {
+            "type": "number",
+            "x": 95 * mm,
+            "y": y,
+            "value": tax_result.total_income_deductions,
+            "font_size": 9,
+        }
+    )
     y -= 12 * mm
 
     # Tax calculation section
@@ -313,6 +442,7 @@ def generate_income_tax_pdf(
 
     if template_path and Path(template_path).exists():
         from shinkoku.tools.pdf_utils import create_overlay, merge_overlay
+
         overlay_bytes = create_overlay(fields)
         return merge_overlay(template_path, overlay_bytes, output_path)
 
@@ -322,6 +452,7 @@ def generate_income_tax_pdf(
 # ============================================================
 # Consumption Tax PDF (Task 19)
 # ============================================================
+
 
 def generate_consumption_tax_pdf(
     tax_result: ConsumptionTaxResult,
@@ -333,23 +464,36 @@ def generate_consumption_tax_pdf(
     fields: list[dict[str, Any]] = []
 
     # Title
-    fields.append({
-        "type": "text", "x": 105 * mm, "y": 285 * mm,
-        "value": "消費税及び地方消費税の確定申告書",
-        "font_size": 12,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "消費税及び地方消費税の確定申告書",
+            "font_size": 12,
+        }
+    )
 
     if taxpayer_name:
-        fields.append({
-            "type": "text", "x": 60 * mm, "y": 270 * mm,
-            "value": taxpayer_name, "font_size": 10,
-        })
+        fields.append(
+            {
+                "type": "text",
+                "x": 60 * mm,
+                "y": 270 * mm,
+                "value": taxpayer_name,
+                "font_size": 10,
+            }
+        )
 
-    fields.append({
-        "type": "text", "x": 120 * mm, "y": 275 * mm,
-        "value": f"令和{tax_result.fiscal_year - 2018}年分",
-        "font_size": 10,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{tax_result.fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
 
     # Method
     method_labels = {
@@ -357,11 +501,15 @@ def generate_consumption_tax_pdf(
         "simplified": "簡易課税",
         "special_20pct": "2割特例",
     }
-    fields.append({
-        "type": "text", "x": 30 * mm, "y": 255 * mm,
-        "value": f"課税方式: {method_labels.get(tax_result.method, tax_result.method)}",
-        "font_size": 9,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 30 * mm,
+            "y": 255 * mm,
+            "value": f"課税方式: {method_labels.get(tax_result.method, tax_result.method)}",
+            "font_size": 9,
+        }
+    )
 
     # Tax details
     y = 235 * mm
@@ -380,6 +528,7 @@ def generate_consumption_tax_pdf(
 
     if template_path and Path(template_path).exists():
         from shinkoku.tools.pdf_utils import create_overlay, merge_overlay
+
         overlay_bytes = create_overlay(fields)
         return merge_overlay(template_path, overlay_bytes, output_path)
 
@@ -389,6 +538,7 @@ def generate_consumption_tax_pdf(
 # ============================================================
 # Deduction Detail PDF (Task 19)
 # ============================================================
+
 
 def generate_deduction_detail_pdf(
     deductions: DeductionsResult,
@@ -401,23 +551,36 @@ def generate_deduction_detail_pdf(
     fields: list[dict[str, Any]] = []
 
     # Title
-    fields.append({
-        "type": "text", "x": 105 * mm, "y": 285 * mm,
-        "value": "所得控除の内訳書",
-        "font_size": 12,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "所得控除の内訳書",
+            "font_size": 12,
+        }
+    )
 
     if taxpayer_name:
-        fields.append({
-            "type": "text", "x": 60 * mm, "y": 270 * mm,
-            "value": taxpayer_name, "font_size": 10,
-        })
+        fields.append(
+            {
+                "type": "text",
+                "x": 60 * mm,
+                "y": 270 * mm,
+                "value": taxpayer_name,
+                "font_size": 10,
+            }
+        )
 
-    fields.append({
-        "type": "text", "x": 120 * mm, "y": 275 * mm,
-        "value": f"令和{fiscal_year - 2018}年分",
-        "font_size": 10,
-    })
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
 
     # Income deductions
     y = 250 * mm
@@ -429,17 +592,29 @@ def generate_deduction_detail_pdf(
         if item.details:
             label += f"（{item.details}）"
         fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
-        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8})
+        fields.append(
+            {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
+        )
         y -= 8 * mm
 
     y -= 5 * mm
     fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "所得控除合計", "font_size": 9})
-    fields.append({"type": "number", "x": 170 * mm, "y": y, "value": deductions.total_income_deductions, "font_size": 9})
+    fields.append(
+        {
+            "type": "number",
+            "x": 170 * mm,
+            "y": y,
+            "value": deductions.total_income_deductions,
+            "font_size": 9,
+        }
+    )
     y -= 15 * mm
 
     # Tax credits
     if deductions.tax_credits:
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "【税額控除】", "font_size": 9})
+        fields.append(
+            {"type": "text", "x": 30 * mm, "y": y, "value": "【税額控除】", "font_size": 9}
+        )
         y -= 10 * mm
 
         for item in deductions.tax_credits:
@@ -447,15 +622,28 @@ def generate_deduction_detail_pdf(
             if item.details:
                 label += f"（{item.details}）"
             fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
-            fields.append({"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8})
+            fields.append(
+                {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
+            )
             y -= 8 * mm
 
         y -= 5 * mm
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "税額控除合計", "font_size": 9})
-        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": deductions.total_tax_credits, "font_size": 9})
+        fields.append(
+            {"type": "text", "x": 30 * mm, "y": y, "value": "税額控除合計", "font_size": 9}
+        )
+        fields.append(
+            {
+                "type": "number",
+                "x": 170 * mm,
+                "y": y,
+                "value": deductions.total_tax_credits,
+                "font_size": 9,
+            }
+        )
 
     if template_path and Path(template_path).exists():
         from shinkoku.tools.pdf_utils import create_overlay, merge_overlay
+
         overlay_bytes = create_overlay(fields)
         return merge_overlay(template_path, overlay_bytes, output_path)
 
@@ -465,6 +653,7 @@ def generate_deduction_detail_pdf(
 # ============================================================
 # MCP Tool Registration
 # ============================================================
+
 
 def register(mcp) -> None:
     """Register document generation tools with the MCP server."""
@@ -600,6 +789,7 @@ def register(mcp) -> None:
     ) -> dict:
         """Generate deduction detail form PDF."""
         from shinkoku.models import DeductionItem
+
         inc_items = [DeductionItem(**d) for d in (income_deductions or [])]
         tc_items = [DeductionItem(**d) for d in (tax_credits or [])]
         deductions = DeductionsResult(

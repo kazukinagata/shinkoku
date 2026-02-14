@@ -40,28 +40,34 @@ class TestConsumptionTaxSpecial20pctFlow:
 
         entries = []
         for rev in scenario["business"]["revenues"]:
-            entries.append(JournalEntry(
-                date=rev["date"],
-                description=rev["description"],
-                source="manual",
-                lines=[
-                    JournalLine(side="debit", account_code="1002", amount=rev["amount"]),
-                    JournalLine(side="credit", account_code="4001", amount=rev["amount"]),
-                ],
-            ))
+            entries.append(
+                JournalEntry(
+                    date=rev["date"],
+                    description=rev["description"],
+                    source="manual",
+                    lines=[
+                        JournalLine(side="debit", account_code="1002", amount=rev["amount"]),
+                        JournalLine(side="credit", account_code="4001", amount=rev["amount"]),
+                    ],
+                )
+            )
         ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=fiscal_year, entries=entries,
+            db_path=db_path,
+            fiscal_year=fiscal_year,
+            entries=entries,
         )
 
         # ==============================
         # Step 2: Calculate consumption tax (special_20pct)
         # ==============================
         taxable_sales = ct_expected["taxable_sales_10"]
-        tax_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=fiscal_year,
-            method="special_20pct",
-            taxable_sales_10=taxable_sales,
-        ))
+        tax_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=fiscal_year,
+                method="special_20pct",
+                taxable_sales_10=taxable_sales,
+            )
+        )
 
         # Verify against expected values
         sp = ct_expected["special_20pct"]
@@ -92,12 +98,14 @@ class TestConsumptionTaxSimplifiedFlow:
     def test_simplified_service_type5(self, tmp_path):
         """Simplified taxation with service business type (50% deemed ratio)."""
         # Service type freelance: 5,500,000 (tax-included)
-        tax_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="simplified",
-            taxable_sales_10=5_500_000,
-            simplified_business_type=5,
-        ))
+        tax_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="simplified",
+                taxable_sales_10=5_500_000,
+                simplified_business_type=5,
+            )
+        )
 
         # tax_on_sales = 5,500,000 * 10/110 = 500,000
         assert tax_result.tax_on_sales == 500_000
@@ -124,12 +132,14 @@ class TestConsumptionTaxSimplifiedFlow:
         expected_ratios = {1: 90, 2: 80, 3: 70, 4: 60, 5: 50, 6: 40}
 
         for btype, ratio in expected_ratios.items():
-            result = calc_consumption_tax(ConsumptionTaxInput(
-                fiscal_year=2025,
-                method="simplified",
-                taxable_sales_10=sales,
-                simplified_business_type=btype,
-            ))
+            result = calc_consumption_tax(
+                ConsumptionTaxInput(
+                    fiscal_year=2025,
+                    method="simplified",
+                    taxable_sales_10=sales,
+                    simplified_business_type=btype,
+                )
+            )
 
             # tax_on_sales = 11,000,000 * 10/110 = 1,000,000
             assert result.tax_on_sales == 1_000_000
@@ -154,7 +164,8 @@ class TestConsumptionTaxStandardFlow:
         entries = [
             # Sales
             JournalEntry(
-                date="2025-06-30", description="コンサル売上",
+                date="2025-06-30",
+                description="コンサル売上",
                 lines=[
                     JournalLine(side="debit", account_code="1002", amount=5_000_000),
                     JournalLine(side="credit", account_code="4001", amount=5_000_000),
@@ -162,7 +173,8 @@ class TestConsumptionTaxStandardFlow:
             ),
             # Purchases (taxable)
             JournalEntry(
-                date="2025-03-15", description="外注費",
+                date="2025-03-15",
+                description="外注費",
                 lines=[
                     JournalLine(side="debit", account_code="5230", amount=2_000_000),
                     JournalLine(side="credit", account_code="1002", amount=2_000_000),
@@ -170,19 +182,23 @@ class TestConsumptionTaxStandardFlow:
             ),
         ]
         ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=2025, entries=entries,
+            db_path=db_path,
+            fiscal_year=2025,
+            entries=entries,
         )
 
         # Tax-included amounts for consumption tax calculation
-        taxable_sales_10 = 5_500_000    # 5M + 10% tax
+        taxable_sales_10 = 5_500_000  # 5M + 10% tax
         taxable_purchases_10 = 2_200_000  # 2M + 10% tax
 
-        tax_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="standard",
-            taxable_sales_10=taxable_sales_10,
-            taxable_purchases_10=taxable_purchases_10,
-        ))
+        tax_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="standard",
+                taxable_sales_10=taxable_sales_10,
+                taxable_purchases_10=taxable_purchases_10,
+            )
+        )
 
         # tax_on_sales = 5,500,000 * 10/110 = 500,000
         assert tax_result.tax_on_sales == 500_000
@@ -207,14 +223,16 @@ class TestConsumptionTaxStandardFlow:
 
     def test_standard_mixed_rates(self, tmp_path):
         """Standard method with both 10% and 8% items."""
-        tax_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="standard",
-            taxable_sales_10=5_500_000,
-            taxable_sales_8=1_080_000,
-            taxable_purchases_10=1_100_000,
-            taxable_purchases_8=540_000,
-        ))
+        tax_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="standard",
+                taxable_sales_10=5_500_000,
+                taxable_sales_8=1_080_000,
+                taxable_purchases_10=1_100_000,
+                taxable_purchases_8=540_000,
+            )
+        )
 
         # 10% sales tax = 5,500,000 * 10/110 = 500,000
         # 8% sales tax = 1,080,000 * 8/108 = 80,000
@@ -237,27 +255,33 @@ class TestConsumptionTaxMethodComparison:
         purchases_10 = 2_200_000
 
         # Method 1: special_20pct
-        r1 = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="special_20pct",
-            taxable_sales_10=sales_10,
-        ))
+        r1 = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="special_20pct",
+                taxable_sales_10=sales_10,
+            )
+        )
 
         # Method 2: simplified (type 5 = service)
-        r2 = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="simplified",
-            taxable_sales_10=sales_10,
-            simplified_business_type=5,
-        ))
+        r2 = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="simplified",
+                taxable_sales_10=sales_10,
+                simplified_business_type=5,
+            )
+        )
 
         # Method 3: standard
-        r3 = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="standard",
-            taxable_sales_10=sales_10,
-            taxable_purchases_10=purchases_10,
-        ))
+        r3 = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="standard",
+                taxable_sales_10=sales_10,
+                taxable_purchases_10=purchases_10,
+            )
+        )
 
         # All should have the same tax_on_sales
         assert r1.tax_on_sales == r2.tax_on_sales == r3.tax_on_sales
@@ -291,12 +315,14 @@ class TestConsumptionTaxMethodComparison:
 
     def test_truncation_rules_applied(self, tmp_path):
         """Verify national tax truncated to 100 yen, local tax truncated to 100 yen."""
-        result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="standard",
-            taxable_sales_10=5_500_000,
-            taxable_purchases_10=2_200_000,
-        ))
+        result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="standard",
+                taxable_sales_10=5_500_000,
+                taxable_purchases_10=2_200_000,
+            )
+        )
 
         # National tax should be truncated to 100 yen
         assert result.tax_due % 100 == 0

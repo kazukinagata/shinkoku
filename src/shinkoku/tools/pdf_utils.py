@@ -71,6 +71,7 @@ def get_font_name() -> str:
 # Drawing Functions
 # ============================================================
 
+
 def draw_text(
     c: canvas.Canvas,
     x: float,
@@ -130,6 +131,7 @@ def draw_checkbox(
 # Overlay Creation and Merging
 # ============================================================
 
+
 def create_overlay(
     fields: list[dict[str, Any]],
     page_size: tuple[float, float] = A4,
@@ -162,7 +164,10 @@ def create_overlay(
             draw_text(c, x, y, str(value), font_size=font_size)
         elif ftype == "number":
             draw_number(
-                c, x, y, int(value),
+                c,
+                x,
+                y,
+                int(value),
                 font_size=font_size,
                 with_comma=field.get("with_comma", True),
             )
@@ -201,7 +206,10 @@ def create_multi_page_overlay(
                 draw_text(c, x, y, str(value), font_size=font_size)
             elif ftype == "number":
                 draw_number(
-                    c, x, y, int(value),
+                    c,
+                    x,
+                    y,
+                    int(value),
                     font_size=font_size,
                     with_comma=field.get("with_comma", True),
                 )
@@ -287,7 +295,10 @@ def generate_standalone_pdf(
             draw_text(c, x, y, str(value), font_size=font_size)
         elif ftype == "number":
             draw_number(
-                c, x, y, int(value),
+                c,
+                x,
+                y,
+                int(value),
                 font_size=font_size,
                 with_comma=field.get("with_comma", True),
             )
@@ -341,7 +352,10 @@ def generate_standalone_multi_page_pdf(
                 draw_text(c, x, y, str(value), font_size=font_size)
             elif ftype == "number":
                 draw_number(
-                    c, x, y, int(value),
+                    c,
+                    x,
+                    y,
+                    int(value),
                     font_size=font_size,
                     with_comma=field.get("with_comma", True),
                 )

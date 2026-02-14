@@ -38,21 +38,24 @@ def _build_business_ledger(tmp_path):
     entries = [
         # Revenue: multiple sales invoices
         JournalEntry(
-            date="2025-01-31", description="1月売上",
+            date="2025-01-31",
+            description="1月売上",
             lines=[
                 JournalLine(side="debit", account_code="1002", amount=2_000_000),
                 JournalLine(side="credit", account_code="4001", amount=2_000_000),
             ],
         ),
         JournalEntry(
-            date="2025-06-30", description="6月売上",
+            date="2025-06-30",
+            description="6月売上",
             lines=[
                 JournalLine(side="debit", account_code="1002", amount=1_500_000),
                 JournalLine(side="credit", account_code="4001", amount=1_500_000),
             ],
         ),
         JournalEntry(
-            date="2025-12-31", description="12月売上",
+            date="2025-12-31",
+            description="12月売上",
             lines=[
                 JournalLine(side="debit", account_code="1002", amount=1_500_000),
                 JournalLine(side="credit", account_code="4001", amount=1_500_000),
@@ -60,28 +63,32 @@ def _build_business_ledger(tmp_path):
         ),
         # Expenses
         JournalEntry(
-            date="2025-01-31", description="通信費(年間)",
+            date="2025-01-31",
+            description="通信費(年間)",
             lines=[
                 JournalLine(side="debit", account_code="5140", amount=120_000),
                 JournalLine(side="credit", account_code="1002", amount=120_000),
             ],
         ),
         JournalEntry(
-            date="2025-01-31", description="家賃(年間)",
+            date="2025-01-31",
+            description="家賃(年間)",
             lines=[
                 JournalLine(side="debit", account_code="5250", amount=600_000),
                 JournalLine(side="credit", account_code="1002", amount=600_000),
             ],
         ),
         JournalEntry(
-            date="2025-03-15", description="消耗品",
+            date="2025-03-15",
+            description="消耗品",
             lines=[
                 JournalLine(side="debit", account_code="5190", amount=80_000),
                 JournalLine(side="credit", account_code="1001", amount=80_000),
             ],
         ),
         JournalEntry(
-            date="2025-12-31", description="減価償却費",
+            date="2025-12-31",
+            description="減価償却費",
             lines=[
                 JournalLine(side="debit", account_code="5200", amount=200_000),
                 JournalLine(side="credit", account_code="1130", amount=200_000),
@@ -89,7 +96,8 @@ def _build_business_ledger(tmp_path):
         ),
         # Initial capital
         JournalEntry(
-            date="2025-01-01", description="元入金",
+            date="2025-01-01",
+            description="元入金",
             lines=[
                 JournalLine(side="debit", account_code="1001", amount=500_000),
                 JournalLine(side="credit", account_code="3001", amount=500_000),
@@ -128,9 +136,7 @@ class TestLedgerToTax:
         bs = ledger_bs(db_path=db_path, fiscal_year=2025)
 
         assert bs["status"] == "ok"
-        assert bs["total_assets"] == (
-            bs["total_liabilities"] + bs["total_equity"]
-        )
+        assert bs["total_assets"] == (bs["total_liabilities"] + bs["total_equity"])
 
     def test_bs_pl_net_income_match(self, tmp_path):
         """Net income from PL should be embedded in BS equity."""
@@ -155,13 +161,15 @@ class TestLedgerToTax:
         # Use PL data as business revenue/expense input
         # In practice, net_income from PL = revenue - expense already computed
         # For tax calc, we pass raw revenue and raw expenses
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=6_000_000,
-            business_revenue=pl["total_revenue"],
-            business_expenses=pl["total_expense"],
-            withheld_tax=466_800,
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=pl["total_revenue"],
+                business_expenses=pl["total_expense"],
+                withheld_tax=466_800,
+            )
+        )
 
         # Verify business income = 5M - 1M - 650K(blue) = 3,350,000
         assert tax_result.business_income == 3_350_000
@@ -183,16 +191,18 @@ class TestLedgerToTax:
         db_path = _build_business_ledger(tmp_path)
         pl = ledger_pl(db_path=db_path, fiscal_year=2025)
 
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=6_000_000,
-            business_revenue=pl["total_revenue"],
-            business_expenses=pl["total_expense"],
-            social_insurance=800_000,
-            furusato_nozei=50_000,
-            housing_loan_balance=25_000_000,
-            withheld_tax=600_000,
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=pl["total_revenue"],
+                business_expenses=pl["total_expense"],
+                social_insurance=800_000,
+                furusato_nozei=50_000,
+                housing_loan_balance=25_000_000,
+                withheld_tax=600_000,
+            )
+        )
 
         # Verify deductions were applied
         assert tax_result.total_income_deductions > 0
@@ -200,13 +210,15 @@ class TestLedgerToTax:
         assert tax_result.deductions_detail is not None
 
         # Total tax should be less than without deductions
-        tax_no_deductions = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=6_000_000,
-            business_revenue=pl["total_revenue"],
-            business_expenses=pl["total_expense"],
-            withheld_tax=600_000,
-        ))
+        tax_no_deductions = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=pl["total_revenue"],
+                business_expenses=pl["total_expense"],
+                withheld_tax=600_000,
+            )
+        )
         assert tax_result.total_tax < tax_no_deductions.total_tax
 
     def test_all_amounts_integer_through_pipeline(self, tmp_path):
@@ -234,11 +246,13 @@ class TestLedgerToTax:
         assert isinstance(bs["total_equity"], int)
 
         # Tax
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            business_revenue=pl["total_revenue"],
-            business_expenses=pl["total_expense"],
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                business_revenue=pl["total_revenue"],
+                business_expenses=pl["total_expense"],
+            )
+        )
         assert isinstance(tax_result.taxable_income, int)
         assert isinstance(tax_result.income_tax_base, int)
         assert isinstance(tax_result.reconstruction_tax, int)

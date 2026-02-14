@@ -12,7 +12,10 @@ def _load_scenario():
     """
     try:
         import yaml
-        yaml_path = Path(__file__).parent.parent / "fixtures" / "scenarios" / "salary_plus_business.yaml"
+
+        yaml_path = (
+            Path(__file__).parent.parent / "fixtures" / "scenarios" / "salary_plus_business.yaml"
+        )
         with open(yaml_path, encoding="utf-8") as f:
             return yaml.safe_load(f)
     except ImportError:
@@ -51,16 +54,66 @@ def _salary_plus_business_scenario():
             ],
             "total_revenue": 3_500_000,
             "expenses": [
-                {"date": "2025-01-15", "description": "サーバー代", "account_code": "5140", "amount": 36_000},
-                {"date": "2025-01-15", "description": "ドメイン代", "account_code": "5140", "amount": 12_000},
-                {"date": "2025-03-10", "description": "PC周辺機器", "account_code": "5190", "amount": 50_000},
-                {"date": "2025-06-01", "description": "技術書籍", "account_code": "5290", "amount": 30_000},
-                {"date": "2025-07-15", "description": "コワーキングスペース（年間）", "account_code": "5250", "amount": 120_000},
-                {"date": "2025-09-01", "description": "オンライン研修", "account_code": "5300", "amount": 50_000},
-                {"date": "2025-12-31", "description": "通信費（按分50%）", "account_code": "5140", "amount": 60_000},
-                {"date": "2025-12-31", "description": "消耗品費（文具等）", "account_code": "5190", "amount": 20_000},
-                {"date": "2025-12-31", "description": "支払手数料", "account_code": "5310", "amount": 12_000},
-                {"date": "2025-12-31", "description": "雑費", "account_code": "5270", "amount": 10_000},
+                {
+                    "date": "2025-01-15",
+                    "description": "サーバー代",
+                    "account_code": "5140",
+                    "amount": 36_000,
+                },
+                {
+                    "date": "2025-01-15",
+                    "description": "ドメイン代",
+                    "account_code": "5140",
+                    "amount": 12_000,
+                },
+                {
+                    "date": "2025-03-10",
+                    "description": "PC周辺機器",
+                    "account_code": "5190",
+                    "amount": 50_000,
+                },
+                {
+                    "date": "2025-06-01",
+                    "description": "技術書籍",
+                    "account_code": "5290",
+                    "amount": 30_000,
+                },
+                {
+                    "date": "2025-07-15",
+                    "description": "コワーキングスペース（年間）",
+                    "account_code": "5250",
+                    "amount": 120_000,
+                },
+                {
+                    "date": "2025-09-01",
+                    "description": "オンライン研修",
+                    "account_code": "5300",
+                    "amount": 50_000,
+                },
+                {
+                    "date": "2025-12-31",
+                    "description": "通信費（按分50%）",
+                    "account_code": "5140",
+                    "amount": 60_000,
+                },
+                {
+                    "date": "2025-12-31",
+                    "description": "消耗品費（文具等）",
+                    "account_code": "5190",
+                    "amount": 20_000,
+                },
+                {
+                    "date": "2025-12-31",
+                    "description": "支払手数料",
+                    "account_code": "5310",
+                    "amount": 12_000,
+                },
+                {
+                    "date": "2025-12-31",
+                    "description": "雑費",
+                    "account_code": "5270",
+                    "amount": 10_000,
+                },
             ],
             "total_expense": 400_000,
         },

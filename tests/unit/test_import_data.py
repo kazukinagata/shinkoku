@@ -1,4 +1,5 @@
 """Tests for import_data tools."""
+
 from pathlib import Path
 
 from shinkoku.tools.import_data import (

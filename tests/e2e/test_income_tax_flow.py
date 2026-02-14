@@ -59,33 +59,43 @@ class TestIncomeTaxFullFlow:
 
         # Revenue entries (debit: 普通預金, credit: 売上)
         for rev in scenario["business"]["revenues"]:
-            entries.append(JournalEntry(
-                date=rev["date"],
-                description=rev["description"],
-                source="manual",
-                lines=[
-                    JournalLine(side="debit", account_code="1002", amount=rev["amount"]),
-                    JournalLine(side="credit", account_code="4001", amount=rev["amount"]),
-                ],
-            ))
+            entries.append(
+                JournalEntry(
+                    date=rev["date"],
+                    description=rev["description"],
+                    source="manual",
+                    lines=[
+                        JournalLine(side="debit", account_code="1002", amount=rev["amount"]),
+                        JournalLine(side="credit", account_code="4001", amount=rev["amount"]),
+                    ],
+                )
+            )
 
         # Expense entries (debit: expense account, credit: 普通預金)
         for exp in scenario["business"]["expenses"]:
-            entries.append(JournalEntry(
-                date=exp["date"],
-                description=exp["description"],
-                source="manual",
-                lines=[
-                    JournalLine(side="debit", account_code=exp["account_code"], amount=exp["amount"]),
-                    JournalLine(side="credit", account_code="1002", amount=exp["amount"]),
-                ],
-            ))
+            entries.append(
+                JournalEntry(
+                    date=exp["date"],
+                    description=exp["description"],
+                    source="manual",
+                    lines=[
+                        JournalLine(
+                            side="debit", account_code=exp["account_code"], amount=exp["amount"]
+                        ),
+                        JournalLine(side="credit", account_code="1002", amount=exp["amount"]),
+                    ],
+                )
+            )
 
         batch_result = ledger_add_journals_batch(
-            db_path=db_path, fiscal_year=fiscal_year, entries=entries,
+            db_path=db_path,
+            fiscal_year=fiscal_year,
+            entries=entries,
         )
         assert batch_result["status"] == "ok"
-        total_entries = len(scenario["business"]["revenues"]) + len(scenario["business"]["expenses"])
+        total_entries = len(scenario["business"]["revenues"]) + len(
+            scenario["business"]["expenses"]
+        )
         assert batch_result["count"] == total_entries
 
         # ==============================
@@ -112,15 +122,17 @@ class TestIncomeTaxFullFlow:
         # ==============================
         # Step 4: Calculate income tax
         # ==============================
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=fiscal_year,
-            salary_income=scenario["salary"]["income"],
-            business_revenue=pl["total_revenue"],
-            business_expenses=pl["total_expense"],
-            blue_return_deduction=scenario["business"]["blue_return_deduction"],
-            furusato_nozei=scenario["deductions"]["furusato_nozei"],
-            withheld_tax=scenario["salary"]["withheld_tax"],
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=fiscal_year,
+                salary_income=scenario["salary"]["income"],
+                business_revenue=pl["total_revenue"],
+                business_expenses=pl["total_expense"],
+                blue_return_deduction=scenario["business"]["blue_return_deduction"],
+                furusato_nozei=scenario["deductions"]["furusato_nozei"],
+                withheld_tax=scenario["salary"]["withheld_tax"],
+            )
+        )
 
         # Verify against expected values from scenario
         expected = scenario["expected"]["income_tax"]
@@ -155,11 +167,19 @@ class TestIncomeTaxFullFlow:
         pl_result = PLResult(
             fiscal_year=fiscal_year,
             revenues=[
-                PLItem(account_code=r["account_code"], account_name=r["account_name"], amount=r["amount"])
+                PLItem(
+                    account_code=r["account_code"],
+                    account_name=r["account_name"],
+                    amount=r["amount"],
+                )
                 for r in pl["revenues"]
             ],
             expenses=[
-                PLItem(account_code=e["account_code"], account_name=e["account_name"], amount=e["amount"])
+                PLItem(
+                    account_code=e["account_code"],
+                    account_name=e["account_name"],
+                    amount=e["amount"],
+                )
                 for e in pl["expenses"]
             ],
             total_revenue=pl["total_revenue"],
@@ -170,15 +190,27 @@ class TestIncomeTaxFullFlow:
         bs_result = BSResult(
             fiscal_year=fiscal_year,
             assets=[
-                BSItem(account_code=a["account_code"], account_name=a["account_name"], amount=a["amount"])
+                BSItem(
+                    account_code=a["account_code"],
+                    account_name=a["account_name"],
+                    amount=a["amount"],
+                )
                 for a in bs["assets"]
             ],
             liabilities=[
-                BSItem(account_code=li["account_code"], account_name=li["account_name"], amount=li["amount"])
+                BSItem(
+                    account_code=li["account_code"],
+                    account_name=li["account_name"],
+                    amount=li["amount"],
+                )
                 for li in bs["liabilities"]
             ],
             equity=[
-                BSItem(account_code=e["account_code"], account_name=e["account_name"], amount=e["amount"])
+                BSItem(
+                    account_code=e["account_code"],
+                    account_name=e["account_name"],
+                    amount=e["amount"],
+                )
                 for e in bs["equity"]
             ],
             total_assets=bs["total_assets"],
@@ -215,15 +247,17 @@ class TestIncomeTaxFullFlow:
         """Verify positive tax_due means the taxpayer owes money."""
         fiscal_year = scenario["scenario"]["fiscal_year"]
 
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=fiscal_year,
-            salary_income=scenario["salary"]["income"],
-            business_revenue=scenario["business"]["total_revenue"],
-            business_expenses=scenario["business"]["total_expense"],
-            blue_return_deduction=scenario["business"]["blue_return_deduction"],
-            furusato_nozei=scenario["deductions"]["furusato_nozei"],
-            withheld_tax=scenario["salary"]["withheld_tax"],
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=fiscal_year,
+                salary_income=scenario["salary"]["income"],
+                business_revenue=scenario["business"]["total_revenue"],
+                business_expenses=scenario["business"]["total_expense"],
+                blue_return_deduction=scenario["business"]["blue_return_deduction"],
+                furusato_nozei=scenario["deductions"]["furusato_nozei"],
+                withheld_tax=scenario["salary"]["withheld_tax"],
+            )
+        )
 
         # In this scenario, tax_due should be positive (payment required)
         expected_tax_due = scenario["expected"]["income_tax"]["tax_due"]
@@ -232,15 +266,17 @@ class TestIncomeTaxFullFlow:
 
     def test_refund_scenario(self, tmp_path):
         """Verify negative tax_due means a refund."""
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=5_000_000,
-            business_revenue=1_000_000,
-            business_expenses=0,
-            furusato_nozei=30_000,
-            housing_loan_balance=25_000_000,
-            withheld_tax=128_200,
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=5_000_000,
+                business_revenue=1_000_000,
+                business_expenses=0,
+                furusato_nozei=30_000,
+                housing_loan_balance=25_000_000,
+                withheld_tax=128_200,
+            )
+        )
 
         # This matches test scenario 5 from unit tests
         # total_income=3,910,000 → basic=680,000 (336万超〜489万)
@@ -257,21 +293,29 @@ class TestIncomeTaxFullFlow:
 
         entries = []
         for rev in scenario["business"]["revenues"]:
-            entries.append(JournalEntry(
-                date=rev["date"], description=rev["description"],
-                lines=[
-                    JournalLine(side="debit", account_code="1002", amount=rev["amount"]),
-                    JournalLine(side="credit", account_code="4001", amount=rev["amount"]),
-                ],
-            ))
+            entries.append(
+                JournalEntry(
+                    date=rev["date"],
+                    description=rev["description"],
+                    lines=[
+                        JournalLine(side="debit", account_code="1002", amount=rev["amount"]),
+                        JournalLine(side="credit", account_code="4001", amount=rev["amount"]),
+                    ],
+                )
+            )
         for exp in scenario["business"]["expenses"]:
-            entries.append(JournalEntry(
-                date=exp["date"], description=exp["description"],
-                lines=[
-                    JournalLine(side="debit", account_code=exp["account_code"], amount=exp["amount"]),
-                    JournalLine(side="credit", account_code="1002", amount=exp["amount"]),
-                ],
-            ))
+            entries.append(
+                JournalEntry(
+                    date=exp["date"],
+                    description=exp["description"],
+                    lines=[
+                        JournalLine(
+                            side="debit", account_code=exp["account_code"], amount=exp["amount"]
+                        ),
+                        JournalLine(side="credit", account_code="1002", amount=exp["amount"]),
+                    ],
+                )
+            )
 
         ledger_add_journals_batch(db_path=db_path, fiscal_year=fiscal_year, entries=entries)
 
@@ -280,19 +324,29 @@ class TestIncomeTaxFullFlow:
         assert isinstance(pl["total_expense"], int)
         assert isinstance(pl["net_income"], int)
 
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=fiscal_year,
-            salary_income=scenario["salary"]["income"],
-            business_revenue=pl["total_revenue"],
-            business_expenses=pl["total_expense"],
-            withheld_tax=scenario["salary"]["withheld_tax"],
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=fiscal_year,
+                salary_income=scenario["salary"]["income"],
+                business_revenue=pl["total_revenue"],
+                business_expenses=pl["total_expense"],
+                withheld_tax=scenario["salary"]["withheld_tax"],
+            )
+        )
 
         for field_name in [
-            "salary_income_after_deduction", "business_income", "total_income",
-            "total_income_deductions", "taxable_income", "income_tax_base",
-            "total_tax_credits", "income_tax_after_credits", "reconstruction_tax",
-            "total_tax", "withheld_tax", "tax_due",
+            "salary_income_after_deduction",
+            "business_income",
+            "total_income",
+            "total_income_deductions",
+            "taxable_income",
+            "income_tax_base",
+            "total_tax_credits",
+            "income_tax_after_credits",
+            "reconstruction_tax",
+            "total_tax",
+            "withheld_tax",
+            "tax_due",
         ]:
             value = getattr(tax_result, field_name)
             assert isinstance(value, int), f"{field_name} is {type(value).__name__}, expected int"

@@ -36,14 +36,16 @@ class TestIncomeTaxToPdf:
 
     def test_income_tax_result_to_pdf(self, tmp_path):
         """calc_income_tax result directly feeds into generate_income_tax_pdf."""
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=6_000_000,
-            business_revenue=3_000_000,
-            business_expenses=0,
-            furusato_nozei=50_000,
-            withheld_tax=466_800,
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                business_expenses=0,
+                furusato_nozei=50_000,
+                withheld_tax=466_800,
+            )
+        )
 
         output = str(tmp_path / "income_tax.pdf")
         path = generate_income_tax_pdf(
@@ -61,18 +63,20 @@ class TestIncomeTaxToPdf:
 
     def test_income_tax_with_all_deductions_to_pdf(self, tmp_path):
         """Full deductions scenario generates valid PDF."""
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=8_000_000,
-            business_revenue=2_000_000,
-            business_expenses=0,
-            social_insurance=800_000,
-            life_insurance_premium=100_000,
-            furusato_nozei=100_000,
-            housing_loan_balance=35_000_000,
-            spouse_income=0,
-            withheld_tax=720_200,
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=8_000_000,
+                business_revenue=2_000_000,
+                business_expenses=0,
+                social_insurance=800_000,
+                life_insurance_premium=100_000,
+                furusato_nozei=100_000,
+                housing_loan_balance=35_000_000,
+                spouse_income=0,
+                withheld_tax=720_200,
+            )
+        )
 
         output = str(tmp_path / "income_tax_full.pdf")
         path = generate_income_tax_pdf(
@@ -86,15 +90,17 @@ class TestIncomeTaxToPdf:
 
     def test_income_tax_deduction_detail_pdf(self, tmp_path):
         """Deduction details from tax calc -> deduction detail PDF."""
-        tax_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=6_000_000,
-            business_revenue=3_000_000,
-            social_insurance=500_000,
-            life_insurance_premium=80_000,
-            furusato_nozei=50_000,
-            housing_loan_balance=25_000_000,
-        ))
+        tax_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                social_insurance=500_000,
+                life_insurance_premium=80_000,
+                furusato_nozei=50_000,
+                housing_loan_balance=25_000_000,
+            )
+        )
 
         assert tax_result.deductions_detail is not None
 
@@ -115,11 +121,13 @@ class TestConsumptionTaxToPdf:
 
     def test_special_20pct_to_pdf(self, tmp_path):
         """2-wari special consumption tax result -> PDF."""
-        tax_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="special_20pct",
-            taxable_sales_10=5_500_000,
-        ))
+        tax_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="special_20pct",
+                taxable_sales_10=5_500_000,
+            )
+        )
 
         output = str(tmp_path / "consumption_tax_special.pdf")
         path = generate_consumption_tax_pdf(
@@ -136,12 +144,14 @@ class TestConsumptionTaxToPdf:
 
     def test_simplified_to_pdf(self, tmp_path):
         """Simplified consumption tax result -> PDF."""
-        tax_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="simplified",
-            taxable_sales_10=11_000_000,
-            simplified_business_type=5,
-        ))
+        tax_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="simplified",
+                taxable_sales_10=11_000_000,
+                simplified_business_type=5,
+            )
+        )
 
         output = str(tmp_path / "consumption_tax_simplified.pdf")
         path = generate_consumption_tax_pdf(
@@ -154,12 +164,14 @@ class TestConsumptionTaxToPdf:
 
     def test_standard_to_pdf(self, tmp_path):
         """Standard consumption tax result -> PDF."""
-        tax_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="standard",
-            taxable_sales_10=5_500_000,
-            taxable_purchases_10=2_200_000,
-        ))
+        tax_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="standard",
+                taxable_sales_10=5_500_000,
+                taxable_purchases_10=2_200_000,
+            )
+        )
 
         output = str(tmp_path / "consumption_tax_standard.pdf")
         path = generate_consumption_tax_pdf(
@@ -181,35 +193,40 @@ class TestLedgerToPdf:
 
         entries = [
             JournalEntry(
-                date="2025-01-31", description="売上",
+                date="2025-01-31",
+                description="売上",
                 lines=[
                     JournalLine(side="debit", account_code="1002", amount=5_000_000),
                     JournalLine(side="credit", account_code="4001", amount=5_000_000),
                 ],
             ),
             JournalEntry(
-                date="2025-06-30", description="雑収入",
+                date="2025-06-30",
+                description="雑収入",
                 lines=[
                     JournalLine(side="debit", account_code="1002", amount=100_000),
                     JournalLine(side="credit", account_code="4110", amount=100_000),
                 ],
             ),
             JournalEntry(
-                date="2025-02-28", description="通信費",
+                date="2025-02-28",
+                description="通信費",
                 lines=[
                     JournalLine(side="debit", account_code="5140", amount=120_000),
                     JournalLine(side="credit", account_code="1002", amount=120_000),
                 ],
             ),
             JournalEntry(
-                date="2025-03-31", description="家賃",
+                date="2025-03-31",
+                description="家賃",
                 lines=[
                     JournalLine(side="debit", account_code="5250", amount=600_000),
                     JournalLine(side="credit", account_code="1002", amount=600_000),
                 ],
             ),
             JournalEntry(
-                date="2025-01-01", description="元入金",
+                date="2025-01-01",
+                description="元入金",
                 lines=[
                     JournalLine(side="debit", account_code="1001", amount=300_000),
                     JournalLine(side="credit", account_code="3001", amount=300_000),
@@ -340,21 +357,25 @@ class TestFullTaxDocumentSet:
     def test_generate_all_documents(self, tmp_path):
         """Generate income tax, consumption tax, BS/PL, and deduction PDFs."""
         # Income tax
-        income_result = calc_income_tax(IncomeTaxInput(
-            fiscal_year=2025,
-            salary_income=6_000_000,
-            business_revenue=3_000_000,
-            social_insurance=500_000,
-            furusato_nozei=50_000,
-            withheld_tax=466_800,
-        ))
+        income_result = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                social_insurance=500_000,
+                furusato_nozei=50_000,
+                withheld_tax=466_800,
+            )
+        )
 
         # Consumption tax
-        consumption_result = calc_consumption_tax(ConsumptionTaxInput(
-            fiscal_year=2025,
-            method="special_20pct",
-            taxable_sales_10=3_300_000,
-        ))
+        consumption_result = calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2025,
+                method="special_20pct",
+                taxable_sales_10=3_300_000,
+            )
+        )
 
         # Generate all PDFs
         output_dir = tmp_path / "output"
