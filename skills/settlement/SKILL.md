@@ -29,6 +29,17 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 - `ledger_trial_balance(db_path="/home/user/tax-2025/shinkoku.db", ...)`
 - `generate_bs_pl_pdf(output_path="/home/user/tax-2025/output/bs_pl_2025.pdf", ...)`
 
+## 進捗情報の読み込み
+
+設定の読み込み後、引継書ファイルを読み込んで前ステップの結果を把握する。
+
+1. `.shinkoku/progress/progress-summary.md` を Read ツールで読み込む（存在する場合）
+2. 以下の引継書を Read ツールで読み込む（存在する場合）:
+   - `.shinkoku/progress/04-journal.md`
+   - `.shinkoku/progress/02-assess.md`
+3. 読み込んだ情報を以降のステップで活用する（ユーザーへの再質問を避ける）
+4. ファイルが存在しない場合はスキップし、ユーザーに必要情報を直接確認する
+
 ## 基本方針
 
 - journal スキルでの仕訳入力が完了しているか確認してから開始する
@@ -289,3 +300,69 @@ doc_generate_rent_detail:
   → consumption-tax スキルで消費税の計算を行う
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+## 引継書の出力
+
+サマリー提示後、以下のファイルを Write ツールで出力する。
+これにより、セッションの中断や Compact が発生しても次のステップで結果を引き継げる。
+
+### ステップ別ファイルの出力
+
+`.shinkoku/progress/06-settlement.md` に以下の形式で出力する:
+
+```
+---
+step: 6
+skill: settlement
+status: completed
+completed_at: "{当日日付 YYYY-MM-DD}"
+fiscal_year: {tax_year}
+---
+
+# 決算整理・決算書作成の結果
+
+## 損益計算書（PL）サマリー
+
+- 売上高: {金額}円
+- 売上原価: {金額}円
+- 経費合計: {金額}円
+- 青色申告特別控除前の所得: {金額}円
+
+## 貸借対照表（BS）サマリー
+
+- 資産合計: {金額}円
+- 負債合計: {金額}円
+- 純資産合計: {金額}円
+- 貸借差額: {金額}円（一致/不一致）
+
+## 決算整理仕訳の一覧
+
+| 内容 | 借方科目 | 貸方科目 | 金額 |
+|------|---------|---------|------|
+| {減価償却費等} | {科目名} | {科目名} | {金額}円 |
+（減価償却、地代家賃按分、棚卸調整、未払計上等を記載）
+
+## 出力ファイル
+
+- 青色申告決算書PDF: {ファイルパス}
+- 地代家賃内訳PDF: {ファイルパス}（該当者のみ）
+
+## 次のステップ
+
+/income-tax で所得税の計算を行う
+/consumption-tax で消費税の計算を行う
+```
+
+### 進捗サマリーの更新
+
+`.shinkoku/progress/progress-summary.md` を更新する（存在しない場合は新規作成）:
+
+- YAML frontmatter: fiscal_year、last_updated（当日日付）、current_step: settlement
+- テーブル: 全ステップの状態を更新（settlement を completed に）
+- 次のステップの案内を記載
+
+### 出力後の案内
+
+ファイルを出力したらユーザーに以下を伝える:
+- 「引継書を `.shinkoku/progress/` に保存しました。セッションが中断しても次のスキルで結果を引き継げます。」
+- 次のステップの案内
