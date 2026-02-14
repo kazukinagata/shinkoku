@@ -259,6 +259,63 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 **注意**: 株式と FX の損益通算は不可（別プール）。配当の課税方式は事前にユーザーに確認する（総合課税 / 分離課税 / 申告不要）。
 
+## ステップ1.12: 社会保険料の種別別内訳の登録
+
+所得控除の内訳書に種別ごとの記載が必要なため、社会保険料を種別別に登録する。
+
+1. `ledger_list_social_insurance_items` で登録済み項目を確認する
+2. 未登録の場合は `ledger_add_social_insurance_item` で種別ごとに登録する:
+   ```
+   パラメータ:
+     db_path: str
+     fiscal_year: int
+     detail:
+       insurance_type: str  — 種別（national_health / national_pension / national_pension_fund / nursing_care / labor_insurance / other）
+       name: str | None     — 保険者名等
+       amount: int          — 年間支払額（円）
+   ```
+3. 合計額を `social_insurance` として控除計算に使用する
+
+## ステップ1.13: 保険契約の保険会社名の登録
+
+所得控除の内訳書に保険会社名の記載が必要なため、保険契約を登録する。
+
+1. `ledger_list_insurance_policies` で登録済み項目を確認する
+2. 未登録の場合は `ledger_add_insurance_policy` で登録する:
+   ```
+   パラメータ:
+     db_path: str
+     fiscal_year: int
+     detail:
+       policy_type: str   — 種別（life_general_new / life_general_old / life_medical_care / life_annuity_new / life_annuity_old / earthquake / old_long_term）
+       company_name: str  — 保険会社名
+       premium: int       — 年間保険料（円）
+   ```
+3. 生命保険料は `life_insurance_detail` パラメータに、地震保険料は `earthquake_insurance_premium` に反映する
+
+## ステップ1.14: ふるさと納税以外の寄附金の確認
+
+政治活動寄附金、認定NPO法人、公益社団法人等への寄附金を確認する。
+
+1. `ledger_list_donations` で登録済み寄附金を確認する
+2. 未登録の場合は `ledger_add_donation` で登録する:
+   ```
+   パラメータ:
+     db_path: str
+     fiscal_year: int
+     detail:
+       donation_type: str      — 種別（political / npo / public_interest / specified / other）
+       recipient_name: str     — 寄附先名
+       amount: int             — 寄附金額（円）
+       date: str               — 寄附日（YYYY-MM-DD）
+       receipt_number: str | None — 領収書番号
+   ```
+3. 寄附金控除の計算:
+   - **所得控除**: 全寄附金 - 2,000円（総所得金額の40%上限）
+   - **税額控除（政治活動寄附金）**: (寄附金 - 2,000円) × 30%（所得税額の25%上限）
+   - **税額控除（認定NPO等）**: (寄附金 - 2,000円) × 40%（所得税額の25%上限）
+4. `calc_deductions` の `donations` パラメータに寄附金レコードのリストを渡す
+
 ## ステップ2: 所得控除の計算
 
 ### `calc_deductions` の呼び出し
@@ -277,6 +334,7 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
   dependents: list[DependentInfo] — 扶養親族のリスト
   fiscal_year: int               — 会計年度
   housing_loan_detail: HousingLoanDetail | None — 住宅ローン控除の詳細
+  donations: list[DonationRecordRecord] | None — ふるさと納税以外の寄附金
 
 戻り値: DeductionsResult
   - income_deductions: 所得控除の一覧
@@ -286,12 +344,15 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
     - earthquake_insurance_deduction: 地震保険料控除
     - ideco_deduction: 小規模企業共済等掛金控除
     - medical_deduction: 医療費控除
-    - furusato_deduction: 寄附金控除
+    - furusato_deduction: 寄附金控除（ふるさと納税）
+    - donation_deduction: 寄附金控除（その他）
     - spouse_deduction: 配偶者控除/配偶者特別控除
     - dependent_deduction: 扶養控除
     - disability_deduction: 障害者控除
   - tax_credits: 税額控除の一覧
     - housing_loan_credit: 住宅ローン控除
+    - political_donation_credit: 政治活動寄附金控除
+    - npo_donation_credit: 認定NPO等寄附金控除
   - total_income_deductions: 所得控除合計
   - total_tax_credits: 税額控除合計
 ```

@@ -90,7 +90,10 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 
 - `filing.submission_method`: 提出方法（e-tax / mail / in-person）
 - `filing.return_type`: 申告の種類（blue / white）
-- `filing.blue_return_deduction`: 青色申告特別控除額（650000 / 100000）
+- `filing.blue_return_deduction`: 青色申告特別控除額（650000 / 550000 / 100000）
+  - 650,000: e-Tax提出 + 優良電子帳簿保存（最大控除）
+  - 550,000: e-Tax提出のみ（電子帳簿保存なし）
+  - 100,000: 簡易帳簿
 - `filing.electronic_bookkeeping`: 電子帳簿保存の有無（true / false）
 - `filing.tax_office_name`: 所轄税務署名
 
