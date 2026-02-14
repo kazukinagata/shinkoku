@@ -43,7 +43,7 @@ _IPAEX_PATHS = [
 def _register_font() -> str:
     """Register IPAex Gothic font if available, else fallback to Helvetica."""
     global _FONT_REGISTERED, _FONT_NAME
-    if _FONT_REGISTERED:
+    if _FONT_REGISTERED and _FONT_NAME != "Helvetica":
         return _FONT_NAME
 
     for font_path in _IPAEX_PATHS:
@@ -56,9 +56,8 @@ def _register_font() -> str:
             except Exception:
                 continue
 
-    # Fallback
+    # Fallback — don't cache so we retry if font is installed later
     _FONT_NAME = "Helvetica"
-    _FONT_REGISTERED = True
     return _FONT_NAME
 
 

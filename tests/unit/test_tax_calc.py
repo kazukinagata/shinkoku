@@ -407,7 +407,11 @@ class TestIncomeTaxScenario2:
 
 
 class TestIncomeTaxScenario3:
-    """Salary 1.8M + Side 500K, blue, low income (basic deduction 950K)."""
+    """Salary 1.8M + Side 500K, blue, low income — loss offset applies.
+
+    business_income = 500K - 650K = -150K (negative, offset against salary).
+    total_income = max(0, 1,180K + (-150K)) = 1,030K.
+    """
 
     def test_full_calculation(self):
         r = calc_income_tax(
@@ -420,13 +424,14 @@ class TestIncomeTaxScenario3:
             )
         )
         assert r.salary_income_after_deduction == 1_180_000
-        assert r.business_income == 0  # 500K - 650K blue = negative, capped at 0
-        assert r.total_income == 1_180_000
-        assert r.taxable_income == 230_000
-        assert r.income_tax_base == 11_500
-        assert r.reconstruction_tax == 241
-        assert r.total_tax == 11_700
-        assert r.tax_due == -25_000
+        assert r.business_income == -150_000  # 500K - 650K blue = 損益通算で負値
+        assert r.total_income == 1_030_000  # max(0, 1,180K + (-150K))
+        # basic deduction for 1,030K = 950,000 (≤132万)
+        assert r.taxable_income == 80_000  # 1,030K - 950K
+        assert r.income_tax_base == 4_000  # 80K * 5%
+        assert r.reconstruction_tax == 84  # 4,000 * 21/1000
+        assert r.total_tax == 4_000  # (4,000 + 84) = 4,084 → 4,000
+        assert r.tax_due == -32_700  # 4,000 - 36,700
 
 
 class TestIncomeTaxScenario4:
@@ -686,3 +691,138 @@ class TestConsumptionTaxStandard:
         assert_amount_is_integer_yen(r.tax_due)
         assert_amount_is_integer_yen(r.local_tax_due)
         assert_amount_is_integer_yen(r.total_due)
+
+
+# ============================================================
+# Loss Offset (損益通算)
+# ============================================================
+
+
+class TestLossOffset:
+    """事業赤字 + 給与所得 → 損益通算が正しく計算されるか。"""
+
+    def test_business_loss_offsets_salary(self):
+        """事業赤字を給与所得と通算する。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=5_000_000,
+                business_revenue=1_000_000,
+                business_expenses=2_000_000,
+                blue_return_deduction=650_000,
+            )
+        )
+        # business_income = 1,000K - 2,000K - 650K = -1,650K
+        assert r.business_income == -1_650_000
+        # salary_income_after = 5,000K - 1,440K(給与所得控除) = 3,560K
+        assert r.salary_income_after_deduction == 3_560_000
+        # total_income = max(0, 3,560K + (-1,650K)) = 1,910K
+        assert r.total_income == 1_910_000
+
+    def test_business_loss_exceeds_salary(self):
+        """事業赤字が給与所得を超える場合、total_income は 0。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=2_000_000,
+                business_revenue=0,
+                business_expenses=3_000_000,
+                blue_return_deduction=650_000,
+            )
+        )
+        # business_income = 0 - 3,000K - 650K = -3,650K
+        assert r.business_income == -3_650_000
+        # salary_income_after = 2,000K - 680K = 1,320K
+        assert r.salary_income_after_deduction == 1_320_000
+        # total_income = max(0, 1,320K + (-3,650K)) = 0
+        assert r.total_income == 0
+        # 所得0 → 税額0
+        assert r.total_tax == 0
+
+    def test_business_income_stored_as_negative(self):
+        """business_income フィールドは負値で保持される（損益通算の内訳表示用）。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=3_000_000,
+                business_revenue=200_000,
+                business_expenses=500_000,
+                blue_return_deduction=650_000,
+            )
+        )
+        assert r.business_income < 0
+
+
+# ============================================================
+# Estimated Tax Payment (予定納税)
+# ============================================================
+
+
+class TestEstimatedTaxPayment:
+    """予定納税がある場合の税額計算。"""
+
+    def test_estimated_tax_reduces_tax_due(self):
+        """予定納税額が tax_due から差し引かれる。"""
+        base = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+            )
+        )
+        with_estimated = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                estimated_tax_payment=100_000,
+            )
+        )
+        # total_tax は同じ（予定納税は税額計算に影響しない）
+        assert with_estimated.total_tax == base.total_tax
+        # tax_due は予定納税分だけ減る
+        assert with_estimated.tax_due == base.tax_due - 100_000
+        assert with_estimated.estimated_tax_payment == 100_000
+
+    def test_estimated_tax_zero_backward_compatible(self):
+        """予定納税なし（デフォルト0）→ 従来の計算と同じ結果。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                estimated_tax_payment=0,
+            )
+        )
+        assert r.estimated_tax_payment == 0
+        assert r.tax_due == r.total_tax - r.withheld_tax
+
+    def test_estimated_tax_causes_refund(self):
+        """予定納税により還付になるケース。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=6_000_000,
+                business_revenue=3_000_000,
+                withheld_tax=466_800,
+                estimated_tax_payment=500_000,
+            )
+        )
+        # total_tax = 805,400 (same as scenario 1)
+        # tax_due = 805,400 - 466,800 - 500,000 = -161,400
+        assert r.tax_due < 0  # 還付
+
+    def test_estimated_tax_in_result(self):
+        """estimated_tax_payment が結果モデルに含まれる。"""
+        r = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                salary_income=5_000_000,
+                business_revenue=1_000_000,
+                estimated_tax_payment=50_000,
+            )
+        )
+        assert r.estimated_tax_payment == 50_000

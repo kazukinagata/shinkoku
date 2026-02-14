@@ -45,6 +45,9 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 2. **事業所得以外の所得**: 給与所得・雑所得等がある場合は情報を収集する
 3. **源泉徴収票**: 給与所得がある場合は取り込みを案内する
 4. **各種控除の適用状況**: 適用可能な控除を網羅的に確認する
+5. **予定納税額**: assess で確認済みの予定納税額を取得する
+   - 未確認の場合は、前年の確定申告書（㊺欄）から判定する
+   - 予定納税額は源泉徴収税額とは別に管理する
 
 ## ステップ1: 源泉徴収票の取り込み
 
@@ -121,7 +124,8 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
   - other_income: int            — その他の所得
   - blue_return_deduction: int   — 青色申告特別控除額（65万/10万/0）
   - deductions: DeductionsResult — 所得控除の計算結果
-  - withholding_tax: int         — 源泉徴収税額（予定納税含む）
+  - withheld_tax: int            — 源泉徴収税額（給与等からの天引き分のみ）
+  - estimated_tax_payment: int   — 予定納税額（第1期 + 第2期の合計）
   - housing_loan_credit: int     — 住宅ローン控除額
 
 戻り値: IncomeTaxResult
@@ -208,6 +212,7 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
   復興特別所得税:       ○,○○○円
   所得税及び復興特別所得税: ○○○,○○○円
   源泉徴収税額:       ○○○,○○○円
+  予定納税額:          ○○,○○○円
   ---------------------------------
   申告納税額:          ○○,○○○円（納付 / 還付）
 

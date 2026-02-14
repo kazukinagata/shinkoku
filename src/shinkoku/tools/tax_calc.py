@@ -403,16 +403,15 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     salary_deduction = calc_salary_deduction(input_data.salary_income)
     salary_income_after = max(0, input_data.salary_income - salary_deduction)
 
-    # Step 2: Business income
-    business_income = max(
-        0,
+    # Step 2: Business income（赤字の場合は負値 → 給与所得と損益通算）
+    business_income = (
         input_data.business_revenue
         - input_data.business_expenses
-        - input_data.blue_return_deduction,
+        - input_data.blue_return_deduction
     )
 
-    # Step 3: Total income
-    total_income = salary_income_after + business_income
+    # Step 3: Total income（損益通算後、0円未満にはならない）
+    total_income = max(0, salary_income_after + business_income)
 
     # Step 4: Income deductions
     deductions = calc_deductions(
@@ -446,8 +445,8 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     total_tax_raw = income_tax_after_credits + reconstruction_tax
     total_tax = (total_tax_raw // 100) * 100
 
-    # Step 10: Difference
-    tax_due = total_tax - input_data.withheld_tax
+    # Step 10: Difference（源泉徴収税額と予定納税額を差し引く）
+    tax_due = total_tax - input_data.withheld_tax - input_data.estimated_tax_payment
 
     return IncomeTaxResult(
         fiscal_year=input_data.fiscal_year,
@@ -462,6 +461,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         reconstruction_tax=reconstruction_tax,
         total_tax=total_tax,
         withheld_tax=input_data.withheld_tax,
+        estimated_tax_payment=input_data.estimated_tax_payment,
         tax_due=tax_due,
         deductions_detail=deductions,
     )
@@ -660,6 +660,7 @@ def register(mcp) -> None:
         housing_loan_year: int | None = None,
         spouse_income: int | None = None,
         withheld_tax: int = 0,
+        estimated_tax_payment: int = 0,
     ) -> dict:
         """Calculate income tax for the fiscal year."""
         input_data = IncomeTaxInput(
@@ -677,6 +678,7 @@ def register(mcp) -> None:
             housing_loan_year=housing_loan_year,
             spouse_income=spouse_income,
             withheld_tax=withheld_tax,
+            estimated_tax_payment=estimated_tax_payment,
         )
         result = calc_income_tax(input_data)
         return result.model_dump()

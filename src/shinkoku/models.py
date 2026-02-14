@@ -255,6 +255,7 @@ class IncomeTaxInput(BaseModel):
     housing_loan_year: int | None = None
     spouse_income: int | None = None
     withheld_tax: int = 0
+    estimated_tax_payment: int = 0  # 予定納税額（第1期+第2期）
 
 
 class IncomeTaxResult(BaseModel):
@@ -275,7 +276,10 @@ class IncomeTaxResult(BaseModel):
     reconstruction_tax: int = 0
     total_tax: int = 0
     withheld_tax: int = 0
-    tax_due: int = Field(description="正:納付、負:還付")
+    estimated_tax_payment: int = 0  # 予定納税額
+    tax_due: int = Field(
+        description="正:納付、負:還付 = total_tax - withheld_tax - estimated_tax_payment"
+    )
     # 内訳
     deductions_detail: DeductionsResult | None = None
 
