@@ -22,6 +22,7 @@ from shinkoku.models import (
     IncomeTaxResult,
     ConsumptionTaxResult,
     DeductionsResult,
+    SeparateTaxResult,
 )
 from shinkoku.tools.pdf_utils import (
     generate_standalone_multi_page_pdf,
@@ -751,7 +752,11 @@ def generate_medical_expense_detail_pdf(
     # Summary
     y -= 10 * mm
     net_amount = total_amount - total_reimbursement
-    medical_threshold = min(MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100) if total_income > 0 else MEDICAL_EXPENSE_THRESHOLD
+    medical_threshold = (
+        min(MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100)
+        if total_income > 0
+        else MEDICAL_EXPENSE_THRESHOLD
+    )
     deduction = max(0, min(net_amount - medical_threshold, MEDICAL_EXPENSE_MAX))
 
     summary_items = [
@@ -903,7 +908,6 @@ _HOUSING_CATEGORY_LABELS: dict[str, str] = {
 }
 
 
-
 def generate_housing_loan_detail_pdf(
     housing_detail: dict,
     credit_amount: int,
@@ -996,12 +1000,7 @@ def generate_housing_loan_detail_pdf(
     else:
         limits = HOUSING_LOAN_LIMITS_R6_R7
     balance_limit = limits.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
-    if (
-        balance_limit == 0
-        and housing_category == "general"
-        and is_new
-        and has_pre_r6_permit
-    ):
+    if balance_limit == 0 and housing_category == "general" and is_new and has_pre_r6_permit:
         balance_limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED
     fields.append(
         {
@@ -1042,6 +1041,330 @@ def generate_housing_loan_detail_pdf(
     )
     fields.append(
         {"type": "number", "x": 170 * mm, "y": y, "value": credit_amount, "font_size": 10}
+    )
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
+
+
+# ============================================================
+# Schedule 3 PDF (第三表: 分離課税用)
+# ============================================================
+
+
+def generate_schedule_3_pdf(
+    tax_result: SeparateTaxResult,
+    output_path: str = "output/schedule_3.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """Generate Schedule 3 PDF (分離課税用)."""
+    fields: list[dict[str, Any]] = []
+
+    # Title
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "確定申告書 第三表（分離課税用）",
+            "font_size": 12,
+        }
+    )
+
+    if taxpayer_name:
+        fields.append(
+            {"type": "text", "x": 60 * mm, "y": 270 * mm, "value": taxpayer_name, "font_size": 10}
+        )
+
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{tax_result.fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
+
+    # 株式等の譲渡所得
+    y = 245 * mm
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y, "value": "【株式等の譲渡所得等】", "font_size": 9}
+    )
+    y -= 10 * mm
+
+    stock_items = [
+        ("譲渡益（損）", tax_result.stock_net_gain),
+        ("配当との損益通算額", tax_result.stock_dividend_offset),
+        ("繰越損失適用額", tax_result.stock_loss_carryforward_used),
+        ("課税所得金額", tax_result.stock_taxable_income),
+        ("所得税額（15%）", tax_result.stock_income_tax),
+        ("住民税額（5%）", tax_result.stock_residential_tax),
+        ("復興特別所得税", tax_result.stock_reconstruction_tax),
+        ("税額合計", tax_result.stock_total_tax),
+        ("源泉徴収税額", tax_result.stock_withheld_total),
+        ("差引納付/還付", tax_result.stock_tax_due),
+    ]
+    for label, value in stock_items:
+        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
+        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": value, "font_size": 8})
+        y -= 10 * mm
+
+    # FX（先物取引に係る雑所得等）
+    y -= 5 * mm
+    fields.append(
+        {
+            "type": "text",
+            "x": 30 * mm,
+            "y": y,
+            "value": "【先物取引に係る雑所得等】",
+            "font_size": 9,
+        }
+    )
+    y -= 10 * mm
+
+    fx_items = [
+        ("所得金額", tax_result.fx_net_income),
+        ("繰越損失適用額", tax_result.fx_loss_carryforward_used),
+        ("課税所得金額", tax_result.fx_taxable_income),
+        ("所得税額（15%）", tax_result.fx_income_tax),
+        ("住民税額（5%）", tax_result.fx_residential_tax),
+        ("復興特別所得税", tax_result.fx_reconstruction_tax),
+        ("税額合計", tax_result.fx_total_tax),
+        ("納付税額", tax_result.fx_tax_due),
+    ]
+    for label, value in fx_items:
+        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
+        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": value, "font_size": 8})
+        y -= 10 * mm
+
+    # 合計
+    y -= 5 * mm
+    fields.append(
+        {"type": "text", "x": 30 * mm, "y": y, "value": "分離課税 税額合計", "font_size": 10}
+    )
+    fields.append(
+        {
+            "type": "number",
+            "x": 170 * mm,
+            "y": y,
+            "value": tax_result.total_separate_tax,
+            "font_size": 10,
+        }
+    )
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
+
+
+# ============================================================
+# Schedule 4 PDF (第四表: 損失申告用)
+# ============================================================
+
+
+def generate_schedule_4_pdf(
+    losses: list[dict],
+    fiscal_year: int,
+    output_path: str = "output/schedule_4.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """Generate Schedule 4 PDF (損失申告用).
+
+    Args:
+        losses: List of loss records, each with: loss_type, loss_year, amount, used_amount.
+        fiscal_year: Fiscal year.
+        output_path: Output file path.
+        taxpayer_name: Taxpayer name.
+    """
+    fields: list[dict[str, Any]] = []
+
+    # Title
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "確定申告書 第四表（損失申告用）",
+            "font_size": 12,
+        }
+    )
+
+    if taxpayer_name:
+        fields.append(
+            {"type": "text", "x": 60 * mm, "y": 270 * mm, "value": taxpayer_name, "font_size": 10}
+        )
+
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
+
+    # 損失種別ごとにセクション分け
+    _type_labels = {
+        "business": "事業所得の損失",
+        "stock": "株式等の譲渡損失",
+        "fx": "先物取引の損失",
+    }
+
+    y = 250 * mm
+    for loss_type, label in _type_labels.items():
+        type_losses = [lo for lo in losses if lo.get("loss_type") == loss_type]
+        if not type_losses:
+            continue
+
+        fields.append(
+            {"type": "text", "x": 30 * mm, "y": y, "value": f"【{label}】", "font_size": 9}
+        )
+        y -= 10 * mm
+
+        # Column headers
+        for hx, htext in [
+            (40 * mm, "損失発生年"),
+            (95 * mm, "損失額"),
+            (140 * mm, "控除済額"),
+            (170 * mm, "繰越残額"),
+        ]:
+            fields.append({"type": "text", "x": hx, "y": y, "value": htext, "font_size": 7})
+        y -= 8 * mm
+
+        for lo in type_losses[:3]:  # 最大3年
+            loss_year = lo.get("loss_year", 0)
+            amount = lo.get("amount", 0)
+            used = lo.get("used_amount", 0)
+            remaining = amount - used
+
+            fields.append(
+                {
+                    "type": "text",
+                    "x": 40 * mm,
+                    "y": y,
+                    "value": f"令和{loss_year - 2018}年",
+                    "font_size": 8,
+                }
+            )
+            fields.append({"type": "number", "x": 95 * mm, "y": y, "value": amount, "font_size": 8})
+            fields.append({"type": "number", "x": 140 * mm, "y": y, "value": used, "font_size": 8})
+            fields.append(
+                {"type": "number", "x": 170 * mm, "y": y, "value": remaining, "font_size": 8}
+            )
+            y -= 12 * mm
+
+        y -= 5 * mm
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
+
+
+# ============================================================
+# Depreciation Schedule PDF (減価償却明細書)
+# ============================================================
+
+
+def generate_depreciation_schedule_pdf(
+    assets: list[dict],
+    fiscal_year: int,
+    output_path: str = "output/depreciation_schedule.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """Generate depreciation schedule PDF (減価償却明細書).
+
+    Args:
+        assets: List of asset dicts with: name, acquisition_date, acquisition_cost,
+                useful_life, method, business_use_ratio, current_year_amount, book_value.
+        fiscal_year: Fiscal year.
+        output_path: Output file path.
+        taxpayer_name: Taxpayer name.
+    """
+    fields: list[dict[str, Any]] = []
+
+    # Title
+    fields.append(
+        {
+            "type": "text",
+            "x": 105 * mm,
+            "y": 285 * mm,
+            "value": "減価償却費の計算明細書",
+            "font_size": 12,
+        }
+    )
+
+    if taxpayer_name:
+        fields.append(
+            {"type": "text", "x": 60 * mm, "y": 270 * mm, "value": taxpayer_name, "font_size": 10}
+        )
+
+    fields.append(
+        {
+            "type": "text",
+            "x": 120 * mm,
+            "y": 275 * mm,
+            "value": f"令和{fiscal_year - 2018}年分",
+            "font_size": 10,
+        }
+    )
+
+    # Column headers
+    y = 255 * mm
+    headers = [
+        (30 * mm, "資産名"),
+        (65 * mm, "取得日"),
+        (95 * mm, "取得価額"),
+        (115 * mm, "耐用年数"),
+        (125 * mm, "償却方法"),
+        (140 * mm, "事業割合"),
+        (155 * mm, "本年分"),
+        (175 * mm, "期末残高"),
+    ]
+    for hx, htext in headers:
+        fields.append({"type": "text", "x": hx, "y": y, "value": htext, "font_size": 7})
+
+    # Asset lines
+    _method_labels = {"straight_line": "定額", "declining_balance": "定率"}
+    y = 245 * mm
+    total_depreciation = 0
+
+    for asset in assets[:10]:  # 最大10行
+        name = asset.get("name", "")
+        acq_date = asset.get("acquisition_date", "")
+        acq_cost = asset.get("acquisition_cost", 0)
+        useful_life = asset.get("useful_life", 0)
+        method = asset.get("method", "straight_line")
+        ratio = asset.get("business_use_ratio", 100)
+        depreciation = asset.get("current_year_amount", 0)
+        book_value = asset.get("book_value", 0)
+
+        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": name, "font_size": 7})
+        fields.append({"type": "text", "x": 65 * mm, "y": y, "value": acq_date, "font_size": 7})
+        fields.append({"type": "number", "x": 95 * mm, "y": y, "value": acq_cost, "font_size": 7})
+        fields.append(
+            {"type": "text", "x": 115 * mm, "y": y, "value": f"{useful_life}年", "font_size": 7}
+        )
+        fields.append(
+            {
+                "type": "text",
+                "x": 125 * mm,
+                "y": y,
+                "value": _method_labels.get(method, method),
+                "font_size": 7,
+            }
+        )
+        fields.append({"type": "text", "x": 140 * mm, "y": y, "value": f"{ratio}%", "font_size": 7})
+        fields.append(
+            {"type": "number", "x": 155 * mm, "y": y, "value": depreciation, "font_size": 7}
+        )
+        fields.append(
+            {"type": "number", "x": 175 * mm, "y": y, "value": book_value, "font_size": 7}
+        )
+        y -= 18 * mm
+        total_depreciation += depreciation
+
+    # Total
+    y -= 5 * mm
+    fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "減価償却費合計", "font_size": 9})
+    fields.append(
+        {"type": "number", "x": 155 * mm, "y": y, "value": total_depreciation, "font_size": 9}
     )
 
     return generate_standalone_pdf(fields=fields, output_path=output_path)
@@ -1279,6 +1602,99 @@ def register(mcp) -> None:
         )
         path = generate_deduction_detail_pdf(
             deductions=deductions,
+            fiscal_year=fiscal_year,
+            output_path=output_path,
+            taxpayer_name=resolved_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_schedule_3(
+        fiscal_year: int,
+        stock_net_gain: int = 0,
+        stock_dividend_offset: int = 0,
+        stock_taxable_income: int = 0,
+        stock_loss_carryforward_used: int = 0,
+        stock_income_tax: int = 0,
+        stock_residential_tax: int = 0,
+        stock_reconstruction_tax: int = 0,
+        stock_total_tax: int = 0,
+        stock_withheld_total: int = 0,
+        stock_tax_due: int = 0,
+        fx_net_income: int = 0,
+        fx_taxable_income: int = 0,
+        fx_loss_carryforward_used: int = 0,
+        fx_income_tax: int = 0,
+        fx_residential_tax: int = 0,
+        fx_reconstruction_tax: int = 0,
+        fx_total_tax: int = 0,
+        fx_tax_due: int = 0,
+        total_separate_tax: int = 0,
+        output_path: str = "output/schedule_3.pdf",
+        taxpayer_name: str = "",
+        config_path: str | None = None,
+    ) -> dict:
+        """Generate Schedule 3 PDF (第三表: 分離課税用)."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
+        tax_result = SeparateTaxResult(
+            fiscal_year=fiscal_year,
+            stock_net_gain=stock_net_gain,
+            stock_dividend_offset=stock_dividend_offset,
+            stock_taxable_income=stock_taxable_income,
+            stock_loss_carryforward_used=stock_loss_carryforward_used,
+            stock_income_tax=stock_income_tax,
+            stock_residential_tax=stock_residential_tax,
+            stock_reconstruction_tax=stock_reconstruction_tax,
+            stock_total_tax=stock_total_tax,
+            stock_withheld_total=stock_withheld_total,
+            stock_tax_due=stock_tax_due,
+            fx_net_income=fx_net_income,
+            fx_taxable_income=fx_taxable_income,
+            fx_loss_carryforward_used=fx_loss_carryforward_used,
+            fx_income_tax=fx_income_tax,
+            fx_residential_tax=fx_residential_tax,
+            fx_reconstruction_tax=fx_reconstruction_tax,
+            fx_total_tax=fx_total_tax,
+            fx_tax_due=fx_tax_due,
+            total_separate_tax=total_separate_tax,
+        )
+        path = generate_schedule_3_pdf(
+            tax_result=tax_result,
+            output_path=output_path,
+            taxpayer_name=resolved_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_schedule_4(
+        fiscal_year: int,
+        losses: list[dict] | None = None,
+        output_path: str = "output/schedule_4.pdf",
+        taxpayer_name: str = "",
+        config_path: str | None = None,
+    ) -> dict:
+        """Generate Schedule 4 PDF (第四表: 損失申告用)."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
+        path = generate_schedule_4_pdf(
+            losses=losses or [],
+            fiscal_year=fiscal_year,
+            output_path=output_path,
+            taxpayer_name=resolved_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_depreciation_schedule(
+        fiscal_year: int,
+        assets: list[dict] | None = None,
+        output_path: str = "output/depreciation_schedule.pdf",
+        taxpayer_name: str = "",
+        config_path: str | None = None,
+    ) -> dict:
+        """Generate depreciation schedule PDF (減価償却明細書)."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
+        path = generate_depreciation_schedule_pdf(
+            assets=assets or [],
             fiscal_year=fiscal_year,
             output_path=output_path,
             taxpayer_name=resolved_name,

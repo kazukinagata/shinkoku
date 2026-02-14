@@ -337,4 +337,161 @@ HOUSING_LOAN_DETAIL_FORM: dict[str, dict] = {
     "credit_rate": {"x": 170 * mm, "y": 168 * mm, "font_size": 8, "type": "text"},
     "credit_period": {"x": 170 * mm, "y": 158 * mm, "font_size": 8, "type": "text"},
     "credit_amount": {"x": 170 * mm, "y": 143 * mm, "font_size": 10, "type": "number"},
+    # Gap 6: 住宅ローン控除明細書の追加フィールド
+    "purchase_date": {"x": 100 * mm, "y": 210 * mm, "font_size": 8, "type": "text"},
+    "purchase_price": {"x": 170 * mm, "y": 210 * mm, "font_size": 8, "type": "number"},
+    "total_floor_area": {"x": 100 * mm, "y": 202 * mm, "font_size": 8, "type": "text"},
+    "residential_floor_area": {"x": 170 * mm, "y": 202 * mm, "font_size": 8, "type": "text"},
+    "property_number": {"x": 100 * mm, "y": 194 * mm, "font_size": 8, "type": "text"},
+    "application_submitted": {"x": 170 * mm, "y": 194 * mm, "font_size": 8, "type": "text"},
 }
+
+
+# ============================================================
+# Schedule 3 (第三表: 分離課税用)
+# ============================================================
+
+SCHEDULE_3_FORM: dict[str, dict] = {
+    "taxpayer_name": {"x": 60 * mm, "y": 270 * mm, "font_size": 10, "type": "text"},
+    "fiscal_year": {"x": 120 * mm, "y": 280 * mm, "font_size": 10, "type": "text"},
+    # 株式等の譲渡所得
+    "stock_gains": {"x": 170 * mm, "y": 240 * mm, "font_size": 8, "type": "number"},
+    "stock_losses": {"x": 170 * mm, "y": 232 * mm, "font_size": 8, "type": "number"},
+    "stock_net_gain": {"x": 170 * mm, "y": 224 * mm, "font_size": 9, "type": "number"},
+    "stock_dividend_separate": {"x": 170 * mm, "y": 216 * mm, "font_size": 8, "type": "number"},
+    "stock_dividend_offset": {"x": 170 * mm, "y": 208 * mm, "font_size": 8, "type": "number"},
+    "stock_loss_carryforward_used": {
+        "x": 170 * mm,
+        "y": 200 * mm,
+        "font_size": 8,
+        "type": "number",
+    },
+    "stock_taxable_income": {"x": 170 * mm, "y": 192 * mm, "font_size": 9, "type": "number"},
+    "stock_income_tax": {"x": 170 * mm, "y": 184 * mm, "font_size": 9, "type": "number"},
+    "stock_residential_tax": {"x": 170 * mm, "y": 176 * mm, "font_size": 8, "type": "number"},
+    "stock_reconstruction_tax": {"x": 170 * mm, "y": 168 * mm, "font_size": 8, "type": "number"},
+    "stock_total_tax": {"x": 170 * mm, "y": 160 * mm, "font_size": 9, "type": "number"},
+    "stock_withheld_total": {"x": 170 * mm, "y": 152 * mm, "font_size": 8, "type": "number"},
+    "stock_tax_due": {"x": 170 * mm, "y": 144 * mm, "font_size": 9, "type": "number"},
+    # FX（先物取引に係る雑所得等）
+    "fx_net_income": {"x": 170 * mm, "y": 128 * mm, "font_size": 9, "type": "number"},
+    "fx_loss_carryforward_used": {
+        "x": 170 * mm,
+        "y": 120 * mm,
+        "font_size": 8,
+        "type": "number",
+    },
+    "fx_taxable_income": {"x": 170 * mm, "y": 112 * mm, "font_size": 9, "type": "number"},
+    "fx_income_tax": {"x": 170 * mm, "y": 104 * mm, "font_size": 9, "type": "number"},
+    "fx_residential_tax": {"x": 170 * mm, "y": 96 * mm, "font_size": 8, "type": "number"},
+    "fx_reconstruction_tax": {"x": 170 * mm, "y": 88 * mm, "font_size": 8, "type": "number"},
+    "fx_total_tax": {"x": 170 * mm, "y": 80 * mm, "font_size": 9, "type": "number"},
+    "fx_tax_due": {"x": 170 * mm, "y": 72 * mm, "font_size": 9, "type": "number"},
+    # 合計
+    "total_separate_tax": {"x": 170 * mm, "y": 56 * mm, "font_size": 10, "type": "number"},
+}
+
+
+# ============================================================
+# Schedule 4 (第四表: 損失申告用)
+# ============================================================
+
+SCHEDULE_4_FORM: dict[str, dict] = {
+    "taxpayer_name": {"x": 60 * mm, "y": 270 * mm, "font_size": 10, "type": "text"},
+    "fiscal_year": {"x": 120 * mm, "y": 280 * mm, "font_size": 10, "type": "text"},
+}
+
+# 損失繰越行（3年×3種別 = 最大9行）
+_SCHEDULE_4_Y_START = 240
+_SCHEDULE_4_LOSS_TYPES = ["business", "stock", "fx"]
+for _i, _loss_type in enumerate(_SCHEDULE_4_LOSS_TYPES):
+    _y_base = _SCHEDULE_4_Y_START - _i * 60
+    for _year_idx in range(3):
+        _y = (_y_base - _year_idx * 16) * mm
+        SCHEDULE_4_FORM[f"{_loss_type}_loss_year_{_year_idx}"] = {
+            "x": 40 * mm,
+            "y": _y,
+            "font_size": 8,
+            "type": "text",
+        }
+        SCHEDULE_4_FORM[f"{_loss_type}_loss_amount_{_year_idx}"] = {
+            "x": 95 * mm,
+            "y": _y,
+            "font_size": 8,
+            "type": "number",
+        }
+        SCHEDULE_4_FORM[f"{_loss_type}_used_amount_{_year_idx}"] = {
+            "x": 140 * mm,
+            "y": _y,
+            "font_size": 8,
+            "type": "number",
+        }
+        SCHEDULE_4_FORM[f"{_loss_type}_remaining_{_year_idx}"] = {
+            "x": 170 * mm,
+            "y": _y,
+            "font_size": 8,
+            "type": "number",
+        }
+
+
+# ============================================================
+# Depreciation Schedule (減価償却明細書)
+# ============================================================
+
+DEPRECIATION_SCHEDULE_FORM: dict[str, dict] = {
+    "taxpayer_name": {"x": 60 * mm, "y": 270 * mm, "font_size": 10, "type": "text"},
+    "fiscal_year": {"x": 120 * mm, "y": 280 * mm, "font_size": 10, "type": "text"},
+    "total_depreciation": {"x": 170 * mm, "y": 50 * mm, "font_size": 9, "type": "number"},
+}
+
+# 資産行（最大10行）
+for _i in range(10):
+    _y_offset = 250 * mm - _i * 18 * mm
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_name"] = {
+        "x": 30 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_acquisition_date"] = {
+        "x": 65 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_acquisition_cost"] = {
+        "x": 95 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "number",
+    }
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_useful_life"] = {
+        "x": 115 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_method"] = {
+        "x": 125 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_ratio"] = {
+        "x": 140 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "text",
+    }
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_depreciation"] = {
+        "x": 155 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "number",
+    }
+    DEPRECIATION_SCHEDULE_FORM[f"asset_{_i}_book_value"] = {
+        "x": 175 * mm,
+        "y": _y_offset,
+        "font_size": 7,
+        "type": "number",
+    }
