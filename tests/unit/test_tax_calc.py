@@ -6,6 +6,15 @@ from shinkoku.tools.tax_calc import (
     calc_deductions,
     calc_dependents_deduction,
     calc_life_insurance_deduction,
+    calc_life_insurance_deduction_old,
+    calc_life_insurance_category,
+    calc_life_insurance_total,
+    calc_earthquake_insurance_deduction,
+    calc_widow_deduction,
+    calc_disability_deduction_self,
+    calc_working_student_deduction,
+    calc_self_medication_deduction,
+    calc_dividend_tax_credit,
     calc_spouse_deduction,
     calc_furusato_deduction,
     calc_housing_loan_credit,
@@ -20,6 +29,7 @@ from shinkoku.models import (
     HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
+    LifeInsurancePremiumInput,
     ConsumptionTaxInput,
     ConsumptionTaxResult,
 )
@@ -309,8 +319,8 @@ class TestSalaryDeduction:
         assert calc_salary_deduction(1_625_000) == 650_000
 
     def test_1800000(self):
-        # 1,800,000 * 40% - 100,000 = 620,000
-        assert calc_salary_deduction(1_800_000) == 620_000
+        # 令和7年改正: ≤190万は一律65万
+        assert calc_salary_deduction(1_800_000) == 650_000
 
     def test_3600000(self):
         # 3,600,000 * 30% + 80,000 = 1,160,000
@@ -413,7 +423,7 @@ class TestIncomeTaxScenario3:
     """Salary 1.8M + Side 500K, blue, low income — loss offset applies.
 
     business_income = 500K - 650K = -150K (negative, offset against salary).
-    total_income = max(0, 1,180K + (-150K)) = 1,030K.
+    total_income = max(0, 1,150K + (-150K)) = 1,000K.
     """
 
     def test_full_calculation(self):
@@ -426,15 +436,16 @@ class TestIncomeTaxScenario3:
                 withheld_tax=36_700,
             )
         )
-        assert r.salary_income_after_deduction == 1_180_000
+        # 令和7年改正: ≤190万は一律65万 → 1,800K - 650K = 1,150K
+        assert r.salary_income_after_deduction == 1_150_000
         assert r.business_income == -150_000  # 500K - 650K blue = 損益通算で負値
-        assert r.total_income == 1_030_000  # max(0, 1,180K + (-150K))
-        # basic deduction for 1,030K = 950,000 (≤132万)
-        assert r.taxable_income == 80_000  # 1,030K - 950K
-        assert r.income_tax_base == 4_000  # 80K * 5%
-        assert r.reconstruction_tax == 84  # 4,000 * 21/1000
-        assert r.total_tax == 4_000  # (4,000 + 84) = 4,084 → 4,000
-        assert r.tax_due == -32_700  # 4,000 - 36,700
+        assert r.total_income == 1_000_000  # max(0, 1,150K + (-150K))
+        # basic deduction for 1,000K = 950,000 (≤132万)
+        assert r.taxable_income == 50_000  # 1,000K - 950K
+        assert r.income_tax_base == 2_500  # 50K * 5%
+        assert r.reconstruction_tax == 52  # 2,500 * 21/1000
+        assert r.total_tax == 2_500  # (2,500 + 52) = 2,552 → 2,500
+        assert r.tax_due == -34_200  # 2,500 - 36,700
 
 
 class TestIncomeTaxScenario4:
@@ -948,10 +959,10 @@ class TestDependentsDeduction:
         dep_items = [i for i in items if i.type == "dependent"]
         assert len(dep_items) == 0
 
-    def test_income_over_480000_excluded(self):
-        """所得48万超の親族は扶養控除対象外。"""
+    def test_income_over_580000_excluded(self):
+        """所得58万超の親族は扶養控除対象外（令和7年改正: 48万→58万）。"""
         deps = [
-            DependentInfo(name="太郎", relationship="子", birth_date="2005-06-01", income=500_000)
+            DependentInfo(name="太郎", relationship="子", birth_date="2005-06-01", income=590_000)
         ]
         items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
         assert len(items) == 0
@@ -1373,3 +1384,438 @@ class TestLossCarryforward:
             )
         )
         assert r.total_income == base.total_income - 500_000
+
+
+# ============================================================
+# Phase 3: 生命保険料控除（旧制度・3区分対応）
+# ============================================================
+
+
+class TestLifeInsuranceDeductionOld:
+    """旧制度の生命保険料控除 (max 50,000)."""
+
+    def test_up_to_25000_full_deduction(self):
+        assert calc_life_insurance_deduction_old(25_000) == 25_000
+
+    def test_at_25001(self):
+        # 25,001〜50,000: premium // 2 + 12,500
+        assert calc_life_insurance_deduction_old(25_001) == 25_001 // 2 + 12_500
+
+    def test_at_50000(self):
+        assert calc_life_insurance_deduction_old(50_000) == 50_000 // 2 + 12_500
+
+    def test_at_50001(self):
+        # 50,001〜100,000: premium // 4 + 25,000
+        assert calc_life_insurance_deduction_old(50_001) == 50_001 // 4 + 25_000
+
+    def test_at_100000(self):
+        assert calc_life_insurance_deduction_old(100_000) == 100_000 // 4 + 25_000
+
+    def test_over_100000_capped(self):
+        assert calc_life_insurance_deduction_old(200_000) == 50_000
+
+    def test_zero(self):
+        assert calc_life_insurance_deduction_old(0) == 0
+
+    def test_returns_int(self):
+        assert isinstance(calc_life_insurance_deduction_old(33_333), int)
+
+
+class TestLifeInsuranceCategory:
+    """新旧合算1区分: max(新のみ, 旧のみ, min(新+旧, 40,000))."""
+
+    def test_new_only(self):
+        result = calc_life_insurance_category(new_premium=80_000, old_premium=0)
+        # 新制度 max 40,000
+        assert result == 40_000
+
+    def test_old_only(self):
+        result = calc_life_insurance_category(new_premium=0, old_premium=100_000)
+        # 旧制度 max 50,000
+        assert result == 50_000
+
+    def test_both_combined_capped(self):
+        # 新20,000→控除10,000 + 旧30,000→控除27,500 = 37,500 (< 40,000)
+        result = calc_life_insurance_category(new_premium=20_000, old_premium=30_000)
+        new_ded = calc_life_insurance_deduction(20_000)  # 新制度
+        old_ded = calc_life_insurance_deduction_old(30_000)
+        expected = min(new_ded + old_ded, 40_000)
+        assert result == expected
+
+    def test_both_large_takes_old_only(self):
+        # 新80,000→40,000、旧200,000→50,000、合算→min(90,000,40,000)=40,000
+        # max(40,000, 50,000, 40,000) = 50,000（旧のみが有利）
+        result = calc_life_insurance_category(new_premium=80_000, old_premium=200_000)
+        assert result == 50_000
+
+    def test_zero_both(self):
+        assert calc_life_insurance_category(0, 0) == 0
+
+
+class TestLifeInsuranceTotal:
+    """3区分合計 max 120,000."""
+
+    def test_all_max(self):
+        # 各区分max値で合計120,000上限
+        result = calc_life_insurance_total(
+            general_new=80_000,
+            general_old=200_000,
+            medical_care=80_000,
+            annuity_new=80_000,
+            annuity_old=200_000,
+        )
+        assert result == 120_000
+
+    def test_single_category(self):
+        result = calc_life_insurance_total(
+            general_new=30_000,
+            general_old=0,
+            medical_care=0,
+            annuity_new=0,
+            annuity_old=0,
+        )
+        # 新制度 30,000→控除15,000
+        assert result == calc_life_insurance_deduction(30_000)
+        assert result < 120_000
+
+    def test_all_zero(self):
+        assert calc_life_insurance_total(0, 0, 0, 0, 0) == 0
+
+    def test_returns_int(self):
+        assert isinstance(calc_life_insurance_total(50_000, 50_000, 50_000, 50_000, 50_000), int)
+
+    def test_via_calc_deductions_detail(self):
+        """LifeInsurancePremiumInput を使った場合の calc_deductions 統合テスト。"""
+        detail = LifeInsurancePremiumInput(
+            general_new=80_000,
+            general_old=0,
+            medical_care=60_000,
+            annuity_new=0,
+            annuity_old=80_000,
+        )
+        r = calc_deductions(total_income=5_000_000, life_insurance_detail=detail)
+        li = [d for d in r.income_deductions if d.type == "life_insurance"]
+        assert len(li) == 1
+        expected = calc_life_insurance_total(80_000, 0, 60_000, 0, 80_000)
+        assert li[0].amount == expected
+
+
+# ============================================================
+# Phase 4: 地震保険料控除（旧長期損害保険対応）
+# ============================================================
+
+
+class TestEarthquakeInsuranceDeduction:
+    """地震保険料控除 + 旧長期損害保険料。"""
+
+    def test_earthquake_only_under_50000(self):
+        assert calc_earthquake_insurance_deduction(30_000) == 30_000
+
+    def test_earthquake_only_at_50000(self):
+        assert calc_earthquake_insurance_deduction(50_000) == 50_000
+
+    def test_earthquake_only_over_50000(self):
+        assert calc_earthquake_insurance_deduction(80_000) == 50_000
+
+    def test_old_long_term_up_to_5000(self):
+        assert calc_earthquake_insurance_deduction(0, 5_000) == 5_000
+
+    def test_old_long_term_at_5001(self):
+        # 5,001〜15,000: premium // 2 + 2,500
+        assert calc_earthquake_insurance_deduction(0, 5_001) == 5_001 // 2 + 2_500
+
+    def test_old_long_term_at_15000(self):
+        assert calc_earthquake_insurance_deduction(0, 15_000) == 15_000 // 2 + 2_500
+
+    def test_old_long_term_over_15000(self):
+        assert calc_earthquake_insurance_deduction(0, 20_000) == 15_000
+
+    def test_combined_capped_at_50000(self):
+        # 地震40,000 + 旧長期20,000→15,000 = 55,000 → cap 50,000
+        assert calc_earthquake_insurance_deduction(40_000, 20_000) == 50_000
+
+    def test_combined_under_cap(self):
+        # 地震20,000 + 旧長期5,000→5,000 = 25,000
+        assert calc_earthquake_insurance_deduction(20_000, 5_000) == 25_000
+
+    def test_zero_both(self):
+        assert calc_earthquake_insurance_deduction(0, 0) == 0
+
+    def test_returns_int(self):
+        assert isinstance(calc_earthquake_insurance_deduction(12_345, 7_890), int)
+
+    def test_via_calc_deductions(self):
+        """calc_deductions with old_long_term_insurance_premium."""
+        r = calc_deductions(
+            total_income=5_000_000,
+            earthquake_insurance_premium=30_000,
+            old_long_term_insurance_premium=10_000,
+        )
+        eq = [d for d in r.income_deductions if d.type == "earthquake_insurance"]
+        assert len(eq) == 1
+        expected = calc_earthquake_insurance_deduction(30_000, 10_000)
+        assert eq[0].amount == expected
+
+
+# ============================================================
+# Phase 5: 人的控除（寡婦/ひとり親/障害者/勤労学生）
+# ============================================================
+
+
+class TestWidowDeduction:
+    """寡婦控除/ひとり親控除。"""
+
+    def test_none_status(self):
+        assert calc_widow_deduction("none", 3_000_000) == 0
+
+    def test_widow_under_limit(self):
+        # 寡婦: 270,000（所得500万以下）
+        assert calc_widow_deduction("widow", 4_000_000) == 270_000
+
+    def test_widow_over_limit(self):
+        assert calc_widow_deduction("widow", 5_000_001) == 0
+
+    def test_single_parent_under_limit(self):
+        # ひとり親: 350,000（所得500万以下）
+        assert calc_widow_deduction("single_parent", 4_000_000) == 350_000
+
+    def test_single_parent_over_limit(self):
+        assert calc_widow_deduction("single_parent", 5_000_001) == 0
+
+    def test_at_exact_limit(self):
+        assert calc_widow_deduction("widow", 5_000_000) == 270_000
+        assert calc_widow_deduction("single_parent", 5_000_000) == 350_000
+
+
+class TestDisabilityDeductionSelf:
+    """障害者控除（本人）。"""
+
+    def test_none(self):
+        assert calc_disability_deduction_self("none") == 0
+
+    def test_general(self):
+        assert calc_disability_deduction_self("general") == 270_000
+
+    def test_special(self):
+        assert calc_disability_deduction_self("special") == 400_000
+
+
+class TestWorkingStudentDeduction:
+    """勤労学生控除。"""
+
+    def test_eligible(self):
+        assert calc_working_student_deduction(True, 750_000) == 270_000
+
+    def test_not_student(self):
+        assert calc_working_student_deduction(False, 500_000) == 0
+
+    def test_income_over_limit(self):
+        # 令和7年改正: 所得制限75万→85万
+        assert calc_working_student_deduction(True, 850_001) == 0
+
+
+class TestPersonalDeductionsIntegration:
+    """人的控除の calc_deductions 統合テスト。"""
+
+    def test_widow_in_deductions(self):
+        r = calc_deductions(total_income=4_000_000, widow_status="widow")
+        widow = [d for d in r.income_deductions if d.type == "widow"]
+        assert len(widow) == 1
+        assert widow[0].amount == 270_000
+
+    def test_single_parent_in_deductions(self):
+        r = calc_deductions(total_income=4_000_000, widow_status="single_parent")
+        # ひとり親控除は type="widow" で name="ひとり親控除"
+        sp = [d for d in r.income_deductions if d.type == "widow"]
+        assert len(sp) == 1
+        assert sp[0].amount == 350_000
+        assert sp[0].name == "ひとり親控除"
+
+    def test_disability_in_deductions(self):
+        r = calc_deductions(total_income=4_000_000, disability_status="special")
+        dis = [d for d in r.income_deductions if d.type == "disability_self"]
+        assert len(dis) == 1
+        assert dis[0].amount == 400_000
+
+    def test_working_student_in_deductions(self):
+        r = calc_deductions(total_income=700_000, working_student=True)
+        ws = [d for d in r.income_deductions if d.type == "working_student"]
+        assert len(ws) == 1
+        assert ws[0].amount == 270_000
+
+    def test_all_personal_deductions_combined(self):
+        r = calc_deductions(
+            total_income=3_000_000,
+            widow_status="widow",
+            disability_status="general",
+        )
+        widow = [d for d in r.income_deductions if d.type == "widow"]
+        dis = [d for d in r.income_deductions if d.type == "disability_self"]
+        assert len(widow) == 1
+        assert len(dis) == 1
+        assert widow[0].amount == 270_000
+        assert dis[0].amount == 270_000
+
+
+# ============================================================
+# Phase 8: セルフメディケーション税制
+# ============================================================
+
+
+class TestSelfMedicationDeduction:
+    """OTC購入額 - 12,000（上限88,000）。"""
+
+    def test_basic_calculation(self):
+        # 50,000 - 12,000 = 38,000
+        assert calc_self_medication_deduction(50_000) == 38_000
+
+    def test_under_threshold(self):
+        assert calc_self_medication_deduction(12_000) == 0
+        assert calc_self_medication_deduction(11_999) == 0
+
+    def test_at_threshold(self):
+        assert calc_self_medication_deduction(12_001) == 1
+
+    def test_max_cap(self):
+        # 100,000 + 12,000 = 112,000 → cap 88,000
+        assert calc_self_medication_deduction(112_000) == 88_000
+        assert calc_self_medication_deduction(200_000) == 88_000
+
+    def test_zero(self):
+        assert calc_self_medication_deduction(0) == 0
+
+    def test_via_calc_deductions_preferred_over_medical(self):
+        """セルフメディケーションが医療費控除より有利な場合。"""
+        # 医療費20万 → 控除=200,000-100,000=100,000
+        # セルフメディケーション10万 → 控除=100,000-12,000=88,000
+        # 医療費控除が有利なので医療費控除が適用される
+        r = calc_deductions(
+            total_income=5_000_000,
+            medical_expenses=200_000,
+            self_medication_eligible=True,
+            self_medication_expenses=100_000,
+        )
+        med = [d for d in r.income_deductions if d.type == "medical"]
+        selfmed = [d for d in r.income_deductions if d.type == "self_medication"]
+        # 有利な方が選択される（同時に適用されない）
+        assert len(med) + len(selfmed) <= 1
+
+    def test_selfmed_chosen_when_more_favorable(self):
+        """セルフメディケーションが有利な場合に選択される。"""
+        # 医療費11万 → 控除=110,000-100,000=10,000
+        # セルフメディケーション5万 → 控除=50,000-12,000=38,000
+        r = calc_deductions(
+            total_income=5_000_000,
+            medical_expenses=110_000,
+            self_medication_eligible=True,
+            self_medication_expenses=50_000,
+        )
+        selfmed = [d for d in r.income_deductions if d.type == "self_medication"]
+        med = [d for d in r.income_deductions if d.type == "medical"]
+        assert len(selfmed) == 1
+        assert len(med) == 0
+        assert selfmed[0].amount == 38_000
+
+
+# ============================================================
+# Phase 10: 配当控除
+# ============================================================
+
+
+class TestDividendTaxCredit:
+    """配当控除: 課税所得1,000万以下→10%、超→5%。"""
+
+    def test_under_10m(self):
+        assert calc_dividend_tax_credit(200_000, 5_000_000) == 200_000 * 10 // 100
+
+    def test_over_10m(self):
+        assert calc_dividend_tax_credit(200_000, 15_000_000) == 200_000 * 5 // 100
+
+    def test_at_10m(self):
+        assert calc_dividend_tax_credit(200_000, 10_000_000) == 200_000 * 10 // 100
+
+    def test_zero_dividend(self):
+        assert calc_dividend_tax_credit(0, 5_000_000) == 0
+
+
+# ============================================================
+# Phase 10: その他所得の total_income 統合
+# ============================================================
+
+
+class TestOtherIncomeIntegration:
+    """misc/dividend/one_time income の calc_income_tax 統合テスト。"""
+
+    def test_misc_income_adds_to_total(self):
+        base = calc_income_tax(
+            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
+        )
+        with_misc = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                business_revenue=3_000_000,
+                misc_income=500_000,
+            )
+        )
+        assert with_misc.total_income == base.total_income + 500_000
+
+    def test_dividend_comprehensive_adds_to_total(self):
+        base = calc_income_tax(
+            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
+        )
+        with_div = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                business_revenue=3_000_000,
+                dividend_income_comprehensive=200_000,
+            )
+        )
+        assert with_div.total_income == base.total_income + 200_000
+
+    def test_one_time_income_half_rule(self):
+        """一時所得: (収入 - 500,000特別控除) × 1/2 が total_income に加算。"""
+        base = calc_income_tax(
+            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
+        )
+        with_onetime = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                business_revenue=3_000_000,
+                one_time_income=1_500_000,
+            )
+        )
+        # 一時所得 = max(0, (1,500,000 - 500,000)) * 1/2 = 500,000
+        assert with_onetime.total_income == base.total_income + 500_000
+
+    def test_one_time_income_under_special_deduction(self):
+        """一時所得50万以下は特別控除で相殺。"""
+        base = calc_income_tax(
+            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
+        )
+        with_onetime = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                business_revenue=3_000_000,
+                one_time_income=400_000,
+            )
+        )
+        assert with_onetime.total_income == base.total_income
+
+    def test_other_income_withheld_reduces_tax_due(self):
+        """other_income_withheld_tax が tax_due を減らす。"""
+        without = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                business_revenue=5_000_000,
+                misc_income=1_000_000,
+            )
+        )
+        with_withheld = calc_income_tax(
+            IncomeTaxInput(
+                fiscal_year=2025,
+                business_revenue=5_000_000,
+                misc_income=1_000_000,
+                other_income_withheld_tax=50_000,
+            )
+        )
+        assert with_withheld.tax_due == without.tax_due - 50_000
