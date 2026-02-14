@@ -8,9 +8,11 @@ from shinkoku.models import (
     BusinessWithholdingInput,
     CryptoIncomeInput,
     DependentInput,
+    DonationRecordInput,
     FXLossCarryforwardInput,
     FXTradingInput,
     HousingLoanDetailInput,
+    InsurancePolicyInput,
     InventoryInput,
     JournalEntry,
     JournalLine,
@@ -20,6 +22,7 @@ from shinkoku.models import (
     OtherIncomeInput,
     ProfessionalFeeInput,
     RentDetailInput,
+    SocialInsuranceItemInput,
     SpouseInput,
     StockLossCarryforwardInput,
     StockTradingAccountInput,
@@ -92,6 +95,18 @@ from shinkoku.tools.ledger import (
     ledger_add_fx_loss_carryforward,
     ledger_list_fx_loss_carryforward,
     ledger_delete_fx_loss_carryforward,
+    # v4: Social Insurance Items
+    ledger_add_social_insurance_item,
+    ledger_list_social_insurance_items,
+    ledger_delete_social_insurance_item,
+    # v4: Insurance Policies
+    ledger_add_insurance_policy,
+    ledger_list_insurance_policies,
+    ledger_delete_insurance_policy,
+    # v4: Donation Records
+    ledger_add_donation,
+    ledger_list_donations,
+    ledger_delete_donation,
 )
 
 
@@ -1287,7 +1302,10 @@ class TestDependentCRUD:
     def test_delete_dependent(self, tmp_path):
         db_path = self._init_db(tmp_path)
         detail = DependentInput(
-            name="子供A", relationship="子", date_of_birth="2015-01-01", income=0,
+            name="子供A",
+            relationship="子",
+            date_of_birth="2015-01-01",
+            income=0,
         )
         r = ledger_add_dependent(db_path=db_path, fiscal_year=2025, detail=detail)
         did = r["dependent_id"]
@@ -1300,7 +1318,10 @@ class TestDependentCRUD:
         db_path = self._init_db(tmp_path)
         for i in range(3):
             d = DependentInput(
-                name=f"子供{i}", relationship="子", date_of_birth=f"201{i}-01-01", income=0,
+                name=f"子供{i}",
+                relationship="子",
+                date_of_birth=f"201{i}-01-01",
+                income=0,
             )
             ledger_add_dependent(db_path=db_path, fiscal_year=2025, detail=d)
         lst = ledger_list_dependents(db_path=db_path, fiscal_year=2025)
@@ -1341,7 +1362,9 @@ class TestWithholdingSlipCRUD:
     def test_delete_slip(self, tmp_path):
         db_path = self._init_db(tmp_path)
         detail = WithholdingSlipInput(
-            payer_name="A社", payment_amount=3_000_000, withheld_tax=100_000,
+            payer_name="A社",
+            payment_amount=3_000_000,
+            withheld_tax=100_000,
         )
         r = ledger_save_withholding_slip(db_path=db_path, fiscal_year=2025, detail=detail)
         sid = r["withholding_slip_id"]
@@ -1609,11 +1632,15 @@ class TestStockTradingAccountCRUD:
     def test_upsert_same_broker_type(self, tmp_path):
         db_path = self._init_db(tmp_path)
         d1 = StockTradingAccountInput(
-            account_type="tokutei_withholding", broker_name="楽天証券", gains=500_000,
+            account_type="tokutei_withholding",
+            broker_name="楽天証券",
+            gains=500_000,
         )
         ledger_add_stock_trading_account(db_path=db_path, fiscal_year=2025, detail=d1)
         d2 = StockTradingAccountInput(
-            account_type="tokutei_withholding", broker_name="楽天証券", gains=800_000,
+            account_type="tokutei_withholding",
+            broker_name="楽天証券",
+            gains=800_000,
         )
         ledger_add_stock_trading_account(db_path=db_path, fiscal_year=2025, detail=d2)
         lst = ledger_list_stock_trading_accounts(db_path=db_path, fiscal_year=2025)
@@ -1623,13 +1650,13 @@ class TestStockTradingAccountCRUD:
     def test_delete(self, tmp_path):
         db_path = self._init_db(tmp_path)
         detail = StockTradingAccountInput(
-            account_type="ippan_listed", broker_name="マネックス", gains=100_000,
+            account_type="ippan_listed",
+            broker_name="マネックス",
+            gains=100_000,
         )
         r = ledger_add_stock_trading_account(db_path=db_path, fiscal_year=2025, detail=detail)
         sid = r["stock_trading_account_id"]
-        dr = ledger_delete_stock_trading_account(
-            db_path=db_path, stock_trading_account_id=sid
-        )
+        dr = ledger_delete_stock_trading_account(db_path=db_path, stock_trading_account_id=sid)
         assert dr["status"] == "ok"
         lst = ledger_list_stock_trading_accounts(db_path=db_path, fiscal_year=2025)
         assert lst["count"] == 0
@@ -1665,9 +1692,7 @@ class TestStockLossCarryforwardCRUD:
         detail = StockLossCarryforwardInput(loss_year=2024, amount=300_000)
         r = ledger_add_stock_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
         sid = r["stock_loss_carryforward_id"]
-        dr = ledger_delete_stock_loss_carryforward(
-            db_path=db_path, stock_loss_carryforward_id=sid
-        )
+        dr = ledger_delete_stock_loss_carryforward(db_path=db_path, stock_loss_carryforward_id=sid)
         assert dr["status"] == "ok"
         lst = ledger_list_stock_loss_carryforward(db_path=db_path, fiscal_year=2025)
         assert lst["count"] == 0
@@ -1755,9 +1780,235 @@ class TestFxLossCarryforwardCRUD:
         detail = FXLossCarryforwardInput(loss_year=2023, amount=200_000)
         r = ledger_add_fx_loss_carryforward(db_path=db_path, fiscal_year=2025, detail=detail)
         fid = r["fx_loss_carryforward_id"]
-        dr = ledger_delete_fx_loss_carryforward(
-            db_path=db_path, fx_loss_carryforward_id=fid
-        )
+        dr = ledger_delete_fx_loss_carryforward(db_path=db_path, fx_loss_carryforward_id=fid)
         assert dr["status"] == "ok"
         lst = ledger_list_fx_loss_carryforward(db_path=db_path, fiscal_year=2025)
         assert lst["count"] == 0
+
+
+class TestSocialInsuranceItems:
+    """社会保険料の種別別内訳CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = SocialInsuranceItemInput(
+            insurance_type="national_health",
+            name="国民健康保険",
+            amount=300_000,
+        )
+        r = ledger_add_social_insurance_item(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+        assert r["social_insurance_item_id"] > 0
+
+        lst = ledger_list_social_insurance_items(db_path=db_path, fiscal_year=2025)
+        assert lst["status"] == "ok"
+        assert lst["count"] == 1
+        assert lst["items"][0]["insurance_type"] == "national_health"
+        assert lst["items"][0]["name"] == "国民健康保険"
+        assert lst["items"][0]["amount"] == 300_000
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        lst = ledger_list_social_insurance_items(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = SocialInsuranceItemInput(
+            insurance_type="national_pension",
+            amount=200_000,
+        )
+        r = ledger_add_social_insurance_item(db_path=db_path, fiscal_year=2025, detail=detail)
+        sid = r["social_insurance_item_id"]
+        dr = ledger_delete_social_insurance_item(db_path=db_path, social_insurance_item_id=sid)
+        assert dr["status"] == "ok"
+        lst = ledger_list_social_insurance_items(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        dr = ledger_delete_social_insurance_item(db_path=db_path, social_insurance_item_id=999)
+        assert dr["status"] == "error"
+
+    def test_multiple_items(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        for ins_type, amount in [
+            ("national_health", 300_000),
+            ("national_pension", 200_000),
+            ("nursing_care", 50_000),
+        ]:
+            detail = SocialInsuranceItemInput(insurance_type=ins_type, amount=amount)
+            ledger_add_social_insurance_item(db_path=db_path, fiscal_year=2025, detail=detail)
+        lst = ledger_list_social_insurance_items(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 3
+        total = sum(i["amount"] for i in lst["items"])
+        assert total == 550_000
+
+
+class TestInsurancePolicies:
+    """保険契約CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = InsurancePolicyInput(
+            policy_type="life_general_new",
+            company_name="テスト生命保険",
+            premium=120_000,
+        )
+        r = ledger_add_insurance_policy(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+        assert r["insurance_policy_id"] > 0
+
+        lst = ledger_list_insurance_policies(db_path=db_path, fiscal_year=2025)
+        assert lst["status"] == "ok"
+        assert lst["count"] == 1
+        assert lst["items"][0]["policy_type"] == "life_general_new"
+        assert lst["items"][0]["company_name"] == "テスト生命保険"
+        assert lst["items"][0]["premium"] == 120_000
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        lst = ledger_list_insurance_policies(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = InsurancePolicyInput(
+            policy_type="earthquake",
+            company_name="テスト損保",
+            premium=30_000,
+        )
+        r = ledger_add_insurance_policy(db_path=db_path, fiscal_year=2025, detail=detail)
+        pid = r["insurance_policy_id"]
+        dr = ledger_delete_insurance_policy(db_path=db_path, insurance_policy_id=pid)
+        assert dr["status"] == "ok"
+        lst = ledger_list_insurance_policies(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        dr = ledger_delete_insurance_policy(db_path=db_path, insurance_policy_id=999)
+        assert dr["status"] == "error"
+
+
+class TestDonationRecords:
+    """ふるさと納税以外の寄附金CRUD。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_and_list(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = DonationRecordInput(
+            donation_type="npo",
+            recipient_name="テストNPO法人",
+            amount=50_000,
+            date="2025-06-15",
+            receipt_number="D-001",
+        )
+        r = ledger_add_donation(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+        assert r["donation_id"] > 0
+
+        lst = ledger_list_donations(db_path=db_path, fiscal_year=2025)
+        assert lst["status"] == "ok"
+        assert lst["count"] == 1
+        assert lst["items"][0]["donation_type"] == "npo"
+        assert lst["items"][0]["recipient_name"] == "テストNPO法人"
+        assert lst["items"][0]["amount"] == 50_000
+        assert lst["items"][0]["date"] == "2025-06-15"
+        assert lst["items"][0]["receipt_number"] == "D-001"
+
+    def test_list_empty(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        lst = ledger_list_donations(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_delete(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = DonationRecordInput(
+            donation_type="political",
+            recipient_name="テスト政党",
+            amount=30_000,
+            date="2025-09-01",
+        )
+        r = ledger_add_donation(db_path=db_path, fiscal_year=2025, detail=detail)
+        did = r["donation_id"]
+        dr = ledger_delete_donation(db_path=db_path, donation_id=did)
+        assert dr["status"] == "ok"
+        lst = ledger_list_donations(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 0
+
+    def test_delete_not_found(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        dr = ledger_delete_donation(db_path=db_path, donation_id=999)
+        assert dr["status"] == "error"
+
+    def test_multiple_types(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        for dtype, name, amount in [
+            ("political", "テスト政党", 30_000),
+            ("npo", "テストNPO", 50_000),
+            ("public_interest", "テスト公益法人", 20_000),
+        ]:
+            detail = DonationRecordInput(
+                donation_type=dtype,
+                recipient_name=name,
+                amount=amount,
+                date="2025-06-01",
+            )
+            ledger_add_donation(db_path=db_path, fiscal_year=2025, detail=detail)
+        lst = ledger_list_donations(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 3
+        total = sum(i["amount"] for i in lst["items"])
+        assert total == 100_000
+
+
+class TestDependentOtherTaxpayer:
+    """扶養親族の other_taxpayer_dependent フィールドの CRUD テスト。"""
+
+    def _init_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        ledger_init(fiscal_year=2025, db_path=db_path)
+        return db_path
+
+    def test_add_with_other_taxpayer_dependent(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = DependentInput(
+            name="太郎",
+            relationship="子",
+            date_of_birth="2008-06-01",
+            other_taxpayer_dependent=True,
+        )
+        r = ledger_add_dependent(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_dependents(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["dependents"][0]["other_taxpayer_dependent"] is True
+
+    def test_add_without_other_taxpayer_dependent(self, tmp_path):
+        db_path = self._init_db(tmp_path)
+        detail = DependentInput(
+            name="花子",
+            relationship="子",
+            date_of_birth="2005-03-15",
+        )
+        r = ledger_add_dependent(db_path=db_path, fiscal_year=2025, detail=detail)
+        assert r["status"] == "ok"
+
+        lst = ledger_list_dependents(db_path=db_path, fiscal_year=2025)
+        assert lst["count"] == 1
+        assert lst["dependents"][0]["other_taxpayer_dependent"] is False
