@@ -17,33 +17,74 @@ from shinkoku.models import (
     HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
+    LifeInsurancePremiumInput,
     ConsumptionTaxInput,
     ConsumptionTaxResult,
 )
-
-
-# ============================================================
-# Basic Deduction (Reiwa 7 stepped table)
-# ============================================================
-
-# (upper_limit_inclusive, deduction_amount)
-# Reiwa 7-8 only: 本則改正(48万→58万) + 租税特別措置法第41条の16の2 加算特例
-# R9以降は132万以下=95万のみ維持、それ以外は一律58万に戻る（時限措置）
-_BASIC_DEDUCTION_TABLE: list[tuple[int, int]] = [
-    (1_320_000, 950_000),  # ≤132万: 95万 (本則58万+加算37万)
-    (3_360_000, 880_000),  # 132万超〜336万: 88万 (本則58万+加算30万)
-    (4_890_000, 680_000),  # 336万超〜489万: 68万 (本則58万+加算10万)
-    (6_550_000, 630_000),  # 489万超〜655万: 63万 (本則58万+加算5万)
-    (23_500_000, 580_000),  # 655万超〜2,350万: 58万 (本則のみ)
-    (24_000_000, 480_000),  # 2,350万超〜2,400万: 48万
-    (24_500_000, 320_000),  # 2,400万超〜2,450万: 32万
-    (25_000_000, 160_000),  # 2,450万超〜2,500万: 16万
-]
+from shinkoku.tax_constants import (
+    BASIC_DEDUCTION_TABLE,
+    BLUE_RETURN_DEDUCTION_65,
+    DEPENDENT_ELDERLY,
+    DEPENDENT_ELDERLY_COHABITING,
+    DEPENDENT_GENERAL,
+    DEPENDENT_INCOME_LIMIT,
+    DEPENDENT_SPECIFIC,
+    DISABILITY_GENERAL,
+    DISABILITY_SPECIAL,
+    DISABILITY_SPECIAL_COHABITING,
+    DIVIDEND_CREDIT_RATE_HIGH,
+    DIVIDEND_CREDIT_RATE_LOW,
+    DIVIDEND_CREDIT_THRESHOLD,
+    EARTHQUAKE_INSURANCE_MAX,
+    FURUSATO_INCOME_RATIO,
+    FURUSATO_RESIDENTIAL_TAX_RATIO,
+    FURUSATO_SELF_BURDEN,
+    HOUSING_LOAN_BALANCE_LIMITS,
+    HOUSING_LOAN_DEFAULT_LIMIT,
+    HOUSING_LOAN_RATE,
+    HOUSING_LOAN_RATE_DENOMINATOR,
+    INCOME_TAX_TABLE,
+    INCOME_TAX_TOP_DEDUCTION,
+    INCOME_TAX_TOP_RATE,
+    LOCAL_TAX_RATIO,
+    LIFE_INSURANCE_COMBINED_MAX,
+    LIFE_INSURANCE_NEW_MAX,
+    LIFE_INSURANCE_OLD_MAX,
+    LIFE_INSURANCE_TOTAL_MAX,
+    NATIONAL_TAX_RATIO,
+    MEDICAL_EXPENSE_INCOME_RATIO,
+    MEDICAL_EXPENSE_MAX,
+    MEDICAL_EXPENSE_THRESHOLD,
+    OLD_LONG_TERM_MAX,
+    ONE_TIME_INCOME_SPECIAL_DEDUCTION,
+    PERSONAL_DEDUCTION_INCOME_LIMIT,
+    RECONSTRUCTION_TAX_DENOMINATOR,
+    RECONSTRUCTION_TAX_RATE,
+    SALARY_DEDUCTION_MAX,
+    SALARY_DEDUCTION_MIN,
+    SELF_MEDICATION_MAX,
+    SELF_MEDICATION_THRESHOLD,
+    SIMPLIFIED_DEEMED_RATIOS,
+    SIMPLIFIED_DEFAULT_RATIO,
+    SINGLE_PARENT_DEDUCTION,
+    SPECIAL_20PCT_RATE,
+    SPOUSE_DEDUCTION_TABLE,
+    SPOUSE_DEDUCTION_TABLE_9M,
+    SPOUSE_DEDUCTION_TABLE_10M,
+    SPOUSE_TAXPAYER_BRACKET_1,
+    SPOUSE_TAXPAYER_BRACKET_2,
+    SPOUSE_TAXPAYER_INCOME_LIMIT,
+    TAX_AMOUNT_ROUNDING,
+    TAXABLE_INCOME_ROUNDING,
+    WIDOW_DEDUCTION,
+    WORKING_STUDENT_DEDUCTION,
+    WORKING_STUDENT_INCOME_LIMIT,
+)
 
 
 def calc_basic_deduction(total_income: int) -> int:
     """Calculate basic deduction based on total income (Reiwa 7)."""
-    for upper, deduction in _BASIC_DEDUCTION_TABLE:
+    for upper, deduction in BASIC_DEDUCTION_TABLE:
         if total_income <= upper:
             return deduction
     return 0
@@ -57,21 +98,21 @@ def calc_basic_deduction(total_income: int) -> int:
 def calc_salary_deduction(salary_income: int) -> int:
     """Calculate salary income deduction (Reiwa 7 revision).
 
+    令和7年改正: 最低保障額65万、≤190万で一律65万に変更。
     Returns the deduction amount (not the net salary income).
     """
     if salary_income <= 0:
         return 0
-    if salary_income <= 1_625_000:
-        return 650_000
-    if salary_income <= 1_800_000:
-        return int(salary_income * 40 // 100) - 100_000
+    # 令和7年改正: ≤190万は一律65万（旧: ≤162.5万で55万、162.5万超〜180万は40%-10万）
+    if salary_income <= 1_900_000:
+        return SALARY_DEDUCTION_MIN
     if salary_income <= 3_600_000:
         return int(salary_income * 30 // 100) + 80_000
     if salary_income <= 6_600_000:
         return int(salary_income * 20 // 100) + 440_000
     if salary_income <= 8_500_000:
         return int(salary_income * 10 // 100) + 1_100_000
-    return 1_950_000
+    return SALARY_DEDUCTION_MAX
 
 
 # ============================================================
@@ -93,75 +134,192 @@ def calc_life_insurance_deduction(premium: int) -> int:
         return premium // 2 + 10_000
     if premium <= 80_000:
         return premium // 4 + 20_000
-    return 40_000
+    return LIFE_INSURANCE_NEW_MAX
+
+
+# ============================================================
+# Life Insurance Deduction - Old System (Phase 3)
+# ============================================================
+
+
+def calc_life_insurance_deduction_old(premium: int) -> int:
+    """旧制度の生命保険料控除（1区分あたり、上限50,000円）。"""
+    if premium <= 0:
+        return 0
+    if premium <= 25_000:
+        return premium
+    if premium <= 50_000:
+        return premium // 2 + 12_500
+    if premium <= 100_000:
+        return premium // 4 + 25_000
+    return LIFE_INSURANCE_OLD_MAX
+
+
+def calc_life_insurance_category(new_premium: int, old_premium: int) -> int:
+    """新旧合算で1区分の控除額を計算（上限40,000円）。
+
+    max(新のみ, 旧のみ, min(新+旧合算, 40,000))
+    """
+    new_only = calc_life_insurance_deduction(new_premium) if new_premium > 0 else 0
+    old_only = calc_life_insurance_deduction_old(old_premium) if old_premium > 0 else 0
+
+    if new_premium > 0 and old_premium > 0:
+        combined = min(new_only + old_only, LIFE_INSURANCE_COMBINED_MAX)
+        return max(new_only, old_only, combined)
+    if new_premium > 0:
+        return new_only
+    return old_only
+
+
+def calc_life_insurance_total(
+    general_new: int = 0,
+    general_old: int = 0,
+    medical_care: int = 0,
+    annuity_new: int = 0,
+    annuity_old: int = 0,
+) -> int:
+    """生命保険料控除の3区分合計（上限120,000円）。
+
+    一般: 新旧合算
+    介護医療: 新制度のみ（上限40,000）
+    個人年金: 新旧合算
+    合計: min(各区分合計, 120,000)
+    """
+    general = calc_life_insurance_category(general_new, general_old)
+    medical = calc_life_insurance_deduction(medical_care)  # 新制度のみ
+    annuity = calc_life_insurance_category(annuity_new, annuity_old)
+    return min(general + medical + annuity, LIFE_INSURANCE_TOTAL_MAX)
+
+
+# ============================================================
+# Earthquake Insurance Deduction - Old Long-term (Phase 4)
+# ============================================================
+
+
+def calc_earthquake_insurance_deduction(
+    earthquake_premium: int = 0,
+    old_long_term_premium: int = 0,
+) -> int:
+    """地震保険料控除（旧長期損害保険対応）。
+
+    地震保険: min(premium, 50,000)
+    旧長期: ≤5,000→全額, ≤15,000→premium//2+2,500, >15,000→15,000
+    合算: min(地震 + 旧長期, 50,000)
+    """
+    eq = min(earthquake_premium, EARTHQUAKE_INSURANCE_MAX) if earthquake_premium > 0 else 0
+
+    old = 0
+    if old_long_term_premium > 0:
+        if old_long_term_premium <= 5_000:
+            old = old_long_term_premium
+        elif old_long_term_premium <= 15_000:
+            old = old_long_term_premium // 2 + 2_500
+        else:
+            old = OLD_LONG_TERM_MAX
+
+    return min(eq + old, EARTHQUAKE_INSURANCE_MAX)
+
+
+# ============================================================
+# Personal Deductions (Phase 5): widow, single_parent, disability, working student
+# ============================================================
+
+
+def calc_widow_deduction(status: str, total_income: int) -> int:
+    """寡婦/ひとり親控除。
+
+    ひとり親: 350,000（所得500万以下）
+    寡婦: 270,000（所得500万以下）
+    """
+    if total_income > PERSONAL_DEDUCTION_INCOME_LIMIT:
+        return 0
+    if status == "single_parent":
+        return SINGLE_PARENT_DEDUCTION
+    if status == "widow":
+        return WIDOW_DEDUCTION
+    return 0
+
+
+def calc_disability_deduction_self(status: str) -> int:
+    """本人の障害者控除。
+
+    一般: 270,000
+    特別: 400,000
+    """
+    if status == "special":
+        return DISABILITY_SPECIAL
+    if status == "general":
+        return DISABILITY_GENERAL
+    return 0
+
+
+def calc_working_student_deduction(flag: bool, total_income: int) -> int:
+    """勤労学生控除: 270,000（合計所得75万以下）。"""
+    if flag and total_income <= WORKING_STUDENT_INCOME_LIMIT:
+        return WORKING_STUDENT_DEDUCTION
+    return 0
+
+
+# ============================================================
+# Self-Medication Tax System (Phase 8)
+# ============================================================
+
+
+def calc_self_medication_deduction(expenses: int) -> int:
+    """セルフメディケーション税制の控除額。
+
+    控除額 = OTC購入額 - 12,000（上限 88,000）
+    医療費控除とは選択適用（併用不可）。
+    """
+    if expenses <= SELF_MEDICATION_THRESHOLD:
+        return 0
+    return min(expenses - SELF_MEDICATION_THRESHOLD, SELF_MEDICATION_MAX)
+
+
+# ============================================================
+# Dividend Tax Credit (Phase 10: 配当控除)
+# ============================================================
+
+
+def calc_dividend_tax_credit(dividend_income: int, taxable_income: int) -> int:
+    """配当控除（税額控除）。
+
+    課税所得1,000万以下: 配当の10%
+    課税所得1,000万超: 超過部分は5%
+    """
+    if dividend_income <= 0:
+        return 0
+    if taxable_income <= DIVIDEND_CREDIT_THRESHOLD:
+        return dividend_income * DIVIDEND_CREDIT_RATE_LOW // 100
+    # 1,000万超の場合: 1,000万以下部分=10%, 超過部分=5%
+    under_10m = max(0, DIVIDEND_CREDIT_THRESHOLD - (taxable_income - dividend_income))
+    if under_10m >= dividend_income:
+        return dividend_income * DIVIDEND_CREDIT_RATE_LOW // 100
+    over_10m = dividend_income - under_10m
+    return (
+        under_10m * DIVIDEND_CREDIT_RATE_LOW // 100
+        + over_10m * DIVIDEND_CREDIT_RATE_HIGH // 100
+    )
 
 
 # ============================================================
 # Spouse Deduction
 # ============================================================
 
-# Spouse deduction tables (Reiwa 7~)
-# 配偶者控除: 配偶者所得≤58万 → 38万/26万/13万 (taxpayer income bracket)
-# 配偶者特別控除: 配偶者所得58万超〜133万 → 段階的控除
-# Based on NTA No.1195 (https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1195.htm)
-#
-# (spouse_income_upper, deduction) for taxpayer income <= 9,000,000
-_SPOUSE_SPECIAL_TABLE: list[tuple[int, int]] = [
-    (580_000, 380_000),  # ≤58万: 配偶者控除 38万
-    (950_000, 380_000),  # 58万超〜95万: 配偶者特別控除 38万（満額）
-    (1_000_000, 360_000),  # 95万超〜100万: 36万
-    (1_050_000, 310_000),  # 100万超〜105万: 31万
-    (1_100_000, 260_000),  # 105万超〜110万: 26万
-    (1_150_000, 210_000),  # 110万超〜115万: 21万
-    (1_200_000, 160_000),  # 115万超〜120万: 16万
-    (1_250_000, 110_000),  # 120万超〜125万: 11万
-    (1_300_000, 60_000),  # 125万超〜130万: 6万
-    (1_330_000, 30_000),  # 130万超〜133万: 3万
-]
-
-# taxpayer income 900万超〜950万
-_SPOUSE_SPECIAL_TABLE_9M: list[tuple[int, int]] = [
-    (580_000, 260_000),  # ≤58万: 配偶者控除 26万
-    (950_000, 260_000),  # 58万超〜95万: 26万
-    (1_000_000, 240_000),  # 95万超〜100万: 24万
-    (1_050_000, 210_000),  # 100万超〜105万: 21万
-    (1_100_000, 180_000),  # 105万超〜110万: 18万
-    (1_150_000, 140_000),  # 110万超〜115万: 14万
-    (1_200_000, 110_000),  # 115万超〜120万: 11万
-    (1_250_000, 80_000),  # 120万超〜125万: 8万
-    (1_300_000, 40_000),  # 125万超〜130万: 4万
-    (1_330_000, 20_000),  # 130万超〜133万: 2万
-]
-
-# taxpayer income 950万超〜1,000万
-_SPOUSE_SPECIAL_TABLE_10M: list[tuple[int, int]] = [
-    (580_000, 130_000),  # ≤58万: 配偶者控除 13万
-    (950_000, 130_000),  # 58万超〜95万: 13万
-    (1_000_000, 120_000),  # 95万超〜100万: 12万
-    (1_050_000, 100_000),  # 100万超〜105万: 10万
-    (1_100_000, 90_000),  # 105万超〜110万: 9万
-    (1_150_000, 70_000),  # 110万超〜115万: 7万
-    (1_200_000, 50_000),  # 115万超〜120万: 5万
-    (1_250_000, 40_000),  # 120万超〜125万: 4万
-    (1_300_000, 20_000),  # 125万超〜130万: 2万
-    (1_330_000, 10_000),  # 130万超〜133万: 1万
-]
-
-
 def calc_spouse_deduction(taxpayer_income: int, spouse_income: int | None) -> int:
     """Calculate spouse deduction / special spouse deduction."""
     if spouse_income is None:
         return 0
-    if taxpayer_income > 10_000_000:
+    if taxpayer_income > SPOUSE_TAXPAYER_INCOME_LIMIT:
         return 0
 
     # Select the appropriate table based on taxpayer income
-    if taxpayer_income <= 9_000_000:
-        table = _SPOUSE_SPECIAL_TABLE
-    elif taxpayer_income <= 9_500_000:
-        table = _SPOUSE_SPECIAL_TABLE_9M
+    if taxpayer_income <= SPOUSE_TAXPAYER_BRACKET_1:
+        table = SPOUSE_DEDUCTION_TABLE
+    elif taxpayer_income <= SPOUSE_TAXPAYER_BRACKET_2:
+        table = SPOUSE_DEDUCTION_TABLE_9M
     else:  # <= 10_000_000
-        table = _SPOUSE_SPECIAL_TABLE_10M
+        table = SPOUSE_DEDUCTION_TABLE_10M
 
     for upper, deduction in table:
         if spouse_income <= upper:
@@ -211,8 +369,8 @@ def calc_dependents_deduction(
         if dep.relationship == "配偶者":
             continue
 
-        # 所得要件: 48万円以下
-        if dep.income > 480_000:
+        # 所得要件: 58万円以下（令和7年改正）
+        if dep.income > DEPENDENT_INCOME_LIMIT:
             continue
 
         age = _calc_age(dep.birth_date, fiscal_year_end)
@@ -221,10 +379,10 @@ def calc_dependents_deduction(
         if age >= 70:
             # 老人扶養親族
             if dep.cohabiting:
-                deduction = 580_000  # 同居老親等
+                deduction = DEPENDENT_ELDERLY_COHABITING  # 同居老親等
                 detail = f"{dep.name}（老人扶養・同居）"
             else:
-                deduction = 480_000  # 別居
+                deduction = DEPENDENT_ELDERLY  # 別居
                 detail = f"{dep.name}（老人扶養・別居）"
             items.append(
                 DeductionItem(
@@ -240,7 +398,7 @@ def calc_dependents_deduction(
                 DeductionItem(
                     type="dependent",
                     name="扶養控除",
-                    amount=630_000,
+                    amount=DEPENDENT_SPECIFIC,
                     details=f"{dep.name}（特定扶養）",
                 )
             )
@@ -250,7 +408,7 @@ def calc_dependents_deduction(
                 DeductionItem(
                     type="dependent",
                     name="扶養控除",
-                    amount=380_000,
+                    amount=DEPENDENT_GENERAL,
                     details=f"{dep.name}（一般扶養）",
                 )
             )
@@ -262,7 +420,7 @@ def calc_dependents_deduction(
                 DeductionItem(
                     type="disability",
                     name="障害者控除",
-                    amount=750_000,
+                    amount=DISABILITY_SPECIAL_COHABITING,
                     details=f"{dep.name}（同居特別障害者）",
                 )
             )
@@ -271,7 +429,7 @@ def calc_dependents_deduction(
                 DeductionItem(
                     type="disability",
                     name="障害者控除",
-                    amount=400_000,
+                    amount=DISABILITY_SPECIAL,
                     details=f"{dep.name}（特別障害者）",
                 )
             )
@@ -280,7 +438,7 @@ def calc_dependents_deduction(
                 DeductionItem(
                     type="disability",
                     name="障害者控除",
-                    amount=270_000,
+                    amount=DISABILITY_GENERAL,
                     details=f"{dep.name}（一般障害者）",
                 )
             )
@@ -299,34 +457,20 @@ def calc_furusato_deduction(donation: int, total_income: int | None = None) -> i
     所得税法第78条: 控除額 = MIN(寄附金合計, 総所得金額等×40%) - 2,000円
     total_income が指定されない場合は40%上限を適用しない（集計表示用）。
     """
-    if donation <= 2_000:
+    if donation <= FURUSATO_SELF_BURDEN:
         return 0
     capped = donation
     if total_income is not None:
-        capped = min(donation, total_income * 40 // 100)
-    if capped <= 2_000:
+        capped = min(donation, total_income * FURUSATO_INCOME_RATIO // 100)
+    if capped <= FURUSATO_SELF_BURDEN:
         return 0
-    return capped - 2_000
+    return capped - FURUSATO_SELF_BURDEN
 
 
 # ============================================================
 # Housing Loan Tax Credit
 # ============================================================
 
-# 住宅区分別の年末残高上限額（令和4年〜7年入居）
-# (housing_category, is_new_construction) -> balance_limit
-_HOUSING_LOAN_LIMITS: dict[tuple[str, bool], int] = {
-    # 新築
-    ("certified", True): 50_000_000,  # 認定住宅（長期優良/低炭素）
-    ("zeh", True): 45_000_000,  # ZEH水準省エネ住宅
-    ("energy_efficient", True): 40_000_000,  # 省エネ基準適合住宅
-    ("general", True): 30_000_000,  # 一般住宅
-    # 中古
-    ("certified", False): 30_000_000,  # 認定住宅（中古）
-    ("zeh", False): 30_000_000,  # ZEH水準省エネ住宅（中古）
-    ("energy_efficient", False): 30_000_000,  # 省エネ基準適合住宅（中古）
-    ("general", False): 20_000_000,  # 一般住宅（中古）
-}
 
 
 def calc_housing_loan_credit(
@@ -346,11 +490,11 @@ def calc_housing_loan_credit(
 
     if detail is not None:
         key = (detail.housing_category, detail.is_new_construction)
-        limit = _HOUSING_LOAN_LIMITS.get(key, 30_000_000)
+        limit = HOUSING_LOAN_BALANCE_LIMITS.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
         capped = min(detail.year_end_balance, limit)
-        return int(capped * 7 // 1000)
+        return int(capped * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR)
 
-    return int(balance * 7 // 1000)
+    return int(balance * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR)
 
 
 # ============================================================
@@ -362,15 +506,25 @@ def calc_deductions(
     total_income: int,
     social_insurance: int = 0,
     life_insurance_premium: int = 0,
+    life_insurance_detail: LifeInsurancePremiumInput | None = None,
     earthquake_insurance_premium: int = 0,
+    old_long_term_insurance_premium: int = 0,
     medical_expenses: int = 0,
+    self_medication_expenses: int = 0,
+    self_medication_eligible: bool = False,
     furusato_nozei: int = 0,
     housing_loan_balance: int = 0,
     spouse_income: int | None = None,
     ideco_contribution: int = 0,
+    small_business_mutual_aid: int = 0,
     dependents: list[DependentInfo] | None = None,
     fiscal_year: int = 2025,
     housing_loan_detail: HousingLoanDetail | None = None,
+    widow_status: str = "none",
+    disability_status: str = "none",
+    working_student: bool = False,
+    dividend_income_comprehensive: int = 0,
+    taxable_income_for_dividend_credit: int = 0,
 ) -> DeductionsResult:
     """Calculate all applicable deductions and return structured result."""
     income_deductions: list[DeductionItem] = []
@@ -391,8 +545,25 @@ def calc_deductions(
             )
         )
 
-    # 3. Life insurance (new system - treat as single category for simplicity)
-    if life_insurance_premium > 0:
+    # 3. Life insurance（3区分対応: Phase 3）
+    if life_insurance_detail is not None:
+        li_deduction = calc_life_insurance_total(
+            general_new=life_insurance_detail.general_new,
+            general_old=life_insurance_detail.general_old,
+            medical_care=life_insurance_detail.medical_care,
+            annuity_new=life_insurance_detail.annuity_new,
+            annuity_old=life_insurance_detail.annuity_old,
+        )
+        if li_deduction > 0:
+            income_deductions.append(
+                DeductionItem(
+                    type="life_insurance",
+                    name="生命保険料控除",
+                    amount=li_deduction,
+                    details="3区分詳細",
+                )
+            )
+    elif life_insurance_premium > 0:
         li_deduction = calc_life_insurance_deduction(life_insurance_premium)
         if li_deduction > 0:
             income_deductions.append(
@@ -403,40 +574,72 @@ def calc_deductions(
                 )
             )
 
-    # 4. Earthquake insurance
-    if earthquake_insurance_premium > 0:
-        eq_deduction = min(earthquake_insurance_premium, 50_000)
-        income_deductions.append(
-            DeductionItem(
-                type="earthquake_insurance",
-                name="地震保険料控除",
-                amount=eq_deduction,
-            )
+    # 4. Earthquake insurance（旧長期損害保険対応: Phase 4）
+    if earthquake_insurance_premium > 0 or old_long_term_insurance_premium > 0:
+        eq_deduction = calc_earthquake_insurance_deduction(
+            earthquake_premium=earthquake_insurance_premium,
+            old_long_term_premium=old_long_term_insurance_premium,
         )
+        if eq_deduction > 0:
+            income_deductions.append(
+                DeductionItem(
+                    type="earthquake_insurance",
+                    name="地震保険料控除",
+                    amount=eq_deduction,
+                )
+            )
 
-    # 5. iDeCo / 小規模企業共済等掛金控除（全額所得控除）
-    if ideco_contribution > 0:
+    # 5. 小規模企業共済等掛金控除（Phase 7: サブタイプ対応）
+    mutual_aid_total = ideco_contribution + small_business_mutual_aid
+    if mutual_aid_total > 0:
+        # details: サブタイプの内訳を示す
+        if ideco_contribution > 0 and small_business_mutual_aid == 0:
+            mutual_aid_details = "iDeCo"
+        elif ideco_contribution == 0 and small_business_mutual_aid > 0:
+            mutual_aid_details = "小規模企業共済"
+        elif ideco_contribution > 0 and small_business_mutual_aid > 0:
+            mutual_aid_details = f"iDeCo: {ideco_contribution}, 共済: {small_business_mutual_aid}"
+        else:
+            mutual_aid_details = None
         income_deductions.append(
             DeductionItem(
                 type="small_business_mutual_aid",
                 name="小規模企業共済等掛金控除",
-                amount=ideco_contribution,
-                details="iDeCo",
+                amount=mutual_aid_total,
+                details=mutual_aid_details,
             )
         )
 
-    # 6. Medical expenses (所得税法第73条)
-    # Threshold: min(100,000, total_income * 5%)
-    medical_threshold = min(100_000, total_income * 5 // 100)
-    if medical_expenses > medical_threshold:
-        med_deduction = min(medical_expenses - medical_threshold, 2_000_000)
-        income_deductions.append(
-            DeductionItem(
-                type="medical",
-                name="医療費控除",
-                amount=med_deduction,
-            )
+    # 6. Medical expenses / Self-medication（選択適用: Phase 8）
+    if self_medication_eligible and self_medication_expenses > 0:
+        # セルフメディケーション税制（医療費控除と併用不可）
+        selfmed = calc_self_medication_deduction(self_medication_expenses)
+        # 通常の医療費控除と比較して有利な方を適用
+        medical_threshold = min(MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100)
+        med_normal = (
+            min(medical_expenses - medical_threshold, MEDICAL_EXPENSE_MAX)
+            if medical_expenses > medical_threshold
+            else 0
         )
+        if selfmed > med_normal and selfmed > 0:
+            income_deductions.append(
+                DeductionItem(
+                    type="self_medication",
+                    name="セルフメディケーション税制",
+                    amount=selfmed,
+                )
+            )
+        elif med_normal > 0:
+            income_deductions.append(
+                DeductionItem(type="medical", name="医療費控除", amount=med_normal)
+            )
+    else:
+        medical_threshold = min(MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100)
+        if medical_expenses > medical_threshold:
+            med_deduction = min(medical_expenses - medical_threshold, MEDICAL_EXPENSE_MAX)
+            income_deductions.append(
+                DeductionItem(type="medical", name="医療費控除", amount=med_deduction)
+            )
 
     # 7. Furusato nozei（所得税法第78条: 総所得金額×40%上限）
     if furusato_nozei > 0:
@@ -456,11 +659,7 @@ def calc_deductions(
         spouse = calc_spouse_deduction(total_income, spouse_income)
         if spouse > 0:
             income_deductions.append(
-                DeductionItem(
-                    type="spouse",
-                    name="配偶者控除",
-                    amount=spouse,
-                )
+                DeductionItem(type="spouse", name="配偶者控除", amount=spouse)
             )
 
     # 9. Dependent deductions (扶養控除 + 障害者控除)
@@ -472,6 +671,31 @@ def calc_deductions(
         )
         income_deductions.extend(dep_items)
 
+    # 10. 寡婦/ひとり親控除（Phase 5）
+    if widow_status != "none":
+        widow = calc_widow_deduction(widow_status, total_income)
+        if widow > 0:
+            name = "ひとり親控除" if widow_status == "single_parent" else "寡婦控除"
+            income_deductions.append(
+                DeductionItem(type="widow", name=name, amount=widow)
+            )
+
+    # 11. 本人の障害者控除（Phase 5）
+    if disability_status != "none":
+        disability = calc_disability_deduction_self(disability_status)
+        if disability > 0:
+            income_deductions.append(
+                DeductionItem(type="disability_self", name="障害者控除（本人）", amount=disability)
+            )
+
+    # 12. 勤労学生控除（Phase 5）
+    if working_student:
+        ws = calc_working_student_deduction(True, total_income)
+        if ws > 0:
+            income_deductions.append(
+                DeductionItem(type="working_student", name="勤労学生控除", amount=ws)
+            )
+
     # Tax credits
     # Housing loan credit
     hl_balance = housing_loan_balance
@@ -481,11 +705,17 @@ def calc_deductions(
         hl_credit = calc_housing_loan_credit(hl_balance, detail=housing_loan_detail)
         if hl_credit > 0:
             tax_credits.append(
-                DeductionItem(
-                    type="housing_loan",
-                    name="住宅ローン控除",
-                    amount=hl_credit,
-                )
+                DeductionItem(type="housing_loan", name="住宅ローン控除", amount=hl_credit)
+            )
+
+    # 配当控除（Phase 10）
+    if dividend_income_comprehensive > 0 and taxable_income_for_dividend_credit > 0:
+        div_credit = calc_dividend_tax_credit(
+            dividend_income_comprehensive, taxable_income_for_dividend_credit
+        )
+        if div_credit > 0:
+            tax_credits.append(
+                DeductionItem(type="dividend", name="配当控除", amount=div_credit)
             )
 
     total_income_deductions = sum(d.amount for d in income_deductions)
@@ -542,26 +772,15 @@ def calc_depreciation_declining_balance(
 # Income Tax Calculation (Task 15)
 # ============================================================
 
-# (upper_limit, rate_percent, deduction)
-_INCOME_TAX_TABLE: list[tuple[int, int, int]] = [
-    (1_950_000, 5, 0),
-    (3_300_000, 10, 97_500),
-    (6_950_000, 20, 427_500),
-    (9_000_000, 23, 636_000),
-    (18_000_000, 33, 1_536_000),
-    (40_000_000, 40, 2_796_000),
-]
-
-
 def _calc_income_tax_from_table(taxable_income: int) -> int:
     """Apply the income tax quick calculation table. All int arithmetic."""
     if taxable_income <= 0:
         return 0
-    for upper, rate, deduction in _INCOME_TAX_TABLE:
+    for upper, rate, deduction in INCOME_TAX_TABLE:
         if taxable_income <= upper:
             return taxable_income * rate // 100 - deduction
     # Over 40,000,000
-    return taxable_income * 45 // 100 - 4_796_000
+    return taxable_income * INCOME_TAX_TOP_RATE // 100 - INCOME_TAX_TOP_DEDUCTION
 
 
 def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
@@ -590,8 +809,18 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         - input_data.blue_return_deduction
     )
 
-    # Step 3: Total income（損益通算後、0円未満にはならない）
+    # Step 3: Total income（損益通算後 + その他所得）
     total_income_raw = salary_income_after + business_income
+
+    # Phase 10: その他所得の加算
+    # 雑所得 = 収入 - 経費（既に所得金額）
+    misc_income = input_data.misc_income
+    # 配当所得（総合課税）= そのまま加算
+    dividend_comprehensive = input_data.dividend_income_comprehensive
+    # 一時所得 = max(0, (収入 - 経費 - 特別控除50万)) × 1/2
+    one_time_income = max(0, input_data.one_time_income - ONE_TIME_INCOME_SPECIAL_DEDUCTION) // 2
+
+    total_income_raw += misc_income + dividend_comprehensive + one_time_income
 
     # Step 3.5: 繰越損失の適用（青色申告の場合、3年繰越）
     loss_applied = 0
@@ -601,46 +830,73 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
 
     total_income = max(0, total_income_raw)
 
+    # 小規模企業共済等掛金控除（Phase 7）
+    mutual_aid_total = input_data.ideco_contribution
+    if input_data.small_business_mutual_aid is not None:
+        mutual_aid_total = input_data.small_business_mutual_aid.total
+
     # Step 4: Income deductions
     deductions = calc_deductions(
         total_income=total_income,
         social_insurance=input_data.social_insurance,
         life_insurance_premium=input_data.life_insurance_premium,
+        life_insurance_detail=input_data.life_insurance_detail,
         earthquake_insurance_premium=input_data.earthquake_insurance_premium,
+        old_long_term_insurance_premium=input_data.old_long_term_insurance_premium,
         medical_expenses=input_data.medical_expenses,
+        self_medication_expenses=input_data.self_medication_expenses,
+        self_medication_eligible=input_data.self_medication_eligible,
         furusato_nozei=input_data.furusato_nozei,
         housing_loan_balance=input_data.housing_loan_balance,
         spouse_income=input_data.spouse_income,
         ideco_contribution=input_data.ideco_contribution,
+        small_business_mutual_aid=(
+            mutual_aid_total - input_data.ideco_contribution
+            if input_data.small_business_mutual_aid is not None
+            else 0
+        ),
         dependents=input_data.dependents or None,
         fiscal_year=input_data.fiscal_year,
         housing_loan_detail=input_data.housing_loan_detail,
+        widow_status=input_data.widow_status,
+        disability_status=input_data.disability_status,
+        working_student=input_data.working_student,
     )
 
     total_income_deductions = deductions.total_income_deductions
 
     # Step 5: Taxable income (truncate to 1,000 yen, min 0)
     taxable_income_raw = max(0, total_income - total_income_deductions)
-    taxable_income = (taxable_income_raw // 1_000) * 1_000
+    taxable_income = (taxable_income_raw // TAXABLE_INCOME_ROUNDING) * TAXABLE_INCOME_ROUNDING
 
     # Step 6: Tax from table
     income_tax_base = _calc_income_tax_from_table(taxable_income)
+
+    # Step 6.5: 配当控除の計算（Phase 10）
+    if dividend_comprehensive > 0:
+        div_credit = calc_dividend_tax_credit(dividend_comprehensive, taxable_income)
+        if div_credit > 0:
+            deductions.tax_credits.append(
+                DeductionItem(type="dividend", name="配当控除", amount=div_credit)
+            )
+            deductions.total_tax_credits += div_credit
 
     # Step 7: Tax credits
     total_tax_credits = deductions.total_tax_credits
     income_tax_after_credits = max(0, income_tax_base - total_tax_credits)
 
     # Step 8: Reconstruction tax = 2.1% (truncate to 1 yen)
-    reconstruction_tax = int(income_tax_after_credits * 21 // 1000)
+    reconstruction_tax = int(income_tax_after_credits * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR)
 
     # Step 9: Total tax and filing amount (truncate to 100 yen)
     total_tax_raw = income_tax_after_credits + reconstruction_tax
-    total_tax = (total_tax_raw // 100) * 100
+    total_tax = (total_tax_raw // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
 
-    # Step 10: Difference（給与源泉+事業源泉+予定納税を差し引く）
+    # Step 10: Difference（給与源泉+事業源泉+その他源泉+予定納税を差し引く）
     total_withheld = (
         input_data.withheld_tax
         + input_data.business_withheld_tax
+        + input_data.other_income_withheld_tax
         + input_data.estimated_tax_payment
     )
     tax_due = total_tax - total_withheld
@@ -670,15 +926,6 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
 # Consumption Tax Calculation (Task 16)
 # ============================================================
 
-# Simplified taxation deemed purchase ratios by business type (percent)
-_SIMPLIFIED_RATIOS: dict[int, int] = {
-    1: 90,  # Wholesale
-    2: 80,  # Retail
-    3: 70,  # Manufacturing
-    4: 60,  # Other
-    5: 50,  # Service
-    6: 40,  # Real estate
-}
 
 
 def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResult:
@@ -706,12 +953,12 @@ def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResul
 
     if input_data.method == "special_20pct":
         # 2-wari special: tax due = sales tax * 20%
-        tax_due_raw = total_tax_on_sales * 20 // 100
+        tax_due_raw = total_tax_on_sales * SPECIAL_20PCT_RATE // 100
         tax_on_purchases = total_tax_on_sales - tax_due_raw  # deemed 80% credit
 
     elif input_data.method == "simplified":
         btype = input_data.simplified_business_type or 5  # default: service
-        ratio = _SIMPLIFIED_RATIOS.get(btype, 50)
+        ratio = SIMPLIFIED_DEEMED_RATIOS.get(btype, SIMPLIFIED_DEFAULT_RATIO)
         tax_on_purchases = total_tax_on_sales * ratio // 100
         tax_due_raw = total_tax_on_sales - tax_on_purchases
 
@@ -727,12 +974,12 @@ def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResul
 
     # Split into national (7.8/10) and local (2.2/10)
     # National tax = tax_due * 78/100, truncated to 100 yen
-    national_tax = max(0, tax_due_raw * 78 // 100)
-    national_tax = (national_tax // 100) * 100
+    national_tax = max(0, tax_due_raw * NATIONAL_TAX_RATIO // 100)
+    national_tax = (national_tax // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
 
     # Local tax = national * 22/78, truncated to 100 yen
-    local_tax = national_tax * 22 // 78
-    local_tax = (local_tax // 100) * 100
+    local_tax = national_tax * LOCAL_TAX_RATIO // NATIONAL_TAX_RATIO
+    local_tax = (local_tax // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
 
     total_due = national_tax + local_tax
 
@@ -760,10 +1007,10 @@ def _get_marginal_tax_rate(taxable_income: int) -> int:
     """
     if taxable_income <= 0:
         return 0
-    for upper, rate, _ in _INCOME_TAX_TABLE:
+    for upper, rate, _ in INCOME_TAX_TABLE:
         if taxable_income <= upper:
             return rate
-    return 45  # Over 40,000,000
+    return INCOME_TAX_TOP_RATE  # Over 40,000,000
 
 
 def calc_furusato_deduction_limit(
@@ -782,7 +1029,7 @@ def calc_furusato_deduction_limit(
     """
     taxable_income_raw = max(0, total_income - total_income_deductions)
     # 課税所得を1,000円未満切捨て
-    taxable_income = (taxable_income_raw // 1_000) * 1_000
+    taxable_income = (taxable_income_raw // TAXABLE_INCOME_ROUNDING) * TAXABLE_INCOME_ROUNDING
 
     if taxable_income <= 0:
         return 0
@@ -803,10 +1050,10 @@ def calc_furusato_deduction_limit(
 
     if denominator_permille <= 0:
         # 所得税率が非常に高い場合の安全策
-        return juuminzei_shotokuwari * 20 // 100 + 2_000
+        return juuminzei_shotokuwari * FURUSATO_RESIDENTIAL_TAX_RATIO // 100 + FURUSATO_SELF_BURDEN
 
     # 上限 = 住民税所得割額 × 20% ÷ (分母/100%) + 2,000
-    limit = juuminzei_shotokuwari * 200 // denominator_permille + 2_000
+    limit = juuminzei_shotokuwari * 200 // denominator_permille + FURUSATO_SELF_BURDEN
 
     return limit
 
@@ -851,7 +1098,7 @@ def register(mcp) -> None:
         salary_income: int = 0,
         business_revenue: int = 0,
         business_expenses: int = 0,
-        blue_return_deduction: int = 650_000,
+        blue_return_deduction: int = BLUE_RETURN_DEDUCTION_65,
         social_insurance: int = 0,
         life_insurance_premium: int = 0,
         earthquake_insurance_premium: int = 0,

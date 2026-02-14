@@ -32,6 +32,13 @@ from shinkoku.tools.pdf_coordinates import (
     BLUE_RETURN_BS,
     INCOME_TAX_FORM_B,
 )
+from shinkoku.tax_constants import (
+    HOUSING_LOAN_BALANCE_LIMITS,
+    HOUSING_LOAN_DEFAULT_LIMIT,
+    MEDICAL_EXPENSE_INCOME_RATIO,
+    MEDICAL_EXPENSE_MAX,
+    MEDICAL_EXPENSE_THRESHOLD,
+)
 
 
 # ============================================================
@@ -741,8 +748,8 @@ def generate_medical_expense_detail_pdf(
     # Summary
     y -= 10 * mm
     net_amount = total_amount - total_reimbursement
-    medical_threshold = min(100_000, total_income * 5 // 100) if total_income > 0 else 100_000
-    deduction = max(0, min(net_amount - medical_threshold, 2_000_000))
+    medical_threshold = min(MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100) if total_income > 0 else MEDICAL_EXPENSE_THRESHOLD
+    deduction = max(0, min(net_amount - medical_threshold, MEDICAL_EXPENSE_MAX))
 
     summary_items = [
         ("医療費合計", total_amount),
@@ -892,17 +899,6 @@ _HOUSING_CATEGORY_LABELS: dict[str, str] = {
     "energy_efficient": "省エネ基準適合住宅",
 }
 
-# 住宅区分別の年末残高上限額（令和4年〜7年入居）
-_HOUSING_BALANCE_LIMITS: dict[tuple[str, bool], int] = {
-    ("certified", True): 50_000_000,
-    ("zeh", True): 45_000_000,
-    ("energy_efficient", True): 40_000_000,
-    ("general", True): 30_000_000,
-    ("certified", False): 30_000_000,
-    ("zeh", False): 30_000_000,
-    ("energy_efficient", False): 30_000_000,
-    ("general", False): 20_000_000,
-}
 
 
 def generate_housing_loan_detail_pdf(
@@ -987,7 +983,7 @@ def generate_housing_loan_detail_pdf(
 
     # 上限額
     key = (housing_category, is_new)
-    balance_limit = _HOUSING_BALANCE_LIMITS.get(key, 30_000_000)
+    balance_limit = HOUSING_LOAN_BALANCE_LIMITS.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
     fields.append(
         {
             "type": "text",
@@ -1037,6 +1033,22 @@ def generate_housing_loan_detail_pdf(
 # ============================================================
 
 
+def _resolve_taxpayer_name(taxpayer_name: str, config_path: str | None) -> str:
+    """Resolve taxpayer name: use provided name, or load from config."""
+    if taxpayer_name:
+        return taxpayer_name
+    if config_path:
+        try:
+            from shinkoku.config import load_config
+
+            config = load_config(config_path)
+            name = f"{config.taxpayer.last_name} {config.taxpayer.first_name}".strip()
+            return name
+        except Exception:
+            pass
+    return ""
+
+
 def register(mcp) -> None:
     """Register document generation tools with the MCP server."""
 
@@ -1050,8 +1062,10 @@ def register(mcp) -> None:
         bs_equity: list[dict] | None = None,
         output_path: str = "output/bs_pl.pdf",
         taxpayer_name: str = "",
+        config_path: str | None = None,
     ) -> dict:
         """Generate blue return BS/PL PDF from financial data."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
         pl_rev_items = [PLItem(**r) for r in (pl_revenues or [])]
         pl_exp_items = [PLItem(**e) for e in (pl_expenses or [])]
         total_rev = sum(i.amount for i in pl_rev_items)
@@ -1085,7 +1099,7 @@ def register(mcp) -> None:
             pl_data=pl_data,
             bs_data=bs_data,
             output_path=output_path,
-            taxpayer_name=taxpayer_name,
+            taxpayer_name=resolved_name,
         )
         return {"output_path": path, "pages": 2 if bs_data else 1}
 
@@ -1106,8 +1120,10 @@ def register(mcp) -> None:
         tax_due: int = 0,
         output_path: str = "output/income_tax.pdf",
         taxpayer_name: str = "",
+        config_path: str | None = None,
     ) -> dict:
         """Generate income tax form B PDF."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
         tax_result = IncomeTaxResult(
             fiscal_year=fiscal_year,
             salary_income_after_deduction=salary_income_after_deduction,
@@ -1126,7 +1142,7 @@ def register(mcp) -> None:
         path = generate_income_tax_pdf(
             tax_result=tax_result,
             output_path=output_path,
-            taxpayer_name=taxpayer_name,
+            taxpayer_name=resolved_name,
         )
         return {"output_path": path}
 
@@ -1142,8 +1158,10 @@ def register(mcp) -> None:
         total_due: int = 0,
         output_path: str = "output/consumption_tax.pdf",
         taxpayer_name: str = "",
+        config_path: str | None = None,
     ) -> dict:
         """Generate consumption tax form PDF."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
         tax_result = ConsumptionTaxResult(
             fiscal_year=fiscal_year,
             method=method,
@@ -1157,7 +1175,7 @@ def register(mcp) -> None:
         path = generate_consumption_tax_pdf(
             tax_result=tax_result,
             output_path=output_path,
-            taxpayer_name=taxpayer_name,
+            taxpayer_name=resolved_name,
         )
         return {"output_path": path}
 
@@ -1168,14 +1186,16 @@ def register(mcp) -> None:
         total_income: int = 0,
         output_path: str = "output/medical_expense_detail.pdf",
         taxpayer_name: str = "",
+        config_path: str | None = None,
     ) -> dict:
         """Generate medical expense detail form PDF (医療費控除の明細書)."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
         path = generate_medical_expense_detail_pdf(
             expenses=expenses or [],
             fiscal_year=fiscal_year,
             total_income=total_income,
             output_path=output_path,
-            taxpayer_name=taxpayer_name,
+            taxpayer_name=resolved_name,
         )
         return {"output_path": path}
 
@@ -1185,13 +1205,15 @@ def register(mcp) -> None:
         rent_details: list[dict] | None = None,
         output_path: str = "output/rent_detail.pdf",
         taxpayer_name: str = "",
+        config_path: str | None = None,
     ) -> dict:
         """Generate rent payment detail form PDF (地代家賃の内訳書)."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
         path = generate_rent_detail_pdf(
             rent_details=rent_details or [],
             fiscal_year=fiscal_year,
             output_path=output_path,
-            taxpayer_name=taxpayer_name,
+            taxpayer_name=resolved_name,
         )
         return {"output_path": path}
 
@@ -1202,14 +1224,16 @@ def register(mcp) -> None:
         credit_amount: int = 0,
         output_path: str = "output/housing_loan_detail.pdf",
         taxpayer_name: str = "",
+        config_path: str | None = None,
     ) -> dict:
         """Generate housing loan credit calculation detail PDF (住宅借入金等特別控除の計算明細書)."""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
         path = generate_housing_loan_detail_pdf(
             housing_detail=housing_detail or {},
             credit_amount=credit_amount,
             fiscal_year=fiscal_year,
             output_path=output_path,
-            taxpayer_name=taxpayer_name,
+            taxpayer_name=resolved_name,
         )
         return {"output_path": path}
 
@@ -1220,10 +1244,12 @@ def register(mcp) -> None:
         tax_credits: list[dict] | None = None,
         output_path: str = "output/deduction_detail.pdf",
         taxpayer_name: str = "",
+        config_path: str | None = None,
     ) -> dict:
         """Generate deduction detail form PDF."""
         from shinkoku.models import DeductionItem
 
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
         inc_items = [DeductionItem(**d) for d in (income_deductions or [])]
         tc_items = [DeductionItem(**d) for d in (tax_credits or [])]
         deductions = DeductionsResult(
@@ -1236,6 +1262,6 @@ def register(mcp) -> None:
             deductions=deductions,
             fiscal_year=fiscal_year,
             output_path=output_path,
-            taxpayer_name=taxpayer_name,
+            taxpayer_name=resolved_name,
         )
         return {"output_path": path}

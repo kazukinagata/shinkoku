@@ -293,6 +293,28 @@ class HousingLoanDetailRecord(BaseModel):
     is_new_construction: bool
 
 
+class LifeInsurancePremiumInput(BaseModel):
+    """生命保険料控除の3区分入力（新旧制度対応）。"""
+
+    general_new: int = 0  # 一般生命保険料（新制度）
+    general_old: int = 0  # 一般生命保険料（旧制度）
+    medical_care: int = 0  # 介護医療保険料（新制度のみ）
+    annuity_new: int = 0  # 個人年金保険料（新制度）
+    annuity_old: int = 0  # 個人年金保険料（旧制度）
+
+
+class SmallBusinessMutualAidInput(BaseModel):
+    """小規模企業共済等掛金控除のサブタイプ。"""
+
+    small_business_mutual_aid: int = 0  # 小規模企業共済
+    ideco: int = 0  # iDeCo（個人型確定拠出年金）
+    disability_mutual_aid: int = 0  # 心身障害者扶養共済
+
+    @property
+    def total(self) -> int:
+        return self.small_business_mutual_aid + self.ideco + self.disability_mutual_aid
+
+
 class IncomeTaxInput(BaseModel):
     """所得税計算の入力。"""
 
@@ -300,11 +322,15 @@ class IncomeTaxInput(BaseModel):
     salary_income: int = 0
     business_revenue: int = 0
     business_expenses: int = 0
-    blue_return_deduction: int = 650000
+    blue_return_deduction: int = 650_000
     social_insurance: int = 0
     life_insurance_premium: int = 0
+    life_insurance_detail: LifeInsurancePremiumInput | None = None  # 3区分詳細（Phase 3）
     earthquake_insurance_premium: int = 0
+    old_long_term_insurance_premium: int = 0  # 旧長期損害保険料（Phase 4）
     medical_expenses: int = 0
+    self_medication_expenses: int = 0  # セルフメディケーション税制（Phase 8）
+    self_medication_eligible: bool = False  # 特定健康診査等を受けているか
     furusato_nozei: int = 0
     housing_loan_balance: int = 0
     housing_loan_year: int | None = None
@@ -312,10 +338,19 @@ class IncomeTaxInput(BaseModel):
     spouse_income: int | None = None
     dependents: list[DependentInfo] = Field(default_factory=list)
     ideco_contribution: int = 0  # iDeCo掛金（小規模企業共済等掛金控除）
+    small_business_mutual_aid: SmallBusinessMutualAidInput | None = None  # Phase 7
+    widow_status: str = "none"  # none / widow / single_parent（Phase 5）
+    disability_status: str = "none"  # none / general / special（Phase 5）
+    working_student: bool = False  # 勤労学生（Phase 5）
     withheld_tax: int = 0  # 給与の源泉徴収税額
     business_withheld_tax: int = 0  # 事業所得の源泉徴収税額（取引先別合計）
     loss_carryforward_amount: int = 0  # 繰越損失額
     estimated_tax_payment: int = 0  # 予定納税額（第1期+第2期）
+    # Phase 10: その他所得（総合課税）
+    misc_income: int = 0  # 雑所得
+    dividend_income_comprehensive: int = 0  # 配当所得（総合課税）
+    one_time_income: int = 0  # 一時所得（1/2適用前の金額）
+    other_income_withheld_tax: int = 0  # その他所得の源泉徴収税額
 
 
 class IncomeTaxResult(BaseModel):
@@ -552,3 +587,357 @@ class DuplicateCheckResult(BaseModel):
     pairs: list[DuplicatePair] = Field(default_factory=list)
     exact_count: int = 0
     suspected_count: int = 0
+
+
+# --- 配偶者情報 (spouse info) ---
+
+
+class SpouseInput(BaseModel):
+    """配偶者情報の入力。"""
+
+    name: str
+    date_of_birth: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    income: int = 0
+    disability: str | None = Field(
+        default=None, pattern=r"^(general|special|special_cohabiting)$"
+    )
+    cohabiting: bool = True
+    other_taxpayer_dependent: bool = False
+
+
+class SpouseRecord(BaseModel):
+    """配偶者情報のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    name: str
+    date_of_birth: str
+    income: int
+    disability: str | None
+    cohabiting: bool
+    other_taxpayer_dependent: bool
+
+
+# --- 扶養親族 (dependents) DB永続化 ---
+
+
+class DependentInput(BaseModel):
+    """扶養親族の登録入力。"""
+
+    name: str
+    relationship: str
+    date_of_birth: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    income: int = 0
+    disability: str | None = Field(
+        default=None, pattern=r"^(general|special|special_cohabiting)$"
+    )
+    cohabiting: bool = True
+
+
+class DependentRecord(BaseModel):
+    """扶養親族のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    name: str
+    relationship: str
+    date_of_birth: str
+    income: int
+    disability: str | None
+    cohabiting: bool
+
+
+# --- 源泉徴収票 (withholding slip) 拡張 ---
+
+
+class WithholdingSlipInput(BaseModel):
+    """源泉徴収票の登録入力。"""
+
+    payer_name: str | None = None
+    payment_amount: int = 0
+    withheld_tax: int = 0
+    social_insurance: int = 0
+    life_insurance_deduction: int = 0
+    earthquake_insurance_deduction: int = 0
+    housing_loan_deduction: int = 0
+    spouse_deduction: int = 0
+    dependent_deduction: int = 0
+    basic_deduction: int = 0
+    # 拡張フィールド（Phase 6）
+    life_insurance_general_new: int = 0
+    life_insurance_general_old: int = 0
+    life_insurance_medical_care: int = 0
+    life_insurance_annuity_new: int = 0
+    life_insurance_annuity_old: int = 0
+    national_pension_premium: int = 0
+    old_long_term_insurance_premium: int = 0
+    source_file: str | None = None
+
+
+class WithholdingSlipRecord(BaseModel):
+    """源泉徴収票のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    payer_name: str | None
+    payment_amount: int
+    withheld_tax: int
+    social_insurance: int
+    life_insurance_deduction: int
+    earthquake_insurance_deduction: int
+    housing_loan_deduction: int
+    spouse_deduction: int
+    dependent_deduction: int
+    basic_deduction: int
+    life_insurance_general_new: int = 0
+    life_insurance_general_old: int = 0
+    life_insurance_medical_care: int = 0
+    life_insurance_annuity_new: int = 0
+    life_insurance_annuity_old: int = 0
+    national_pension_premium: int = 0
+    old_long_term_insurance_premium: int = 0
+    source_file: str | None = None
+
+
+# --- その他所得 (other income) ---
+
+
+class OtherIncomeInput(BaseModel):
+    """その他所得（雑/配当/一時）の入力。"""
+
+    income_type: str = Field(
+        pattern=r"^(miscellaneous|dividend_comprehensive|one_time)$",
+        description="miscellaneous=雑所得, dividend_comprehensive=配当所得(総合課税), one_time=一時所得",
+    )
+    description: str
+    revenue: int = Field(ge=0, description="収入（円）")
+    expenses: int = 0
+    withheld_tax: int = 0
+    payer_name: str | None = None
+    payer_address: str | None = None
+
+
+class OtherIncomeRecord(BaseModel):
+    """その他所得のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    income_type: str
+    description: str
+    revenue: int
+    expenses: int
+    withheld_tax: int
+    payer_name: str | None
+    payer_address: str | None
+
+
+# --- 仮想通貨 (crypto) ---
+
+
+class CryptoIncomeInput(BaseModel):
+    """仮想通貨取引の入力。"""
+
+    exchange_name: str
+    gains: int = 0
+    expenses: int = 0
+
+
+class CryptoIncomeRecord(BaseModel):
+    """仮想通貨取引のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    exchange_name: str
+    gains: int
+    expenses: int
+
+
+# --- 在庫棚卸 (inventory) ---
+
+
+class InventoryInput(BaseModel):
+    """在庫棚卸の入力。"""
+
+    period: str = Field(
+        pattern=r"^(beginning|ending)$",
+        description="beginning=期首棚卸, ending=期末棚卸",
+    )
+    amount: int = Field(ge=0, description="棚卸高（円）")
+    method: str = "cost"  # cost / retail / etc.
+    details: str | None = None
+
+
+class InventoryRecord(BaseModel):
+    """在庫棚卸のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    period: str
+    amount: int
+    method: str
+    details: str | None
+
+
+# --- 税理士等報酬 (professional fees) ---
+
+
+class ProfessionalFeeInput(BaseModel):
+    """税理士等報酬の入力。"""
+
+    payer_address: str
+    payer_name: str
+    fee_amount: int = Field(gt=0, description="報酬金額（円）")
+    expense_deduction: int = 0  # 必要経費
+    withheld_tax: int = 0
+
+
+class ProfessionalFeeRecord(BaseModel):
+    """税理士等報酬のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    payer_address: str
+    payer_name: str
+    fee_amount: int
+    expense_deduction: int
+    withheld_tax: int
+
+
+# --- 株式取引 (stock trading) ---
+
+
+class StockTradingAccountInput(BaseModel):
+    """株式取引口座の入力。"""
+
+    account_type: str = Field(
+        pattern=r"^(tokutei_withholding|tokutei_no_withholding|ippan_listed|ippan_unlisted)$",
+        description="tokutei_withholding=特定口座(源泉あり), tokutei_no_withholding=特定口座(源泉なし), "
+        "ippan_listed=一般口座(上場), ippan_unlisted=一般口座(非上場)",
+    )
+    broker_name: str
+    gains: int = 0
+    losses: int = 0
+    withheld_income_tax: int = 0
+    withheld_residential_tax: int = 0
+    dividend_income: int = 0
+    dividend_withheld_tax: int = 0
+
+
+class StockTradingAccountRecord(BaseModel):
+    """株式取引口座のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    account_type: str
+    broker_name: str
+    gains: int
+    losses: int
+    withheld_income_tax: int
+    withheld_residential_tax: int
+    dividend_income: int
+    dividend_withheld_tax: int
+
+
+class StockLossCarryforwardInput(BaseModel):
+    """株式譲渡損失繰越の入力。"""
+
+    loss_year: int
+    amount: int = Field(gt=0, description="繰越損失額（円）")
+
+
+class StockLossCarryforwardRecord(BaseModel):
+    """株式譲渡損失繰越のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    loss_year: int
+    amount: int
+    used_amount: int
+
+
+# --- FX取引 (FX trading) ---
+
+
+class FXTradingInput(BaseModel):
+    """FX取引の入力。"""
+
+    broker_name: str
+    realized_gains: int = 0
+    swap_income: int = 0
+    expenses: int = 0
+
+
+class FXTradingRecord(BaseModel):
+    """FX取引のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    broker_name: str
+    realized_gains: int
+    swap_income: int
+    expenses: int
+
+
+class FXLossCarryforwardInput(BaseModel):
+    """FX損失繰越の入力。"""
+
+    loss_year: int
+    amount: int = Field(gt=0, description="繰越損失額（円）")
+
+
+class FXLossCarryforwardRecord(BaseModel):
+    """FX損失繰越のDBレコード。"""
+
+    id: int
+    fiscal_year: int
+    loss_year: int
+    amount: int
+    used_amount: int
+
+
+# --- 分離課税 (separate taxation) ---
+
+
+class SeparateTaxInput(BaseModel):
+    """分離課税計算の入力。"""
+
+    fiscal_year: int
+    # 株式
+    stock_gains: int = 0
+    stock_losses: int = 0
+    stock_dividend_separate: int = 0  # 分離課税選択の配当
+    stock_withheld_income_tax: int = 0
+    stock_withheld_residential_tax: int = 0
+    stock_loss_carryforward: int = 0  # 株式繰越損失額
+    # FX
+    fx_gains: int = 0  # realized_gains + swap_income
+    fx_expenses: int = 0
+    fx_loss_carryforward: int = 0  # FX繰越損失額
+
+
+class SeparateTaxResult(BaseModel):
+    """分離課税計算結果。"""
+
+    fiscal_year: int
+    # 株式
+    stock_net_gain: int = 0  # 譲渡益 - 譲渡損
+    stock_dividend_offset: int = 0  # 配当との損益通算額
+    stock_taxable_income: int = 0  # 課税所得（繰越損失適用後）
+    stock_loss_carryforward_used: int = 0
+    stock_income_tax: int = 0  # 所得税15%
+    stock_residential_tax: int = 0  # 住民税5%
+    stock_reconstruction_tax: int = 0  # 復興特別所得税0.315%
+    stock_total_tax: int = 0
+    stock_withheld_total: int = 0
+    stock_tax_due: int = 0
+    # FX
+    fx_net_income: int = 0
+    fx_taxable_income: int = 0
+    fx_loss_carryforward_used: int = 0
+    fx_income_tax: int = 0
+    fx_residential_tax: int = 0
+    fx_reconstruction_tax: int = 0
+    fx_total_tax: int = 0
+    fx_tax_due: int = 0
+    # 合計
+    total_separate_tax: int = 0
