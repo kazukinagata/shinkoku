@@ -26,6 +26,7 @@ from shinkoku.tools.tax_calc import (
 from shinkoku.models import (
     DeductionsResult,
     DependentInfo,
+    DonationRecordRecord,
     HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
@@ -1924,9 +1925,7 @@ class TestOtherIncomeIntegration:
     """misc/dividend/one_time income の calc_income_tax 統合テスト。"""
 
     def test_misc_income_adds_to_total(self):
-        base = calc_income_tax(
-            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
-        )
+        base = calc_income_tax(IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000))
         with_misc = calc_income_tax(
             IncomeTaxInput(
                 fiscal_year=2025,
@@ -1937,9 +1936,7 @@ class TestOtherIncomeIntegration:
         assert with_misc.total_income == base.total_income + 500_000
 
     def test_dividend_comprehensive_adds_to_total(self):
-        base = calc_income_tax(
-            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
-        )
+        base = calc_income_tax(IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000))
         with_div = calc_income_tax(
             IncomeTaxInput(
                 fiscal_year=2025,
@@ -1951,9 +1948,7 @@ class TestOtherIncomeIntegration:
 
     def test_one_time_income_half_rule(self):
         """一時所得: (収入 - 500,000特別控除) × 1/2 が total_income に加算。"""
-        base = calc_income_tax(
-            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
-        )
+        base = calc_income_tax(IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000))
         with_onetime = calc_income_tax(
             IncomeTaxInput(
                 fiscal_year=2025,
@@ -1966,9 +1961,7 @@ class TestOtherIncomeIntegration:
 
     def test_one_time_income_under_special_deduction(self):
         """一時所得50万以下は特別控除で相殺。"""
-        base = calc_income_tax(
-            IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000)
-        )
+        base = calc_income_tax(IncomeTaxInput(fiscal_year=2025, business_revenue=3_000_000))
         with_onetime = calc_income_tax(
             IncomeTaxInput(
                 fiscal_year=2025,
@@ -1996,3 +1989,153 @@ class TestOtherIncomeIntegration:
             )
         )
         assert with_withheld.tax_due == without.tax_due - 50_000
+
+
+class TestOtherTaxpayerDependentExclusion:
+    """他の納税者の扶養親族の控除除外テスト。"""
+
+    def test_other_taxpayer_dependent_excluded(self):
+        """other_taxpayer_dependent=True の親族は扶養控除対象外。"""
+        deps = [
+            DependentInfo(
+                name="太郎",
+                relationship="子",
+                birth_date="2008-06-01",
+                other_taxpayer_dependent=True,
+            )
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 0
+
+    def test_other_taxpayer_dependent_false_included(self):
+        """other_taxpayer_dependent=False の親族は通常通り控除対象。"""
+        deps = [
+            DependentInfo(
+                name="太郎",
+                relationship="子",
+                birth_date="2008-06-01",
+                other_taxpayer_dependent=False,
+            )
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 1
+        assert dep_items[0].amount == 380_000
+
+    def test_mixed_dependents(self):
+        """混在: 一方は除外、一方は控除適用。"""
+        deps = [
+            DependentInfo(
+                name="太郎",
+                relationship="子",
+                birth_date="2008-06-01",
+                other_taxpayer_dependent=True,
+            ),
+            DependentInfo(
+                name="花子",
+                relationship="子",
+                birth_date="2004-03-15",
+                other_taxpayer_dependent=False,
+            ),
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        dep_items = [i for i in items if i.type == "dependent"]
+        assert len(dep_items) == 1
+        assert dep_items[0].amount == 630_000  # 特定扶養
+
+    def test_disability_also_excluded(self):
+        """other_taxpayer_dependent=True の場合、障害者控除も除外される。"""
+        deps = [
+            DependentInfo(
+                name="太郎",
+                relationship="子",
+                birth_date="2008-06-01",
+                disability="general",
+                other_taxpayer_dependent=True,
+            )
+        ]
+        items = calc_dependents_deduction(deps, taxpayer_income=5_000_000, fiscal_year=2025)
+        assert len(items) == 0
+
+
+class TestDonationDeduction:
+    """ふるさと納税以外の寄附金控除テスト。"""
+
+    def _make_donation(self, **kwargs):
+        defaults = {
+            "id": 1,
+            "fiscal_year": 2025,
+            "donation_type": "npo",
+            "recipient_name": "テストNPO",
+            "amount": 100_000,
+            "date": "2025-06-01",
+            "receipt_number": None,
+            "source_file": None,
+        }
+        defaults.update(kwargs)
+        return DonationRecordRecord(**defaults)
+
+    def test_npo_income_deduction(self):
+        """認定NPO法人への寄附: 所得控除 = 寄附金 - 2,000円。"""
+        donations = [self._make_donation(amount=100_000)]
+        result = calc_deductions(
+            total_income=5_000_000,
+            donations=donations,
+        )
+        donation_items = [d for d in result.income_deductions if d.type == "donation"]
+        assert len(donation_items) == 1
+        assert donation_items[0].amount == 98_000  # 100,000 - 2,000
+
+    def test_npo_tax_credit(self):
+        """認定NPO法人への寄附: 税額控除 = (寄附金 - 2,000円) × 40%。"""
+        donations = [self._make_donation(amount=100_000)]
+        result = calc_deductions(
+            total_income=5_000_000,
+            donations=donations,
+        )
+        npo_credits = [c for c in result.tax_credits if c.type == "npo_donation"]
+        assert len(npo_credits) == 1
+        assert npo_credits[0].amount == 39_200  # (100,000 - 2,000) * 40%
+
+    def test_political_tax_credit(self):
+        """政治活動寄附金: 税額控除 = (寄附金 - 2,000円) × 30%。"""
+        donations = [self._make_donation(donation_type="political", amount=50_000)]
+        result = calc_deductions(
+            total_income=5_000_000,
+            donations=donations,
+        )
+        pol_credits = [c for c in result.tax_credits if c.type == "political_donation"]
+        assert len(pol_credits) == 1
+        assert pol_credits[0].amount == 14_400  # (50,000 - 2,000) * 30%
+
+    def test_income_deduction_capped_at_40pct(self):
+        """所得控除上限: 総所得金額の40%。"""
+        # 所得100万、寄附50万 → 所得控除上限 = 100万 × 40% = 40万
+        donations = [self._make_donation(amount=500_000)]
+        result = calc_deductions(
+            total_income=1_000_000,
+            donations=donations,
+        )
+        donation_items = [d for d in result.income_deductions if d.type == "donation"]
+        assert len(donation_items) == 1
+        assert donation_items[0].amount == 400_000  # 100万×40% < (50万-2千)
+
+    def test_no_deduction_below_2000(self):
+        """自己負担額（2,000円）以下の寄附は控除なし。"""
+        donations = [self._make_donation(amount=2_000)]
+        result = calc_deductions(
+            total_income=5_000_000,
+            donations=donations,
+        )
+        donation_items = [d for d in result.income_deductions if d.type == "donation"]
+        assert len(donation_items) == 0
+
+    def test_no_donations_no_deduction(self):
+        """寄附金なしの場合は控除項目に含まれない。"""
+        result = calc_deductions(
+            total_income=5_000_000,
+            donations=None,
+        )
+        donation_items = [d for d in result.income_deductions if d.type == "donation"]
+        assert len(donation_items) == 0

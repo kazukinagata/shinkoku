@@ -17,10 +17,10 @@ from __future__ import annotations
 # (上限所得, 控除額)
 # ============================================================
 BASIC_DEDUCTION_TABLE: list[tuple[int, int]] = [
-    (1_320_000, 950_000),   # ≤132万: 95万 (本則58万+加算37万)
-    (3_360_000, 880_000),   # 132万超〜336万: 88万 (本則58万+加算30万)
-    (4_890_000, 680_000),   # 336万超〜489万: 68万 (本則58万+加算10万)
-    (6_550_000, 630_000),   # 489万超〜655万: 63万 (本則58万+加算5万)
+    (1_320_000, 950_000),  # ≤132万: 95万 (本則58万+加算37万)
+    (3_360_000, 880_000),  # 132万超〜336万: 88万 (本則58万+加算30万)
+    (4_890_000, 680_000),  # 336万超〜489万: 68万 (本則58万+加算10万)
+    (6_550_000, 630_000),  # 489万超〜655万: 63万 (本則58万+加算5万)
     (23_500_000, 580_000),  # 655万超〜2,350万: 58万 (本則のみ)
     (24_000_000, 480_000),  # 2,350万超〜2,400万: 48万
     (24_500_000, 320_000),  # 2,400万超〜2,450万: 32万
@@ -38,10 +38,10 @@ SALARY_DEDUCTION_MAX = 1_950_000  # 上限（給与収入850万超）
 # 給与所得控除の速算表: (上限給与収入, 計算式の係数)
 # 実際の計算は関数で実装するが、境界値の参照用
 # 令和7年改正: ≤190万の範囲で一律65万（旧: ≤162.5万で55万）
-SALARY_DEDUCTION_BRACKET_1 = 1_900_000   # ≤190万: 65万（令和7年改正）
-SALARY_DEDUCTION_BRACKET_2 = 3_600_000   # 190万超〜360万: 収入×30%+8万
-SALARY_DEDUCTION_BRACKET_3 = 6_600_000   # 360万超〜660万: 収入×20%+44万
-SALARY_DEDUCTION_BRACKET_4 = 8_500_000   # 660万超〜850万: 収入×10%+110万
+SALARY_DEDUCTION_BRACKET_1 = 1_900_000  # ≤190万: 65万（令和7年改正）
+SALARY_DEDUCTION_BRACKET_2 = 3_600_000  # 190万超〜360万: 収入×30%+8万
+SALARY_DEDUCTION_BRACKET_3 = 6_600_000  # 360万超〜660万: 収入×20%+44万
+SALARY_DEDUCTION_BRACKET_4 = 8_500_000  # 660万超〜850万: 収入×10%+110万
 # 850万超: 195万（上限）
 
 # ============================================================
@@ -49,43 +49,43 @@ SALARY_DEDUCTION_BRACKET_4 = 8_500_000   # 660万超〜850万: 収入×10%+110�
 # 所得税法第76条
 # ============================================================
 # 新制度（平成24年1月1日以後の契約）
-LIFE_INSURANCE_NEW_MAX = 40_000          # 新制度1区分上限
-LIFE_INSURANCE_NEW_BRACKET_1 = 20_000    # ≤2万: 全額
-LIFE_INSURANCE_NEW_BRACKET_2 = 40_000    # 2万超〜4万: 支払額/2+10,000
-LIFE_INSURANCE_NEW_BRACKET_3 = 80_000    # 4万超〜8万: 支払額/4+20,000
+LIFE_INSURANCE_NEW_MAX = 40_000  # 新制度1区分上限
+LIFE_INSURANCE_NEW_BRACKET_1 = 20_000  # ≤2万: 全額
+LIFE_INSURANCE_NEW_BRACKET_2 = 40_000  # 2万超〜4万: 支払額/2+10,000
+LIFE_INSURANCE_NEW_BRACKET_3 = 80_000  # 4万超〜8万: 支払額/4+20,000
 # 8万超: 40,000（上限）
 
 # 旧制度（平成23年12月31日以前の契約）
-LIFE_INSURANCE_OLD_MAX = 50_000          # 旧制度1区分上限
-LIFE_INSURANCE_OLD_BRACKET_1 = 25_000    # ≤2.5万: 全額
-LIFE_INSURANCE_OLD_BRACKET_2 = 50_000    # 2.5万超〜5万: 支払額/2+12,500
-LIFE_INSURANCE_OLD_BRACKET_3 = 100_000   # 5万超〜10万: 支払額/4+25,000
+LIFE_INSURANCE_OLD_MAX = 50_000  # 旧制度1区分上限
+LIFE_INSURANCE_OLD_BRACKET_1 = 25_000  # ≤2.5万: 全額
+LIFE_INSURANCE_OLD_BRACKET_2 = 50_000  # 2.5万超〜5万: 支払額/2+12,500
+LIFE_INSURANCE_OLD_BRACKET_3 = 100_000  # 5万超〜10万: 支払額/4+25,000
 # 10万超: 50,000（上限）
 
-LIFE_INSURANCE_COMBINED_MAX = 40_000     # 新旧合算1区分上限
-LIFE_INSURANCE_TOTAL_MAX = 120_000       # 3区分合計上限
+LIFE_INSURANCE_COMBINED_MAX = 40_000  # 新旧合算1区分上限
+LIFE_INSURANCE_TOTAL_MAX = 120_000  # 3区分合計上限
 
 # ============================================================
 # 地震保険料控除
 # 所得税法第77条
 # ============================================================
-EARTHQUAKE_INSURANCE_MAX = 50_000        # 地震保険料控除の上限
-OLD_LONG_TERM_MAX = 15_000               # 旧長期損害保険料控除の上限
-OLD_LONG_TERM_BRACKET_1 = 5_000          # ≤5,000: 全額
-OLD_LONG_TERM_BRACKET_2 = 15_000         # 5,000超〜15,000: 支払額/2+2,500
+EARTHQUAKE_INSURANCE_MAX = 50_000  # 地震保険料控除の上限
+OLD_LONG_TERM_MAX = 15_000  # 旧長期損害保険料控除の上限
+OLD_LONG_TERM_BRACKET_1 = 5_000  # ≤5,000: 全額
+OLD_LONG_TERM_BRACKET_2 = 15_000  # 5,000超〜15,000: 支払額/2+2,500
 # 15,000超: 15,000（上限）
 
 # ============================================================
 # 人的控除（令和7年分）
 # ============================================================
 # 寡婦控除・ひとり親控除（所得税法第81条・第81条の2）
-WIDOW_DEDUCTION = 270_000                # 寡婦控除
-SINGLE_PARENT_DEDUCTION = 350_000        # ひとり親控除
+WIDOW_DEDUCTION = 270_000  # 寡婦控除
+SINGLE_PARENT_DEDUCTION = 350_000  # ひとり親控除
 PERSONAL_DEDUCTION_INCOME_LIMIT = 5_000_000  # 人的控除の所得制限
 
 # 障害者控除（所得税法第79条）
-DISABILITY_GENERAL = 270_000             # 一般障害者
-DISABILITY_SPECIAL = 400_000             # 特別障害者
+DISABILITY_GENERAL = 270_000  # 一般障害者
+DISABILITY_SPECIAL = 400_000  # 特別障害者
 DISABILITY_SPECIAL_COHABITING = 750_000  # 同居特別障害者
 
 # 勤労学生控除（所得税法第82条、令和7年改正: 75万→85万）
@@ -95,28 +95,28 @@ WORKING_STUDENT_INCOME_LIMIT = 850_000
 # ============================================================
 # 扶養控除（所得税法第84条）
 # ============================================================
-DEPENDENT_INCOME_LIMIT = 580_000         # 扶養親族の所得要件（令和7年改正: 48万→58万）
-DEPENDENT_GENERAL = 380_000              # 一般扶養（16歳以上）
-DEPENDENT_SPECIFIC = 630_000             # 特定扶養（19歳以上23歳未満）
-DEPENDENT_ELDERLY = 480_000              # 老人扶養（70歳以上、別居）
-DEPENDENT_ELDERLY_COHABITING = 580_000   # 老人扶養（70歳以上、同居）
+DEPENDENT_INCOME_LIMIT = 580_000  # 扶養親族の所得要件（令和7年改正: 48万→58万）
+DEPENDENT_GENERAL = 380_000  # 一般扶養（16歳以上）
+DEPENDENT_SPECIFIC = 630_000  # 特定扶養（19歳以上23歳未満）
+DEPENDENT_ELDERLY = 480_000  # 老人扶養（70歳以上、別居）
+DEPENDENT_ELDERLY_COHABITING = 580_000  # 老人扶養（70歳以上、同居）
 
 # 年齢の境界（年度末時点）
-DEPENDENT_AGE_MIN = 16                   # 扶養控除の最低年齢
-DEPENDENT_AGE_SPECIFIC_MIN = 19          # 特定扶養の最低年齢
-DEPENDENT_AGE_SPECIFIC_MAX = 23          # 特定扶養の最大年齢（未満）
-DEPENDENT_AGE_ELDERLY = 70               # 老人扶養の最低年齢
+DEPENDENT_AGE_MIN = 16  # 扶養控除の最低年齢
+DEPENDENT_AGE_SPECIFIC_MIN = 19  # 特定扶養の最低年齢
+DEPENDENT_AGE_SPECIFIC_MAX = 23  # 特定扶養の最大年齢（未満）
+DEPENDENT_AGE_ELDERLY = 70  # 老人扶養の最低年齢
 
 # ============================================================
 # 医療費控除（所得税法第73条）
 # ============================================================
-MEDICAL_EXPENSE_THRESHOLD = 100_000      # 控除適用の閾値（または所得の5%のうち低い方）
-MEDICAL_EXPENSE_INCOME_RATIO = 5         # 所得の5%
-MEDICAL_EXPENSE_MAX = 2_000_000          # 控除額の上限
+MEDICAL_EXPENSE_THRESHOLD = 100_000  # 控除適用の閾値（または所得の5%のうち低い方）
+MEDICAL_EXPENSE_INCOME_RATIO = 5  # 所得の5%
+MEDICAL_EXPENSE_MAX = 2_000_000  # 控除額の上限
 
 # セルフメディケーション税制（租税特別措置法第41条の17の2）
-SELF_MEDICATION_THRESHOLD = 12_000       # 適用の閾値
-SELF_MEDICATION_MAX = 88_000             # 控除額の上限
+SELF_MEDICATION_THRESHOLD = 12_000  # 適用の閾値
+SELF_MEDICATION_MAX = 88_000  # 控除額の上限
 
 # ============================================================
 # 一時所得（所得税法第34条）
@@ -132,16 +132,16 @@ SPOUSE_TAXPAYER_INCOME_LIMIT = 10_000_000  # 納税者の所得制限
 # 配偶者控除テーブル: (配偶者所得上限, 控除額)
 # 納税者所得 ≤ 900万
 SPOUSE_DEDUCTION_TABLE: list[tuple[int, int]] = [
-    (580_000, 380_000),    # ≤58万: 配偶者控除 38万
-    (950_000, 380_000),    # 58万超〜95万: 配偶者特別控除 38万（満額）
+    (580_000, 380_000),  # ≤58万: 配偶者控除 38万
+    (950_000, 380_000),  # 58万超〜95万: 配偶者特別控除 38万（満額）
     (1_000_000, 360_000),  # 95万超〜100万: 36万
     (1_050_000, 310_000),  # 100万超〜105万: 31万
     (1_100_000, 260_000),  # 105万超〜110万: 26万
     (1_150_000, 210_000),  # 110万超〜115万: 21万
     (1_200_000, 160_000),  # 115万超〜120万: 16万
     (1_250_000, 110_000),  # 120万超〜125万: 11万
-    (1_300_000, 60_000),   # 125万超〜130万: 6万
-    (1_330_000, 30_000),   # 130万超〜133万: 3万
+    (1_300_000, 60_000),  # 125万超〜130万: 6万
+    (1_330_000, 30_000),  # 130万超〜133万: 3万
 ]
 
 # 納税者所得 900万超〜950万
@@ -173,31 +173,31 @@ SPOUSE_DEDUCTION_TABLE_10M: list[tuple[int, int]] = [
 ]
 
 # 納税者所得ブラケットの境界
-SPOUSE_TAXPAYER_BRACKET_1 = 9_000_000    # ≤900万
-SPOUSE_TAXPAYER_BRACKET_2 = 9_500_000    # 900万超〜950万
+SPOUSE_TAXPAYER_BRACKET_1 = 9_000_000  # ≤900万
+SPOUSE_TAXPAYER_BRACKET_2 = 9_500_000  # 900万超〜950万
 
 # ============================================================
 # ふるさと納税（所得税法第78条）
 # ============================================================
-FURUSATO_SELF_BURDEN = 2_000             # 自己負担額
-FURUSATO_INCOME_RATIO = 40              # 総所得金額等の40%上限
-FURUSATO_RESIDENTIAL_TAX_RATIO = 20     # 住民税所得割額の20%
+FURUSATO_SELF_BURDEN = 2_000  # 自己負担額
+FURUSATO_INCOME_RATIO = 40  # 総所得金額等の40%上限
+FURUSATO_RESIDENTIAL_TAX_RATIO = 20  # 住民税所得割額の20%
 
 # ============================================================
 # 住宅ローン控除（租税特別措置法第41条）
 # 令和4年以降入居
 # ============================================================
-HOUSING_LOAN_RATE = 7                    # 控除率 0.7% = 7/1000
+HOUSING_LOAN_RATE = 7  # 控除率 0.7% = 7/1000
 HOUSING_LOAN_RATE_DENOMINATOR = 1000
 
 # R4-R5 入居（令和4年〜5年）の年末残高上限額
 # (住宅性能区分, 新築かどうか) -> 残高上限
 HOUSING_LOAN_LIMITS_R4_R5: dict[tuple[str, bool], int] = {
     # 新築
-    ("certified", True): 50_000_000,     # 認定住宅（長期優良/低炭素）
-    ("zeh", True): 45_000_000,           # ZEH水準省エネ住宅
+    ("certified", True): 50_000_000,  # 認定住宅（長期優良/低炭素）
+    ("zeh", True): 45_000_000,  # ZEH水準省エネ住宅
     ("energy_efficient", True): 40_000_000,  # 省エネ基準適合住宅
-    ("general", True): 30_000_000,       # 一般住宅
+    ("general", True): 30_000_000,  # 一般住宅
     # 中古
     ("certified", False): 30_000_000,
     ("zeh", False): 30_000_000,
@@ -209,10 +209,10 @@ HOUSING_LOAN_LIMITS_R4_R5: dict[tuple[str, bool], int] = {
 # 令和5年度税制改正: 一般世帯は上限引下げ
 HOUSING_LOAN_LIMITS_R6_R7: dict[tuple[str, bool], int] = {
     # 新築
-    ("certified", True): 45_000_000,     # 認定住宅（4,500万に引下げ）
-    ("zeh", True): 35_000_000,           # ZEH水準省エネ（3,500万に引下げ）
+    ("certified", True): 45_000_000,  # 認定住宅（4,500万に引下げ）
+    ("zeh", True): 35_000_000,  # ZEH水準省エネ（3,500万に引下げ）
     ("energy_efficient", True): 30_000_000,  # 省エネ基準適合（3,000万に引下げ）
-    ("general", True): 0,               # 一般住宅（原則対象外）
+    ("general", True): 0,  # 一般住宅（原則対象外）
     # 中古（R4-R7で変更なし）
     ("certified", False): 30_000_000,
     ("zeh", False): 30_000_000,
@@ -224,10 +224,10 @@ HOUSING_LOAN_LIMITS_R6_R7: dict[tuple[str, bool], int] = {
 # 令和5年度税制改正: 子育て世帯は従来水準を維持
 HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE: dict[tuple[str, bool], int] = {
     # 新築
-    ("certified", True): 50_000_000,     # 認定住宅（従来水準維持）
-    ("zeh", True): 45_000_000,           # ZEH水準省エネ（従来水準維持）
+    ("certified", True): 50_000_000,  # 認定住宅（従来水準維持）
+    ("zeh", True): 45_000_000,  # ZEH水準省エネ（従来水準維持）
     ("energy_efficient", True): 40_000_000,  # 省エネ基準適合（従来水準維持）
-    ("general", True): 0,               # 一般住宅（子育てでも対象外）
+    ("general", True): 0,  # 一般住宅（子育てでも対象外）
     # 中古（R4-R7で変更なし）
     ("certified", False): 30_000_000,
     ("zeh", False): 30_000_000,
@@ -252,23 +252,23 @@ INCOME_TAX_TABLE: list[tuple[int, int, int]] = [
     (18_000_000, 33, 1_536_000),
     (40_000_000, 40, 2_796_000),
 ]
-INCOME_TAX_TOP_RATE = 45               # 4,000万超の税率
-INCOME_TAX_TOP_DEDUCTION = 4_796_000   # 4,000万超の控除額
+INCOME_TAX_TOP_RATE = 45  # 4,000万超の税率
+INCOME_TAX_TOP_DEDUCTION = 4_796_000  # 4,000万超の控除額
 
 # ============================================================
 # 復興特別所得税（復興財源確保法第13条）
 # 令和19年（2037年）まで適用
 # ============================================================
-RECONSTRUCTION_TAX_RATE = 21             # 2.1% = 21/1000
+RECONSTRUCTION_TAX_RATE = 21  # 2.1% = 21/1000
 RECONSTRUCTION_TAX_DENOMINATOR = 1000
 
 # ============================================================
 # 消費税（消費税法）
 # ============================================================
-CONSUMPTION_TAX_RATE_10 = 10             # 標準税率
-CONSUMPTION_TAX_RATE_8 = 8              # 軽減税率
-NATIONAL_TAX_RATIO = 78                 # 国税分 78/100
-LOCAL_TAX_RATIO = 22                    # 地方消費税分 22/78
+CONSUMPTION_TAX_RATE_10 = 10  # 標準税率
+CONSUMPTION_TAX_RATE_8 = 8  # 軽減税率
+NATIONAL_TAX_RATIO = 78  # 国税分 78/100
+LOCAL_TAX_RATIO = 22  # 地方消費税分 22/78
 
 # 簡易課税のみなし仕入率（消費税法第37条）
 SIMPLIFIED_DEEMED_RATIOS: dict[int, int] = {
@@ -279,40 +279,52 @@ SIMPLIFIED_DEEMED_RATIOS: dict[int, int] = {
     5: 50,  # サービス業等
     6: 40,  # 不動産業
 }
-SIMPLIFIED_DEFAULT_RATIO = 50           # デフォルト（サービス業）
+SIMPLIFIED_DEFAULT_RATIO = 50  # デフォルト（サービス業）
 
 # 2割特例の乗率（インボイス経過措置、令和8年9月30日まで）
-SPECIAL_20PCT_RATE = 20                 # 20%
+SPECIAL_20PCT_RATE = 20  # 20%
 
 # ============================================================
 # 分離課税（租税特別措置法）
 # ============================================================
-SEPARATE_TAX_INCOME_RATE = 15           # 所得税率
-SEPARATE_TAX_RESIDENTIAL_RATE = 5       # 住民税率
+SEPARATE_TAX_INCOME_RATE = 15  # 所得税率
+SEPARATE_TAX_RESIDENTIAL_RATE = 5  # 住民税率
 # 復興特別所得税はRECONSTRUCTION_TAX_RATEを使用
 # 合計: 15% + 5% + 15%×2.1% = 20.315%
 
 # ============================================================
 # 配当控除（所得税法第92条）
 # ============================================================
-DIVIDEND_CREDIT_RATE_LOW = 10           # 課税所得1,000万以下: 配当の10%
-DIVIDEND_CREDIT_RATE_HIGH = 5           # 課税所得1,000万超: 配当の5%
+DIVIDEND_CREDIT_RATE_LOW = 10  # 課税所得1,000万以下: 配当の10%
+DIVIDEND_CREDIT_RATE_HIGH = 5  # 課税所得1,000万超: 配当の5%
 DIVIDEND_CREDIT_THRESHOLD = 10_000_000  # 税率が変わる閾値
 
 # ============================================================
 # 青色申告特別控除（租税特別措置法第25条の2）
 # ============================================================
-BLUE_RETURN_DEDUCTION_65 = 650_000      # e-Tax提出 or 電子帳簿保存
-BLUE_RETURN_DEDUCTION_55 = 550_000      # 書面提出（正規の簿記の原則）
-BLUE_RETURN_DEDUCTION_10 = 100_000      # 簡易帳簿
+BLUE_RETURN_DEDUCTION_65 = 650_000  # e-Tax提出 or 電子帳簿保存
+BLUE_RETURN_DEDUCTION_55 = 550_000  # 書面提出（正規の簿記の原則）
+BLUE_RETURN_DEDUCTION_10 = 100_000  # 簡易帳簿
 
 # ============================================================
 # 端数処理
 # ============================================================
-TAXABLE_INCOME_ROUNDING = 1_000         # 課税所得: 1,000円未満切捨て
-TAX_AMOUNT_ROUNDING = 100               # 申告納税額: 100円未満切捨て
+TAXABLE_INCOME_ROUNDING = 1_000  # 課税所得: 1,000円未満切捨て
+TAX_AMOUNT_ROUNDING = 100  # 申告納税額: 100円未満切捨て
 
 # ============================================================
 # 予定納税（所得税法第104条）
 # ============================================================
-ESTIMATED_TAX_THRESHOLD = 150_000       # 予定納税の基準額（15万円）
+ESTIMATED_TAX_THRESHOLD = 150_000  # 予定納税の基準額（15万円）
+
+# ============================================================
+# 寄附金控除（所得税法第78条・租税特別措置法第41条の18等）
+# ============================================================
+DONATION_SELF_BURDEN = 2_000  # 自己負担額（2,000円）
+DONATION_INCOME_DEDUCTION_RATIO = 40  # 所得控除上限: 総所得金額の40%
+POLITICAL_DONATION_CREDIT_RATE = 30  # 政治活動寄附金の税額控除率30%
+POLITICAL_DONATION_CREDIT_RATE_DENOM = 100
+POLITICAL_DONATION_CREDIT_CAP_RATIO = 25  # 所得税額の25%上限
+NPO_DONATION_CREDIT_RATE = 40  # 認定NPO等の税額控除率40%
+NPO_DONATION_CREDIT_RATE_DENOM = 100
+NPO_DONATION_CREDIT_CAP_RATIO = 25  # 所得税額の25%上限

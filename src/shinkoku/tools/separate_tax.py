@@ -58,7 +58,9 @@ def calc_separate_tax(input_data: SeparateTaxInput) -> SeparateTaxResult:
     stock_income_tax = stock_taxable * SEPARATE_TAX_INCOME_RATE // 100
     stock_residential_tax = stock_taxable * SEPARATE_TAX_RESIDENTIAL_RATE // 100
     # 復興特別所得税 = 所得税 × 2.1%
-    stock_reconstruction = int(stock_income_tax * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR)
+    stock_reconstruction = int(
+        stock_income_tax * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR
+    )
     stock_total = stock_income_tax + stock_residential_tax + stock_reconstruction
 
     # 源泉徴収差引
@@ -81,7 +83,9 @@ def calc_separate_tax(input_data: SeparateTaxInput) -> SeparateTaxResult:
     # 税額計算
     fx_income_tax = fx_taxable * SEPARATE_TAX_INCOME_RATE // 100
     fx_residential_tax = fx_taxable * SEPARATE_TAX_RESIDENTIAL_RATE // 100
-    fx_reconstruction = int(fx_income_tax * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR)
+    fx_reconstruction = int(
+        fx_income_tax * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR
+    )
     fx_total = fx_income_tax + fx_residential_tax + fx_reconstruction
     fx_due = fx_total  # FX は源泉徴収なし
 

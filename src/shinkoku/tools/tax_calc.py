@@ -14,6 +14,7 @@ from shinkoku.models import (
     DeductionItem,
     DeductionsResult,
     DependentInfo,
+    DonationRecordRecord,
     HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
@@ -28,6 +29,14 @@ from shinkoku.tax_constants import (
     DEPENDENT_ELDERLY_COHABITING,
     DEPENDENT_GENERAL,
     DEPENDENT_INCOME_LIMIT,
+    DONATION_INCOME_DEDUCTION_RATIO,
+    DONATION_SELF_BURDEN,
+    NPO_DONATION_CREDIT_CAP_RATIO,
+    NPO_DONATION_CREDIT_RATE,
+    NPO_DONATION_CREDIT_RATE_DENOM,
+    POLITICAL_DONATION_CREDIT_CAP_RATIO,
+    POLITICAL_DONATION_CREDIT_RATE,
+    POLITICAL_DONATION_CREDIT_RATE_DENOM,
     DEPENDENT_SPECIFIC,
     DISABILITY_GENERAL,
     DISABILITY_SPECIAL,
@@ -299,15 +308,13 @@ def calc_dividend_tax_credit(dividend_income: int, taxable_income: int) -> int:
     if under_10m >= dividend_income:
         return dividend_income * DIVIDEND_CREDIT_RATE_LOW // 100
     over_10m = dividend_income - under_10m
-    return (
-        under_10m * DIVIDEND_CREDIT_RATE_LOW // 100
-        + over_10m * DIVIDEND_CREDIT_RATE_HIGH // 100
-    )
+    return under_10m * DIVIDEND_CREDIT_RATE_LOW // 100 + over_10m * DIVIDEND_CREDIT_RATE_HIGH // 100
 
 
 # ============================================================
 # Spouse Deduction
 # ============================================================
+
 
 def calc_spouse_deduction(taxpayer_income: int, spouse_income: int | None) -> int:
     """Calculate spouse deduction / special spouse deduction."""
@@ -368,6 +375,10 @@ def calc_dependents_deduction(
     fiscal_year_end = f"{fiscal_year}-12-31"
 
     for dep in dependents:
+        # 他の納税者の扶養親族 → 二重控除防止のため除外
+        if dep.other_taxpayer_dependent:
+            continue
+
         # 配偶者は配偶者控除で処理するため除外
         if dep.relationship == "配偶者":
             continue
@@ -475,7 +486,6 @@ def calc_furusato_deduction(donation: int, total_income: int | None = None) -> i
 # ============================================================
 
 
-
 def calc_housing_loan_credit(
     balance: int,
     detail: HousingLoanDetail | None = None,
@@ -553,6 +563,7 @@ def calc_deductions(
     working_student: bool = False,
     dividend_income_comprehensive: int = 0,
     taxable_income_for_dividend_credit: int = 0,
+    donations: list[DonationRecordRecord] | None = None,
 ) -> DeductionsResult:
     """Calculate all applicable deductions and return structured result."""
     income_deductions: list[DeductionItem] = []
@@ -643,7 +654,9 @@ def calc_deductions(
         # セルフメディケーション税制（医療費控除と併用不可）
         selfmed = calc_self_medication_deduction(self_medication_expenses)
         # 通常の医療費控除と比較して有利な方を適用
-        medical_threshold = min(MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100)
+        medical_threshold = min(
+            MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100
+        )
         med_normal = (
             min(medical_expenses - medical_threshold, MEDICAL_EXPENSE_MAX)
             if medical_expenses > medical_threshold
@@ -662,7 +675,9 @@ def calc_deductions(
                 DeductionItem(type="medical", name="医療費控除", amount=med_normal)
             )
     else:
-        medical_threshold = min(MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100)
+        medical_threshold = min(
+            MEDICAL_EXPENSE_THRESHOLD, total_income * MEDICAL_EXPENSE_INCOME_RATIO // 100
+        )
         if medical_expenses > medical_threshold:
             med_deduction = min(medical_expenses - medical_threshold, MEDICAL_EXPENSE_MAX)
             income_deductions.append(
@@ -682,13 +697,66 @@ def calc_deductions(
                 )
             )
 
+    # 7b. その他の寄附金控除（政治活動/認定NPO/公益法人等）
+    if donations:
+        # 所得控除対象（所得税法第78条）: 全寄附金 - 2,000円（総所得金額×40%上限）
+        donation_total = sum(d.amount for d in donations)
+        if donation_total > DONATION_SELF_BURDEN:
+            income_limit = total_income * DONATION_INCOME_DEDUCTION_RATIO // 100
+            donation_deduction = min(donation_total - DONATION_SELF_BURDEN, income_limit)
+            if donation_deduction > 0:
+                income_deductions.append(
+                    DeductionItem(
+                        type="donation",
+                        name="寄附金控除（その他）",
+                        amount=donation_deduction,
+                        details=f"寄附金合計: {donation_total}",
+                    )
+                )
+
+        # 税額控除対象: 政治活動寄附金（租税特別措置法第41条の18）
+        political_total = sum(d.amount for d in donations if d.donation_type == "political")
+        if political_total > DONATION_SELF_BURDEN:
+            political_credit = (
+                (political_total - DONATION_SELF_BURDEN)
+                * POLITICAL_DONATION_CREDIT_RATE
+                // POLITICAL_DONATION_CREDIT_RATE_DENOM
+            )
+            if political_credit > 0:
+                tax_credits.append(
+                    DeductionItem(
+                        type="political_donation",
+                        name="政治活動寄附金控除",
+                        amount=political_credit,
+                        details=f"所得税額の{POLITICAL_DONATION_CREDIT_CAP_RATIO}%上限あり",
+                    )
+                )
+
+        # 税額控除対象: 認定NPO/公益法人等（租税特別措置法第41条の18の2/3）
+        npo_total = sum(
+            d.amount for d in donations if d.donation_type in ("npo", "public_interest")
+        )
+        if npo_total > DONATION_SELF_BURDEN:
+            npo_credit = (
+                (npo_total - DONATION_SELF_BURDEN)
+                * NPO_DONATION_CREDIT_RATE
+                // NPO_DONATION_CREDIT_RATE_DENOM
+            )
+            if npo_credit > 0:
+                tax_credits.append(
+                    DeductionItem(
+                        type="npo_donation",
+                        name="認定NPO等寄附金控除",
+                        amount=npo_credit,
+                        details=f"所得税額の{NPO_DONATION_CREDIT_CAP_RATIO}%上限あり",
+                    )
+                )
+
     # 8. Spouse deduction
     if spouse_income is not None:
         spouse = calc_spouse_deduction(total_income, spouse_income)
         if spouse > 0:
-            income_deductions.append(
-                DeductionItem(type="spouse", name="配偶者控除", amount=spouse)
-            )
+            income_deductions.append(DeductionItem(type="spouse", name="配偶者控除", amount=spouse))
 
     # 9. Dependent deductions (扶養控除 + 障害者控除)
     if dependents:
@@ -704,9 +772,7 @@ def calc_deductions(
         widow = calc_widow_deduction(widow_status, total_income)
         if widow > 0:
             name = "ひとり親控除" if widow_status == "single_parent" else "寡婦控除"
-            income_deductions.append(
-                DeductionItem(type="widow", name=name, amount=widow)
-            )
+            income_deductions.append(DeductionItem(type="widow", name=name, amount=widow))
 
     # 11. 本人の障害者控除（Phase 5）
     if disability_status != "none":
@@ -742,9 +808,7 @@ def calc_deductions(
             dividend_income_comprehensive, taxable_income_for_dividend_credit
         )
         if div_credit > 0:
-            tax_credits.append(
-                DeductionItem(type="dividend", name="配当控除", amount=div_credit)
-            )
+            tax_credits.append(DeductionItem(type="dividend", name="配当控除", amount=div_credit))
 
     total_income_deductions = sum(d.amount for d in income_deductions)
     total_tax_credits = sum(d.amount for d in tax_credits)
@@ -799,6 +863,7 @@ def calc_depreciation_declining_balance(
 # ============================================================
 # Income Tax Calculation (Task 15)
 # ============================================================
+
 
 def _calc_income_tax_from_table(taxable_income: int) -> int:
     """Apply the income tax quick calculation table. All int arithmetic."""
@@ -914,7 +979,9 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     income_tax_after_credits = max(0, income_tax_base - total_tax_credits)
 
     # Step 8: Reconstruction tax = 2.1% (truncate to 1 yen)
-    reconstruction_tax = int(income_tax_after_credits * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR)
+    reconstruction_tax = int(
+        income_tax_after_credits * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR
+    )
 
     # Step 9: Total tax and filing amount (truncate to 100 yen)
     total_tax_raw = income_tax_after_credits + reconstruction_tax
@@ -953,7 +1020,6 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
 # ============================================================
 # Consumption Tax Calculation (Task 16)
 # ============================================================
-
 
 
 def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResult:

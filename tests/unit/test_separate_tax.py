@@ -165,7 +165,9 @@ class TestBasicFxGain:
         assert result.fx_income_tax == expected_income
         assert result.fx_residential_tax == expected_residential
         assert result.fx_reconstruction_tax == expected_reconstruction
-        assert result.fx_total_tax == expected_income + expected_residential + expected_reconstruction
+        assert (
+            result.fx_total_tax == expected_income + expected_residential + expected_reconstruction
+        )
         # FX は源泉徴収なし → due = total
         assert result.fx_tax_due == result.fx_total_tax
 
