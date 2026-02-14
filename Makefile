@@ -1,4 +1,4 @@
-.PHONY: dev test lint
+.PHONY: dev test lint format
 
 dev:
 	mkdir -p playground
@@ -7,5 +7,10 @@ dev:
 test:
 	uv run pytest tests/
 
+format:
+	uv run ruff format src/ tests/
+
 lint:
 	uv run ruff check src/ tests/
+	uv run ruff format --check src/ tests/
+	uv run mypy src/shinkoku/ --ignore-missing-imports

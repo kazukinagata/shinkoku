@@ -45,5 +45,6 @@ target-version = "py311"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.0.0",
     "types-pyyaml>=6.0.12.20250915",
 ]
