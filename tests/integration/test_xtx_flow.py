@@ -20,6 +20,8 @@ from shinkoku.tools.ledger import (
     ledger_init,
 )
 
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+
 
 # ============================================================
 # Fixtures
@@ -545,7 +547,7 @@ class TestCliScript:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/kazukinagata/projects/playground/shinkoku",
+            cwd=_PROJECT_ROOT,
         )
 
         assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -581,7 +583,7 @@ class TestCliScript:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/kazukinagata/projects/playground/shinkoku",
+            cwd=_PROJECT_ROOT,
         )
 
         assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -619,7 +621,7 @@ class TestCliScript:
             ],
             capture_output=True,
             text=True,
-            cwd="/home/kazukinagata/projects/playground/shinkoku",
+            cwd=_PROJECT_ROOT,
         )
 
         assert result.returncode == 0, f"stderr: {result.stderr}"
