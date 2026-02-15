@@ -12,3 +12,4 @@ htmlcov/
 playground/
 .shinkoku/
 templates/
+specs/

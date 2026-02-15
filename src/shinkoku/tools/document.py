@@ -1170,7 +1170,7 @@ def _consolidate_social_insurance(items: list[dict]) -> list[dict]:
         grouped[key] = grouped.get(key, 0) + item.get("amount", 0)
     result = [{"type": k, "payer": "", "amount": v} for k, v in grouped.items()]
     if len(result) > 2:
-        total = sum(r["amount"] for r in result)
+        total = sum(grouped.values())
         return [{"type": "社会保険料合計", "payer": "", "amount": total}]
     return result[:2]
 

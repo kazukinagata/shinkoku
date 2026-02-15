@@ -142,6 +142,16 @@ uv run ruff format --check src/ tests/              # フォーマットチェ�
 | `src/shinkoku/tools/document.py` | PDF帳票生成ツール |
 | `src/shinkoku/tools/pdf_utils.py` | PDF生成ユーティリティ |
 | `src/shinkoku/tools/pdf_coordinates.py` | PDF帳票の座標定義 |
+| `src/shinkoku/xtx/generator.py` | xtx（e-Tax XML）生成エンジン（XtxBuilder クラス） |
+| `src/shinkoku/xtx/field_codes.py` | ABB コード定数辞書・名前空間・ネスト構造定義 |
+| `src/shinkoku/xtx/income_tax.py` | 所得税申告書B 第一表・第二表 xtx ビルダー |
+| `src/shinkoku/xtx/blue_return.py` | 青色申告決算書 PL・BS xtx ビルダー |
+| `src/shinkoku/xtx/consumption_tax.py` | 消費税申告書 xtx ビルダー |
+| `src/shinkoku/xtx/schedules.py` | 第三表（分離課税）xtx ビルダー |
+| `src/shinkoku/xtx/attachments.py` | 医療費・住宅ローン控除明細書 xtx ビルダー |
+| `src/shinkoku/xtx/generate_xtx.py` | xtx 生成オーケストレーション（DB→計算→XML出力） |
+| `scripts/generate_xtx.py` | xtx 生成 CLI エントリーポイント |
+| `skills/e-tax/SKILL.md` | e-Tax 電子申告スキル（xtx 生成→アップロード案内） |
 | `skills/setup/SKILL.md` | セットアップウィザード（設定ファイル生成・DB初期化） |
 | `agents/receipt-reader.md` | レシート画像OCRサブエージェント（Vision トークン分離） |
 

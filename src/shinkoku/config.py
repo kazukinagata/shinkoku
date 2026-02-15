@@ -38,6 +38,7 @@ class AddressConfig(BaseModel):
     street: str = ""
     building: str = ""
     jan1_address: str | None = None  # 1/1時点の住所（異なる場合のみ）
+    address_kana: str = ""  # 住所フリガナ（半角カナ）
 
 
 class BusinessConfig(BaseModel):
@@ -57,6 +58,7 @@ class FilingConfig(BaseModel):
     blue_return_deduction: int = 650_000
     electronic_bookkeeping: bool = False
     tax_office_name: str = ""
+    seiribango: str = ""  # 整理番号（8桁）
 
 
 class RefundAccountConfig(BaseModel):
