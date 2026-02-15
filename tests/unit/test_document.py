@@ -685,3 +685,352 @@ class TestIncomeTaxPdfWithNewFields:
             tax_result=tax_result, output_path=output, taxpayer_name="全フィールド太郎"
         )
         assert os.path.exists(result)
+
+
+# ============================================================
+# Income Tax Page 2 PDF
+# ============================================================
+
+
+class TestGenerateIncomeTaxPage2Pdf:
+    def test_generates_pdf_file(self, tmp_path):
+        from shinkoku.tools.document import generate_income_tax_page2_pdf
+
+        output = str(tmp_path / "income_tax_p2.pdf")
+        result = generate_income_tax_page2_pdf(
+            income_details=[
+                {
+                    "type": "給与",
+                    "payer": "株式会社テスト",
+                    "revenue": 8_000_000,
+                    "withheld": 400_000,
+                },
+                {
+                    "type": "事業",
+                    "payer": "クライアントA",
+                    "revenue": 3_000_000,
+                    "withheld": 30_000,
+                },
+            ],
+            social_insurance_details=[
+                {"type": "健康保険", "payer": "全国健康保険協会", "amount": 300_000},
+                {"type": "厚生年金", "payer": "日本年金機構", "amount": 500_000},
+            ],
+            dependents=[
+                {"name": "田中花子", "relationship": "長女", "birth_date": "2010-05-15"},
+            ],
+            spouse={"name": "田中美紀", "income": 500_000},
+            output_path=output,
+            taxpayer_name="田中太郎",
+        )
+        assert os.path.exists(result)
+
+    def test_pdf_starts_with_magic(self, tmp_path):
+        from shinkoku.tools.document import generate_income_tax_page2_pdf
+
+        output = str(tmp_path / "p2.pdf")
+        result = generate_income_tax_page2_pdf(output_path=output)
+        with open(result, "rb") as f:
+            assert f.read(5) == b"%PDF-"
+
+    def test_empty_details(self, tmp_path):
+        from shinkoku.tools.document import generate_income_tax_page2_pdf
+
+        output = str(tmp_path / "p2_empty.pdf")
+        result = generate_income_tax_page2_pdf(output_path=output, taxpayer_name="空太郎")
+        assert os.path.exists(result)
+
+    def test_with_housing_loan_date(self, tmp_path):
+        from shinkoku.tools.document import generate_income_tax_page2_pdf
+
+        output = str(tmp_path / "p2_housing.pdf")
+        result = generate_income_tax_page2_pdf(
+            housing_loan_move_in_date="2025-03-15",
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+
+# ============================================================
+# Full Tax Document Set
+# ============================================================
+
+
+class TestGenerateFullTaxDocumentSet:
+    def test_generates_pdf_file(self, tmp_path, sample_pl, sample_bs):
+        from shinkoku.tools.document import generate_full_tax_document_set
+
+        output = str(tmp_path / "full_set.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            business_income=4_100_000,
+            total_income=4_100_000,
+            total_income_deductions=880_000,
+            taxable_income=3_220_000,
+            income_tax_base=222_500,
+            income_tax_after_credits=222_500,
+            reconstruction_tax=4_672,
+            total_tax=227_100,
+            withheld_tax=0,
+            tax_due=227_100,
+        )
+        result = generate_full_tax_document_set(
+            income_tax=tax_result,
+            pl_data=sample_pl,
+            bs_data=sample_bs,
+            output_path=output,
+            taxpayer_name="統合太郎",
+        )
+        assert os.path.exists(result)
+        assert os.path.getsize(result) > 100
+
+    def test_pdf_starts_with_magic(self, tmp_path, sample_pl):
+        from shinkoku.tools.document import generate_full_tax_document_set
+
+        output = str(tmp_path / "full_set.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            business_income=4_100_000,
+            total_income=4_100_000,
+            total_income_deductions=880_000,
+            taxable_income=3_220_000,
+            income_tax_base=222_500,
+            income_tax_after_credits=222_500,
+            reconstruction_tax=4_672,
+            total_tax=227_100,
+            withheld_tax=0,
+            tax_due=227_100,
+        )
+        result = generate_full_tax_document_set(
+            income_tax=tax_result,
+            pl_data=sample_pl,
+            output_path=output,
+        )
+        with open(result, "rb") as f:
+            assert f.read(5) == b"%PDF-"
+
+    def test_with_consumption_tax(self, tmp_path, sample_pl, sample_bs):
+        from shinkoku.tools.document import generate_full_tax_document_set
+
+        output = str(tmp_path / "full_set_ct.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            business_income=4_100_000,
+            total_income=4_100_000,
+            total_income_deductions=880_000,
+            taxable_income=3_220_000,
+            income_tax_base=222_500,
+            income_tax_after_credits=222_500,
+            reconstruction_tax=4_672,
+            total_tax=227_100,
+            withheld_tax=0,
+            tax_due=227_100,
+        )
+        ct_result = ConsumptionTaxResult(
+            fiscal_year=2025,
+            method="special_20pct",
+            taxable_sales_total=5_000_000,
+            tax_on_sales=400_000,
+            tax_on_purchases=80_000,
+            tax_due=80_000,
+            local_tax_due=21_800,
+            total_due=101_800,
+        )
+        result = generate_full_tax_document_set(
+            income_tax=tax_result,
+            pl_data=sample_pl,
+            bs_data=sample_bs,
+            consumption_tax=ct_result,
+            output_path=output,
+            taxpayer_name="消費税太郎",
+        )
+        assert os.path.exists(result)
+
+    def test_without_bs(self, tmp_path, sample_pl):
+        from shinkoku.tools.document import generate_full_tax_document_set
+
+        output = str(tmp_path / "full_no_bs.pdf")
+        tax_result = IncomeTaxResult(
+            fiscal_year=2025,
+            business_income=4_100_000,
+            total_income=4_100_000,
+            total_income_deductions=880_000,
+            taxable_income=3_220_000,
+            income_tax_base=222_500,
+            income_tax_after_credits=222_500,
+            reconstruction_tax=4_672,
+            total_tax=227_100,
+            withheld_tax=0,
+            tax_due=227_100,
+        )
+        result = generate_full_tax_document_set(
+            income_tax=tax_result,
+            pl_data=sample_pl,
+            output_path=output,
+        )
+        assert os.path.exists(result)
+
+
+# ============================================================
+# draw_digit_cells (pdf_utils)
+# ============================================================
+
+
+class TestDrawDigitCells:
+    def test_basic_rendering(self, tmp_path):
+        """draw_digit_cells can render a number into a standalone PDF."""
+        from shinkoku.tools.pdf_utils import generate_standalone_pdf
+
+        output = str(tmp_path / "digits.pdf")
+        fields = [
+            {
+                "type": "digit_cells",
+                "x_start": 100.0,
+                "y": 400.0,
+                "cell_width": 14.4,
+                "num_cells": 11,
+                "font_size": 10,
+                "value": 12345678,
+            },
+        ]
+        result = generate_standalone_pdf(fields=fields, output_path=output)
+        assert os.path.exists(result)
+        with open(result, "rb") as f:
+            assert f.read(5) == b"%PDF-"
+
+    def test_zero_value(self, tmp_path):
+        from shinkoku.tools.pdf_utils import generate_standalone_pdf
+
+        output = str(tmp_path / "digits_zero.pdf")
+        fields = [
+            {
+                "type": "digit_cells",
+                "x_start": 100.0,
+                "y": 400.0,
+                "cell_width": 14.4,
+                "num_cells": 11,
+                "font_size": 10,
+                "value": 0,
+            },
+        ]
+        result = generate_standalone_pdf(fields=fields, output_path=output)
+        assert os.path.exists(result)
+
+    def test_negative_value(self, tmp_path):
+        from shinkoku.tools.pdf_utils import generate_standalone_pdf
+
+        output = str(tmp_path / "digits_neg.pdf")
+        fields = [
+            {
+                "type": "digit_cells",
+                "x_start": 100.0,
+                "y": 400.0,
+                "cell_width": 14.4,
+                "num_cells": 11,
+                "font_size": 10,
+                "value": -500000,
+            },
+        ]
+        result = generate_standalone_pdf(fields=fields, output_path=output)
+        assert os.path.exists(result)
+
+    def test_string_value(self, tmp_path):
+        """draw_digit_cells can render postal codes as strings."""
+        from shinkoku.tools.pdf_utils import generate_standalone_pdf
+
+        output = str(tmp_path / "digits_str.pdf")
+        fields = [
+            {
+                "type": "digit_cells",
+                "x_start": 100.0,
+                "y": 400.0,
+                "cell_width": 14.4,
+                "num_cells": 7,
+                "font_size": 10,
+                "value": "2610013",
+                "right_align": False,
+            },
+        ]
+        result = generate_standalone_pdf(fields=fields, output_path=output)
+        assert os.path.exists(result)
+
+
+# ============================================================
+# Template resolution helper
+# ============================================================
+
+
+class TestTemplateResolution:
+    def test_resolve_nonexistent_template(self):
+        from shinkoku.tools.document import _resolve_template
+
+        result = _resolve_template("nonexistent_form")
+        assert result is None
+
+    def test_resolve_template_returns_none_without_templates_dir(self):
+        from shinkoku.tools.document import _resolve_template
+
+        # テンプレートディレクトリが空またはない場合 → None
+        result = _resolve_template("income_tax_p1")
+        # テンプレートが実際に存在しない限り None
+        # （CIや開発環境ではtemplates/が空の可能性が高い）
+        assert result is None or result.exists()
+
+
+# ============================================================
+# coord_field helper
+# ============================================================
+
+
+class TestCoordField:
+    def test_merges_coord_and_value(self):
+        from shinkoku.tools.document import _coord_field
+
+        coord = {"x": 100.0, "y": 200.0, "font_size": 10, "type": "text"}
+        result = _coord_field(coord, "テスト")
+        assert result == {
+            "x": 100.0,
+            "y": 200.0,
+            "font_size": 10,
+            "type": "text",
+            "value": "テスト",
+        }
+
+    def test_digit_cells_coord(self):
+        from shinkoku.tools.document import _coord_field
+
+        coord = {
+            "x_start": 133.2,
+            "y": 684.5,
+            "cell_width": 14.4,
+            "num_cells": 11,
+            "font_size": 10,
+            "type": "digit_cells",
+        }
+        result = _coord_field(coord, 5000000)
+        assert result["value"] == 5000000
+        assert result["type"] == "digit_cells"
+        assert result["num_cells"] == 11
+
+
+# ============================================================
+# pdf_to_images (pdf_utils)
+# ============================================================
+
+
+class TestPdfToImages:
+    def test_converts_pdf_to_images(self, tmp_path, sample_pl):
+        """pdf_to_images converts a generated PDF into PNG images."""
+        from shinkoku.tools.document import generate_bs_pl_pdf
+        from shinkoku.tools.pdf_utils import pdf_to_images
+
+        pdf_path = str(tmp_path / "test.pdf")
+        generate_bs_pl_pdf(pl_data=sample_pl, output_path=pdf_path)
+
+        output_dir = str(tmp_path / "images")
+        images = pdf_to_images(pdf_path, output_dir)
+
+        assert len(images) >= 1
+        for img_path in images:
+            assert os.path.exists(img_path)
+            assert img_path.endswith(".png")

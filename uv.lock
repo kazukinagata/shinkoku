@@ -1295,6 +1295,7 @@ dependencies = [
     { name = "pdfplumber" },
     { name = "pydantic" },
     { name = "pypdf" },
+    { name = "pypdfium2" },
     { name = "pyyaml" },
     { name = "reportlab" },
 ]
@@ -1321,6 +1322,7 @@ requires-dist = [
     { name = "pdfplumber", specifier = ">=0.10" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pypdf", specifier = ">=4.0" },
+    { name = "pypdfium2", specifier = ">=4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },

@@ -2,9 +2,10 @@
 
 Generates:
 - Blue return BS/PL (balance sheet + profit/loss)
-- Income tax form B
+- Income tax form B (pages 1 & 2)
 - Consumption tax form
 - Deduction detail form
+- Full tax document set
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 
 from shinkoku.models import (
@@ -25,13 +27,23 @@ from shinkoku.models import (
     SeparateTaxResult,
 )
 from shinkoku.tools.pdf_utils import (
+    create_overlay,
+    create_multi_page_overlay,
+    merge_overlay,
+    merge_multi_template_overlay,
     generate_standalone_multi_page_pdf,
     generate_standalone_pdf,
+    pdf_to_images,
 )
 from shinkoku.tools.pdf_coordinates import (
-    BLUE_RETURN_PL,
+    A4_PORTRAIT,
+    A4_LANDSCAPE,
+    INCOME_TAX_P1,
+    INCOME_TAX_P2,
+    BLUE_RETURN_PL_P1,
     BLUE_RETURN_BS,
-    INCOME_TAX_FORM_B,
+    CONSUMPTION_TAX_P1,
+    TEMPLATE_NAMES,
 )
 from shinkoku.tax_constants import (
     HOUSING_LOAN_DEFAULT_LIMIT,
@@ -46,6 +58,83 @@ from shinkoku.tax_constants import (
 
 
 # ============================================================
+# Template Resolution & Helpers
+# ============================================================
+
+TEMPLATE_DIR = Path(__file__).parent.parent.parent.parent / "templates"
+
+
+def _resolve_template(name: str) -> Path | None:
+    """テンプレートPDFのパスを解決する。存在しなければ None。"""
+    filename = TEMPLATE_NAMES.get(name, f"{name}.pdf")
+    path = TEMPLATE_DIR / filename
+    return path if path.exists() else None
+
+
+def _coord_field(coord: dict, value: Any) -> dict[str, Any]:
+    """座標定義と値をマージしてフィールド dict を生成する。"""
+    return {**coord, "value": value}
+
+
+# 勘定科目名 → BLUE_RETURN_PL_P1 フィールド名
+_EXPENSE_FIELD_MAP: dict[str, str] = {
+    "地代家賃": "rent",
+    "賃借料": "rent",
+    "通信費": "communication",
+    "旅費交通費": "travel",
+    "減価償却費": "depreciation",
+    "消耗品費": "supplies",
+    "外注工賃": "outsourcing",
+    "外注費": "outsourcing",
+    "水道光熱費": "utilities",
+    "広告宣伝費": "advertising",
+    "雑費": "miscellaneous",
+}
+
+# 勘定科目名 → BLUE_RETURN_BS フィールド名
+_ASSET_FIELD_MAP: dict[str, str] = {
+    "現金": "cash",
+    "普通預金": "bank_deposit",
+    "当座預金": "bank_deposit",
+    "売掛金": "accounts_receivable",
+    "前払費用": "prepaid",
+    "前払金": "prepaid",
+    "建物": "buildings",
+    "工具器具備品": "equipment",
+    "器具備品": "equipment",
+    "車両運搬具": "equipment",
+    "事業主貸": "owner_drawing",
+}
+
+_LIABILITY_FIELD_MAP: dict[str, str] = {
+    "買掛金": "accounts_payable",
+    "未払金": "unpaid",
+    "未払費用": "unpaid",
+    "借入金": "borrowings",
+    "長期借入金": "borrowings",
+}
+
+_EQUITY_FIELD_MAP: dict[str, str] = {
+    "元入金": "capital",
+    "事業主借": "owner_investment",
+}
+
+# 控除名 → INCOME_TAX_P1 フィールド名
+_DEDUCTION_FIELD_MAP: dict[str, str] = {
+    "社会保険料控除": "social_insurance_deduction",
+    "小規模企業共済等掛金控除": "ideco_deduction",
+    "生命保険料控除": "life_insurance_deduction",
+    "地震保険料控除": "earthquake_insurance_deduction",
+    "寄附金控除": "furusato_deduction",
+    "配偶者控除": "spouse_deduction",
+    "配偶者特別控除": "spouse_deduction",
+    "扶養控除": "dependent_deduction",
+    "基礎控除": "basic_deduction",
+    "医療費控除": "medical_deduction",
+}
+
+
+# ============================================================
 # Blue Return BS/PL (Task 18)
 # ============================================================
 
@@ -54,107 +143,38 @@ def _build_pl_fields(
     pl_data: PLResult,
     taxpayer_name: str = "",
 ) -> list[dict[str, Any]]:
-    """Build field list for P/L page."""
+    """P/L P1のフィールドを構築する。BLUE_RETURN_PL_P1 座標を使用。"""
     fields: list[dict[str, Any]] = []
 
-    # Title
-    fields.append(
-        {
-            "type": "text",
-            "x": 105 * mm,
-            "y": 285 * mm,
-            "value": "損益計算書（青色申告決算書）",
-            "font_size": 12,
-        }
-    )
-
-    # Header
+    # ヘッダー
     if taxpayer_name:
-        fields.append(
-            {
-                "type": "text",
-                "x": BLUE_RETURN_PL["taxpayer_name"]["x"],
-                "y": BLUE_RETURN_PL["taxpayer_name"]["y"],
-                "value": taxpayer_name,
-                "font_size": BLUE_RETURN_PL["taxpayer_name"]["font_size"],
-            }
+        fields.append(_coord_field(BLUE_RETURN_PL_P1["taxpayer_name"], taxpayer_name))
+
+    fields.append(
+        _coord_field(
+            BLUE_RETURN_PL_P1["fiscal_year"],
+            f"令和{pl_data.fiscal_year - 2018}年分",
         )
-
-    fields.append(
-        {
-            "type": "text",
-            "x": BLUE_RETURN_PL["fiscal_year"]["x"],
-            "y": BLUE_RETURN_PL["fiscal_year"]["y"],
-            "value": f"令和{pl_data.fiscal_year - 2018}年分",
-            "font_size": BLUE_RETURN_PL["fiscal_year"]["font_size"],
-        }
     )
 
-    # Revenue items
-    y_start = 240 * mm
-    for i, item in enumerate(pl_data.revenues):
-        y = y_start - i * 8 * mm
-        fields.append(
-            {"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8}
-        )
-        fields.append(
-            {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
-        )
+    # 売上（収入）金額
+    fields.append(_coord_field(BLUE_RETURN_PL_P1["total_revenue"], pl_data.total_revenue))
 
-    # Total revenue
-    fields.append(
-        {
-            "type": "text",
-            "x": 30 * mm,
-            "y": 220 * mm,
-            "value": "収入合計",
-            "font_size": 9,
-        }
-    )
-    fields.append(
-        {
-            "type": "number",
-            "x": BLUE_RETURN_PL["total_revenue"]["x"],
-            "y": BLUE_RETURN_PL["total_revenue"]["y"],
-            "value": pl_data.total_revenue,
-            "font_size": 9,
-        }
-    )
+    # 経費を勘定科目名で分類し、同一フィールドは合算
+    expense_totals: dict[str, int] = {}
+    for item in pl_data.expenses:
+        field_name = _EXPENSE_FIELD_MAP.get(item.account_name, "miscellaneous")
+        if field_name in BLUE_RETURN_PL_P1:
+            expense_totals[field_name] = expense_totals.get(field_name, 0) + item.amount
 
-    # Expense items
-    y_start = 195 * mm
-    for i, item in enumerate(pl_data.expenses):
-        y = y_start - i * 8 * mm
-        fields.append(
-            {"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8}
-        )
-        fields.append(
-            {"type": "number", "x": 80 * mm, "y": y, "value": item.amount, "font_size": 8}
-        )
+    for field_name, total in expense_totals.items():
+        fields.append(_coord_field(BLUE_RETURN_PL_P1[field_name], total))
 
-    # Total expenses
-    y_total_exp = y_start - len(pl_data.expenses) * 8 * mm - 5 * mm
-    fields.append(
-        {"type": "text", "x": 30 * mm, "y": y_total_exp, "value": "経費合計", "font_size": 9}
-    )
-    fields.append(
-        {
-            "type": "number",
-            "x": 170 * mm,
-            "y": y_total_exp,
-            "value": pl_data.total_expense,
-            "font_size": 9,
-        }
-    )
+    # 経費合計
+    fields.append(_coord_field(BLUE_RETURN_PL_P1["total_expenses"], pl_data.total_expense))
 
-    # Net income
-    y_net = y_total_exp - 12 * mm
-    fields.append(
-        {"type": "text", "x": 30 * mm, "y": y_net, "value": "差引金額（所得金額）", "font_size": 9}
-    )
-    fields.append(
-        {"type": "number", "x": 170 * mm, "y": y_net, "value": pl_data.net_income, "font_size": 10}
-    )
+    # 差引金額（所得金額）
+    fields.append(_coord_field(BLUE_RETURN_PL_P1["net_income"], pl_data.net_income))
 
     return fields
 
@@ -163,137 +183,55 @@ def _build_bs_fields(
     bs_data: BSResult,
     taxpayer_name: str = "",
 ) -> list[dict[str, Any]]:
-    """Build field list for B/S page."""
+    """B/Sのフィールドを構築する。BLUE_RETURN_BS 座標を使用。"""
     fields: list[dict[str, Any]] = []
 
-    # Title
-    fields.append(
-        {
-            "type": "text",
-            "x": 105 * mm,
-            "y": 285 * mm,
-            "value": "貸借対照表（青色申告決算書）",
-            "font_size": 12,
-        }
-    )
-
-    # Header
+    # ヘッダー
     if taxpayer_name:
-        fields.append(
-            {
-                "type": "text",
-                "x": BLUE_RETURN_BS["taxpayer_name"]["x"],
-                "y": BLUE_RETURN_BS["taxpayer_name"]["y"],
-                "value": taxpayer_name,
-                "font_size": BLUE_RETURN_BS["taxpayer_name"]["font_size"],
-            }
-        )
+        fields.append(_coord_field(BLUE_RETURN_BS["taxpayer_name"], taxpayer_name))
 
     fields.append(
-        {
-            "type": "text",
-            "x": BLUE_RETURN_BS["fiscal_year_end"]["x"],
-            "y": BLUE_RETURN_BS["fiscal_year_end"]["y"],
-            "value": f"令和{bs_data.fiscal_year - 2018}年12月31日",
-            "font_size": BLUE_RETURN_BS["fiscal_year_end"]["font_size"],
-        }
+        _coord_field(
+            BLUE_RETURN_BS["fiscal_year_end"],
+            f"令和{bs_data.fiscal_year - 2018}年12月31日",
+        )
     )
 
-    # Assets
-    fields.append(
-        {"type": "text", "x": 30 * mm, "y": 250 * mm, "value": "【資産の部】", "font_size": 9}
-    )
-    y_start = 240 * mm
-    for i, item in enumerate(bs_data.assets):
-        y = y_start - i * 8 * mm
-        fields.append(
-            {"type": "text", "x": 30 * mm, "y": y, "value": item.account_name, "font_size": 8}
-        )
-        fields.append(
-            {"type": "number", "x": 80 * mm, "y": y, "value": item.amount, "font_size": 8}
-        )
+    # 資産の部（勘定科目名で分類、同一フィールドは合算）
+    asset_totals: dict[str, int] = {}
+    for item in bs_data.assets:
+        field_name = _ASSET_FIELD_MAP.get(item.account_name)
+        if field_name and field_name in BLUE_RETURN_BS:
+            asset_totals[field_name] = asset_totals.get(field_name, 0) + item.amount
 
-    y_total_assets = y_start - len(bs_data.assets) * 8 * mm - 5 * mm
-    fields.append(
-        {"type": "text", "x": 30 * mm, "y": y_total_assets, "value": "資産合計", "font_size": 9}
-    )
-    fields.append(
-        {
-            "type": "number",
-            "x": 80 * mm,
-            "y": y_total_assets,
-            "value": bs_data.total_assets,
-            "font_size": 9,
-        }
-    )
+    for field_name, total in asset_totals.items():
+        fields.append(_coord_field(BLUE_RETURN_BS[field_name], total))
 
-    # Liabilities
-    y_liab_start = y_total_assets - 15 * mm
-    fields.append(
-        {
-            "type": "text",
-            "x": 110 * mm,
-            "y": y_liab_start + 10 * mm,
-            "value": "【負債の部】",
-            "font_size": 9,
-        }
-    )
-    for i, item in enumerate(bs_data.liabilities):
-        y = y_liab_start - i * 8 * mm
-        fields.append(
-            {"type": "text", "x": 110 * mm, "y": y, "value": item.account_name, "font_size": 8}
-        )
-        fields.append(
-            {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
-        )
+    fields.append(_coord_field(BLUE_RETURN_BS["total_assets"], bs_data.total_assets))
 
-    y_total_liab = y_liab_start - len(bs_data.liabilities) * 8 * mm - 5 * mm
-    fields.append(
-        {"type": "text", "x": 110 * mm, "y": y_total_liab, "value": "負債合計", "font_size": 9}
-    )
-    fields.append(
-        {
-            "type": "number",
-            "x": 170 * mm,
-            "y": y_total_liab,
-            "value": bs_data.total_liabilities,
-            "font_size": 9,
-        }
-    )
+    # 負債の部
+    liab_totals: dict[str, int] = {}
+    for item in bs_data.liabilities:
+        field_name = _LIABILITY_FIELD_MAP.get(item.account_name)
+        if field_name and field_name in BLUE_RETURN_BS:
+            liab_totals[field_name] = liab_totals.get(field_name, 0) + item.amount
 
-    # Equity
-    y_eq_start = y_total_liab - 15 * mm
-    fields.append(
-        {
-            "type": "text",
-            "x": 110 * mm,
-            "y": y_eq_start + 10 * mm,
-            "value": "【純資産の部】",
-            "font_size": 9,
-        }
-    )
-    for i, item in enumerate(bs_data.equity):
-        y = y_eq_start - i * 8 * mm
-        fields.append(
-            {"type": "text", "x": 110 * mm, "y": y, "value": item.account_name, "font_size": 8}
-        )
-        fields.append(
-            {"type": "number", "x": 170 * mm, "y": y, "value": item.amount, "font_size": 8}
-        )
+    for field_name, total in liab_totals.items():
+        fields.append(_coord_field(BLUE_RETURN_BS[field_name], total))
 
-    y_total_eq = y_eq_start - len(bs_data.equity) * 8 * mm - 5 * mm
-    fields.append(
-        {"type": "text", "x": 110 * mm, "y": y_total_eq, "value": "純資産合計", "font_size": 9}
-    )
-    fields.append(
-        {
-            "type": "number",
-            "x": 170 * mm,
-            "y": y_total_eq,
-            "value": bs_data.total_equity,
-            "font_size": 9,
-        }
-    )
+    fields.append(_coord_field(BLUE_RETURN_BS["total_liabilities"], bs_data.total_liabilities))
+
+    # 純資産の部
+    equity_totals: dict[str, int] = {}
+    for item in bs_data.equity:
+        field_name = _EQUITY_FIELD_MAP.get(item.account_name)
+        if field_name and field_name in BLUE_RETURN_BS:
+            equity_totals[field_name] = equity_totals.get(field_name, 0) + item.amount
+
+    for field_name, total in equity_totals.items():
+        fields.append(_coord_field(BLUE_RETURN_BS[field_name], total))
+
+    fields.append(_coord_field(BLUE_RETURN_BS["total_equity"], bs_data.total_equity))
 
     return fields
 
@@ -305,47 +243,42 @@ def generate_bs_pl_pdf(
     taxpayer_name: str = "",
     template_path: str | None = None,
 ) -> str:
-    """Generate blue return BS/PL PDF.
+    """青色申告決算書（損益計算書 + 貸借対照表）PDFを生成する。
 
-    If template_path is provided and exists, overlay onto template.
-    Otherwise generate standalone PDF.
-
-    Args:
-        pl_data: Profit/Loss data.
-        bs_data: Balance Sheet data (optional).
-        output_path: Output file path.
-        taxpayer_name: Taxpayer name for the header.
-        template_path: Path to NTA template PDF.
-
-    Returns:
-        The output file path.
+    テンプレートPDFが存在する場合はオーバーレイ方式で生成。
+    ない場合はスタンドアロン方式にフォールバック。
     """
     pages: list[list[dict[str, Any]]] = []
-    titles: list[str] = []
+    template_paths: list[str] = []
+    page_sizes: list[tuple[float, float]] = []
 
-    # P/L page
+    # P/L P1
     pl_fields = _build_pl_fields(pl_data, taxpayer_name)
     pages.append(pl_fields)
-    titles.append("")
+    page_sizes.append(A4_LANDSCAPE)
+    tmpl = _resolve_template("blue_return_pl_p1")
+    template_paths.append(str(tmpl) if tmpl else "")
 
-    # B/S page (if data provided)
+    # B/S (if data provided)
     if bs_data is not None:
         bs_fields = _build_bs_fields(bs_data, taxpayer_name)
         pages.append(bs_fields)
-        titles.append("")
+        page_sizes.append(A4_LANDSCAPE)
+        tmpl = _resolve_template("blue_return_bs")
+        template_paths.append(str(tmpl) if tmpl else "")
 
-    # Use template if available
-    if template_path and Path(template_path).exists():
-        from shinkoku.tools.pdf_utils import create_multi_page_overlay, merge_overlay
+    # テンプレートが1つでもあればオーバーレイ方式
+    has_any_template = any(p for p in template_paths)
 
-        overlay_bytes = create_multi_page_overlay(pages)
-        return merge_overlay(template_path, overlay_bytes, output_path)
+    if has_any_template:
+        overlay_bytes = create_multi_page_overlay(pages, page_sizes=page_sizes)
+        return merge_multi_template_overlay(template_paths, overlay_bytes, output_path)
 
-    # Standalone generation
+    # Standalone fallback
     return generate_standalone_multi_page_pdf(
         pages=pages,
         output_path=output_path,
-        titles=titles,
+        page_sizes=page_sizes,
     )
 
 
@@ -496,133 +429,115 @@ def generate_income_expense_statement_pdf(
 # ============================================================
 
 
+def _build_income_tax_p1_fields(
+    tax_result: IncomeTaxResult,
+    taxpayer_name: str = "",
+) -> list[dict[str, Any]]:
+    """第一表のフィールドを構築する。INCOME_TAX_P1 座標（digit_cells方式）を使用。"""
+    fields: list[dict[str, Any]] = []
+
+    # ヘッダー
+    if taxpayer_name:
+        fields.append(_coord_field(INCOME_TAX_P1["name_kanji"], taxpayer_name))
+
+    fields.append(
+        _coord_field(
+            INCOME_TAX_P1["fiscal_year_label"],
+            f"令和{tax_result.fiscal_year - 2018}年分",
+        )
+    )
+
+    # --- 所得金額等 ---
+    if tax_result.business_income != 0:
+        fields.append(
+            _coord_field(
+                INCOME_TAX_P1["business_income"],
+                tax_result.business_income,
+            )
+        )
+
+    if tax_result.salary_income_after_deduction != 0:
+        fields.append(
+            _coord_field(
+                INCOME_TAX_P1["salary_income"],
+                tax_result.salary_income_after_deduction,
+            )
+        )
+
+    fields.append(_coord_field(INCOME_TAX_P1["total_income"], tax_result.total_income))
+
+    # --- 所得控除 ---
+    if tax_result.deductions_detail:
+        for item in tax_result.deductions_detail.income_deductions:
+            field_name = _DEDUCTION_FIELD_MAP.get(item.name)
+            if field_name and field_name in INCOME_TAX_P1:
+                fields.append(_coord_field(INCOME_TAX_P1[field_name], item.amount))
+
+    fields.append(
+        _coord_field(
+            INCOME_TAX_P1["total_deductions"],
+            tax_result.total_income_deductions,
+        )
+    )
+
+    # --- 税額の計算 ---
+    fields.append(_coord_field(INCOME_TAX_P1["taxable_income"], tax_result.taxable_income))
+    fields.append(_coord_field(INCOME_TAX_P1["income_tax_base"], tax_result.income_tax_base))
+
+    if tax_result.total_tax_credits > 0:
+        fields.append(
+            _coord_field(
+                INCOME_TAX_P1["housing_loan_credit"],
+                tax_result.total_tax_credits,
+            )
+        )
+
+    fields.append(
+        _coord_field(
+            INCOME_TAX_P1["income_tax_after_credits"],
+            tax_result.income_tax_after_credits,
+        )
+    )
+    fields.append(_coord_field(INCOME_TAX_P1["reconstruction_tax"], tax_result.reconstruction_tax))
+    fields.append(_coord_field(INCOME_TAX_P1["total_tax"], tax_result.total_tax))
+
+    # 源泉徴収税額（給与 + 事業を合算）
+    total_withheld = tax_result.withheld_tax + tax_result.business_withheld_tax
+    if total_withheld > 0:
+        fields.append(_coord_field(INCOME_TAX_P1["withheld_tax"], total_withheld))
+
+    if tax_result.estimated_tax_payment > 0:
+        fields.append(
+            _coord_field(
+                INCOME_TAX_P1["estimated_tax_payment"],
+                tax_result.estimated_tax_payment,
+            )
+        )
+
+    # 納付/還付
+    fields.append(_coord_field(INCOME_TAX_P1["tax_due"], tax_result.tax_due))
+
+    return fields
+
+
 def generate_income_tax_pdf(
     tax_result: IncomeTaxResult,
     output_path: str = "output/income_tax.pdf",
     taxpayer_name: str = "",
     template_path: str | None = None,
 ) -> str:
-    """Generate income tax form B PDF."""
-    fields: list[dict[str, Any]] = []
+    """確定申告書B 第一表 PDFを生成する。"""
+    fields = _build_income_tax_p1_fields(tax_result, taxpayer_name)
 
-    # Title
-    fields.append(
-        {
-            "type": "text",
-            "x": 105 * mm,
-            "y": 285 * mm,
-            "value": "所得税及び復興特別所得税の確定申告書B",
-            "font_size": 12,
-        }
-    )
+    # テンプレート解決（明示指定 > 自動解決）
+    tmpl = template_path if template_path and Path(template_path).exists() else None
+    if tmpl is None:
+        resolved = _resolve_template("income_tax_p1")
+        tmpl = str(resolved) if resolved else None
 
-    # Header
-    if taxpayer_name:
-        fields.append(
-            {
-                "type": "text",
-                "x": INCOME_TAX_FORM_B["taxpayer_name"]["x"],
-                "y": INCOME_TAX_FORM_B["taxpayer_name"]["y"],
-                "value": taxpayer_name,
-                "font_size": 10,
-            }
-        )
-
-    fields.append(
-        {
-            "type": "text",
-            "x": 120 * mm,
-            "y": 275 * mm,
-            "value": f"令和{tax_result.fiscal_year - 2018}年分",
-            "font_size": 10,
-        }
-    )
-
-    # Income section
-    y = 240 * mm
-    income_items = [
-        ("給与所得（収入後）", tax_result.salary_income_after_deduction),
-        ("事業所得", tax_result.business_income),
-        ("合計所得金額", tax_result.total_income),
-    ]
-    for label, value in income_items:
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
-        fields.append({"type": "number", "x": 150 * mm, "y": y, "value": value, "font_size": 8})
-        y -= 10 * mm
-
-    # Deductions section
-    y -= 5 * mm
-    fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "【所得控除】", "font_size": 9})
-    y -= 10 * mm
-
-    if tax_result.deductions_detail:
-        for item in tax_result.deductions_detail.income_deductions:
-            fields.append(
-                {"type": "text", "x": 30 * mm, "y": y, "value": item.name, "font_size": 8}
-            )
-            fields.append(
-                {"type": "number", "x": 95 * mm, "y": y, "value": item.amount, "font_size": 8}
-            )
-            y -= 8 * mm
-
-    fields.append({"type": "text", "x": 30 * mm, "y": y, "value": "所得控除合計", "font_size": 9})
-    fields.append(
-        {
-            "type": "number",
-            "x": 95 * mm,
-            "y": y,
-            "value": tax_result.total_income_deductions,
-            "font_size": 9,
-        }
-    )
-    y -= 12 * mm
-
-    # Loss carryforward (if applied)
-    if tax_result.loss_carryforward_applied > 0:
-        fields.append(
-            {"type": "text", "x": 30 * mm, "y": y, "value": "繰越損失適用額", "font_size": 8}
-        )
-        fields.append(
-            {
-                "type": "number",
-                "x": 150 * mm,
-                "y": y,
-                "value": tax_result.loss_carryforward_applied,
-                "font_size": 8,
-            }
-        )
-        y -= 10 * mm
-
-    # Tax calculation section
-    tax_items = [
-        ("課税所得金額", tax_result.taxable_income),
-        ("所得税額", tax_result.income_tax_base),
-        ("税額控除", tax_result.total_tax_credits),
-        ("税額控除後", tax_result.income_tax_after_credits),
-        ("復興特別所得税", tax_result.reconstruction_tax),
-        ("申告納税額", tax_result.total_tax),
-        ("源泉徴収税額（給与）", tax_result.withheld_tax),
-    ]
-
-    # 事業所得の源泉徴収税額（0より大きい場合のみ表示）
-    if tax_result.business_withheld_tax > 0:
-        tax_items.append(("源泉徴収税額（事業）", tax_result.business_withheld_tax))
-
-    # 予定納税額（0より大きい場合のみ表示）
-    if tax_result.estimated_tax_payment > 0:
-        tax_items.append(("予定納税額", tax_result.estimated_tax_payment))
-
-    tax_items.append(("差引納付/還付", tax_result.tax_due))
-    for label, value in tax_items:
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
-        fields.append({"type": "number", "x": 150 * mm, "y": y, "value": value, "font_size": 9})
-        y -= 10 * mm
-
-    if template_path and Path(template_path).exists():
-        from shinkoku.tools.pdf_utils import create_overlay, merge_overlay
-
-        overlay_bytes = create_overlay(fields)
-        return merge_overlay(template_path, overlay_bytes, output_path)
+    if tmpl:
+        overlay_bytes = create_overlay(fields, page_size=A4)
+        return merge_overlay(tmpl, overlay_bytes, output_path)
 
     return generate_standalone_pdf(fields=fields, output_path=output_path)
 
@@ -632,83 +547,80 @@ def generate_income_tax_pdf(
 # ============================================================
 
 
+def _build_consumption_tax_fields(
+    tax_result: ConsumptionTaxResult,
+    taxpayer_name: str = "",
+) -> list[dict[str, Any]]:
+    """消費税第一表のフィールドを構築する。CONSUMPTION_TAX_P1 座標を使用。"""
+    fields: list[dict[str, Any]] = []
+
+    # ヘッダー
+    if taxpayer_name:
+        fields.append(_coord_field(CONSUMPTION_TAX_P1["taxpayer_name"], taxpayer_name))
+
+    fields.append(
+        _coord_field(
+            CONSUMPTION_TAX_P1["fiscal_year"],
+            f"令和{tax_result.fiscal_year - 2018}年分",
+        )
+    )
+
+    # 課税方式チェックボックス
+    method_checkbox_map = {
+        "standard": "method_standard",
+        "simplified": "method_simplified",
+        "special_20pct": "method_special_20pct",
+    }
+    for method_key, field_name in method_checkbox_map.items():
+        if field_name in CONSUMPTION_TAX_P1:
+            fields.append(
+                _coord_field(
+                    CONSUMPTION_TAX_P1[field_name],
+                    tax_result.method == method_key,
+                )
+            )
+
+    # 税額（digit_cells）
+    if tax_result.taxable_sales_total > 0:
+        fields.append(
+            _coord_field(
+                CONSUMPTION_TAX_P1["taxable_sales_amount"],
+                tax_result.taxable_sales_total,
+            )
+        )
+
+    fields.append(_coord_field(CONSUMPTION_TAX_P1["tax_on_sales"], tax_result.tax_on_sales))
+    fields.append(
+        _coord_field(
+            CONSUMPTION_TAX_P1["tax_on_purchases"],
+            tax_result.tax_on_purchases,
+        )
+    )
+    fields.append(_coord_field(CONSUMPTION_TAX_P1["tax_due_national"], tax_result.tax_due))
+    fields.append(_coord_field(CONSUMPTION_TAX_P1["local_tax_due"], tax_result.local_tax_due))
+    fields.append(_coord_field(CONSUMPTION_TAX_P1["total_tax_due"], tax_result.total_due))
+
+    return fields
+
+
 def generate_consumption_tax_pdf(
     tax_result: ConsumptionTaxResult,
     output_path: str = "output/consumption_tax.pdf",
     taxpayer_name: str = "",
     template_path: str | None = None,
 ) -> str:
-    """Generate consumption tax form PDF."""
-    fields: list[dict[str, Any]] = []
+    """消費税確定申告書 PDFを生成する。"""
+    fields = _build_consumption_tax_fields(tax_result, taxpayer_name)
 
-    # Title
-    fields.append(
-        {
-            "type": "text",
-            "x": 105 * mm,
-            "y": 285 * mm,
-            "value": "消費税及び地方消費税の確定申告書",
-            "font_size": 12,
-        }
-    )
+    # テンプレート解決
+    tmpl = template_path if template_path and Path(template_path).exists() else None
+    if tmpl is None:
+        resolved = _resolve_template("consumption_tax_p1")
+        tmpl = str(resolved) if resolved else None
 
-    if taxpayer_name:
-        fields.append(
-            {
-                "type": "text",
-                "x": 60 * mm,
-                "y": 270 * mm,
-                "value": taxpayer_name,
-                "font_size": 10,
-            }
-        )
-
-    fields.append(
-        {
-            "type": "text",
-            "x": 120 * mm,
-            "y": 275 * mm,
-            "value": f"令和{tax_result.fiscal_year - 2018}年分",
-            "font_size": 10,
-        }
-    )
-
-    # Method
-    method_labels = {
-        "standard": "本則課税",
-        "simplified": "簡易課税",
-        "special_20pct": "2割特例",
-    }
-    fields.append(
-        {
-            "type": "text",
-            "x": 30 * mm,
-            "y": 255 * mm,
-            "value": f"課税方式: {method_labels.get(tax_result.method, tax_result.method)}",
-            "font_size": 9,
-        }
-    )
-
-    # Tax details
-    y = 235 * mm
-    items = [
-        ("課税売上合計（税込）", tax_result.taxable_sales_total),
-        ("売上に係る消費税額", tax_result.tax_on_sales),
-        ("仕入に係る消費税額", tax_result.tax_on_purchases),
-        ("消費税額（国税）", tax_result.tax_due),
-        ("地方消費税額", tax_result.local_tax_due),
-        ("納付税額合計", tax_result.total_due),
-    ]
-    for label, value in items:
-        fields.append({"type": "text", "x": 30 * mm, "y": y, "value": label, "font_size": 8})
-        fields.append({"type": "number", "x": 170 * mm, "y": y, "value": value, "font_size": 9})
-        y -= 12 * mm
-
-    if template_path and Path(template_path).exists():
-        from shinkoku.tools.pdf_utils import create_overlay, merge_overlay
-
-        overlay_bytes = create_overlay(fields)
-        return merge_overlay(template_path, overlay_bytes, output_path)
+    if tmpl:
+        overlay_bytes = create_overlay(fields, page_size=A4)
+        return merge_overlay(tmpl, overlay_bytes, output_path)
 
     return generate_standalone_pdf(fields=fields, output_path=output_path)
 
@@ -1513,6 +1425,214 @@ def generate_depreciation_schedule_pdf(
 
 
 # ============================================================
+# Income Tax Page 2 (確定申告書B 第二表)
+# ============================================================
+
+
+def _build_income_tax_p2_fields(
+    taxpayer_name: str = "",
+    income_details: list[dict] | None = None,
+    social_insurance_details: list[dict] | None = None,
+    dependents: list[dict] | None = None,
+    spouse: dict | None = None,
+    housing_loan_move_in_date: str = "",
+) -> list[dict[str, Any]]:
+    """第二表のフィールドを構築する。INCOME_TAX_P2 座標を使用。"""
+    fields: list[dict[str, Any]] = []
+
+    if taxpayer_name:
+        fields.append(_coord_field(INCOME_TAX_P2["name_kanji"], taxpayer_name))
+
+    # 所得の内訳（最大8行）
+    for i, detail in enumerate((income_details or [])[:8]):
+        prefix = f"income_detail_{i}"
+        if detail.get("type"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], detail["type"]))
+        if detail.get("payer"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_payer"], detail["payer"]))
+        if detail.get("revenue"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_revenue"], detail["revenue"]))
+        if detail.get("withheld"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_withheld"], detail["withheld"]))
+
+    # 社会保険料の内訳（最大4行）
+    for i, si in enumerate((social_insurance_details or [])[:4]):
+        prefix = f"social_insurance_{i}"
+        if si.get("type"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], si["type"]))
+        if si.get("payer"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_payer"], si["payer"]))
+        if si.get("amount"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_amount"], si["amount"]))
+
+    # 扶養控除対象者（最大4名）
+    for i, dep in enumerate((dependents or [])[:4]):
+        prefix = f"dependent_{i}"
+        if dep.get("name"):
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_name"], dep["name"]))
+        if dep.get("relationship"):
+            fields.append(
+                _coord_field(
+                    INCOME_TAX_P2[f"{prefix}_relationship"],
+                    dep["relationship"],
+                )
+            )
+        if dep.get("birth_date"):
+            fields.append(
+                _coord_field(
+                    INCOME_TAX_P2[f"{prefix}_birth_date"],
+                    dep["birth_date"],
+                )
+            )
+
+    # 配偶者情報
+    if spouse:
+        if spouse.get("name"):
+            fields.append(_coord_field(INCOME_TAX_P2["spouse_name"], spouse["name"]))
+        if spouse.get("income"):
+            fields.append(_coord_field(INCOME_TAX_P2["spouse_income"], spouse["income"]))
+
+    # 住宅ローン居住開始日
+    if housing_loan_move_in_date:
+        fields.append(
+            _coord_field(
+                INCOME_TAX_P2["housing_loan_move_in_date"],
+                housing_loan_move_in_date,
+            )
+        )
+
+    return fields
+
+
+def generate_income_tax_page2_pdf(
+    income_details: list[dict] | None = None,
+    social_insurance_details: list[dict] | None = None,
+    dependents: list[dict] | None = None,
+    spouse: dict | None = None,
+    housing_loan_move_in_date: str = "",
+    output_path: str = "output/income_tax_p2.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """確定申告書B 第二表 PDFを生成する。"""
+    fields = _build_income_tax_p2_fields(
+        taxpayer_name=taxpayer_name,
+        income_details=income_details,
+        social_insurance_details=social_insurance_details,
+        dependents=dependents,
+        spouse=spouse,
+        housing_loan_move_in_date=housing_loan_move_in_date,
+    )
+
+    tmpl = _resolve_template("income_tax_p2")
+    if tmpl:
+        overlay_bytes = create_overlay(fields, page_size=A4)
+        return merge_overlay(str(tmpl), overlay_bytes, output_path)
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
+
+
+# ============================================================
+# Full Tax Document Set (全帳票セット一括生成)
+# ============================================================
+
+
+def generate_full_tax_document_set(
+    income_tax: IncomeTaxResult,
+    pl_data: PLResult,
+    bs_data: BSResult | None = None,
+    consumption_tax: ConsumptionTaxResult | None = None,
+    income_details: list[dict] | None = None,
+    social_insurance_details: list[dict] | None = None,
+    dependents: list[dict] | None = None,
+    spouse: dict | None = None,
+    housing_loan_move_in_date: str = "",
+    output_path: str = "output/full_tax_set.pdf",
+    taxpayer_name: str = "",
+) -> str:
+    """全帳票を1つのPDFに結合して出力する。
+
+    ベンチマーク（freee出力）と同じページ順序:
+    1. 確定申告書B 第一表
+    2. 確定申告書B 第二表
+    3. 青色申告決算書 損益計算書 P1
+    4. 青色申告決算書 貸借対照表 (if bs_data)
+    5-6. 消費税 (if consumption_tax)
+    """
+    pages: list[list[dict[str, Any]]] = []
+    template_paths: list[str] = []
+    page_sizes: list[tuple[float, float]] = []
+
+    def _add_page(
+        fields: list[dict[str, Any]],
+        size: tuple[float, float],
+        template_name: str,
+    ) -> None:
+        pages.append(fields)
+        page_sizes.append(size)
+        tmpl = _resolve_template(template_name)
+        template_paths.append(str(tmpl) if tmpl else "")
+
+    # 1. 確定申告書B 第一表
+    _add_page(
+        _build_income_tax_p1_fields(income_tax, taxpayer_name),
+        A4_PORTRAIT,
+        "income_tax_p1",
+    )
+
+    # 2. 確定申告書B 第二表
+    _add_page(
+        _build_income_tax_p2_fields(
+            taxpayer_name=taxpayer_name,
+            income_details=income_details,
+            social_insurance_details=social_insurance_details,
+            dependents=dependents,
+            spouse=spouse,
+            housing_loan_move_in_date=housing_loan_move_in_date,
+        ),
+        A4_PORTRAIT,
+        "income_tax_p2",
+    )
+
+    # 3. 青色申告決算書 損益計算書 P1
+    _add_page(
+        _build_pl_fields(pl_data, taxpayer_name),
+        A4_LANDSCAPE,
+        "blue_return_pl_p1",
+    )
+
+    # 4. 青色申告決算書 貸借対照表
+    if bs_data is not None:
+        _add_page(
+            _build_bs_fields(bs_data, taxpayer_name),
+            A4_LANDSCAPE,
+            "blue_return_bs",
+        )
+
+    # 5-6. 消費税
+    if consumption_tax is not None:
+        _add_page(
+            _build_consumption_tax_fields(consumption_tax, taxpayer_name),
+            A4_PORTRAIT,
+            "consumption_tax_p1",
+        )
+        # 付表（データなし — テンプレートのみ表示）
+        _add_page([], A4_PORTRAIT, "consumption_tax_p2")
+
+    # Generate
+    overlay_bytes = create_multi_page_overlay(pages, page_sizes=page_sizes)
+    has_any_template = any(p for p in template_paths)
+
+    if has_any_template:
+        return merge_multi_template_overlay(template_paths, overlay_bytes, output_path)
+
+    return generate_standalone_multi_page_pdf(
+        pages=pages,
+        output_path=output_path,
+        page_sizes=page_sizes,
+    )
+
+
+# ============================================================
 # MCP Tool Registration
 # ============================================================
 
@@ -1874,3 +1994,146 @@ def register(mcp) -> None:
             taxpayer_name=resolved_name,
         )
         return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_income_tax_page2(
+        income_details: list[dict] | None = None,
+        social_insurance_details: list[dict] | None = None,
+        dependents: list[dict] | None = None,
+        spouse: dict | None = None,
+        housing_loan_move_in_date: str = "",
+        output_path: str = "output/income_tax_p2.pdf",
+        taxpayer_name: str = "",
+        config_path: str | None = None,
+    ) -> dict:
+        """確定申告書B 第二表 PDFを生成する。
+
+        所得の内訳、社会保険料、扶養控除対象者、配偶者情報を記載。
+        """
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
+        path = generate_income_tax_page2_pdf(
+            income_details=income_details,
+            social_insurance_details=social_insurance_details,
+            dependents=dependents,
+            spouse=spouse,
+            housing_loan_move_in_date=housing_loan_move_in_date,
+            output_path=output_path,
+            taxpayer_name=resolved_name,
+        )
+        return {"output_path": path}
+
+    @mcp.tool()
+    def doc_generate_full_set(
+        fiscal_year: int,
+        salary_income_after_deduction: int = 0,
+        business_income: int = 0,
+        total_income: int = 0,
+        total_income_deductions: int = 0,
+        taxable_income: int = 0,
+        income_tax_base: int = 0,
+        total_tax_credits: int = 0,
+        income_tax_after_credits: int = 0,
+        reconstruction_tax: int = 0,
+        total_tax: int = 0,
+        withheld_tax: int = 0,
+        tax_due: int = 0,
+        pl_revenues: list[dict] | None = None,
+        pl_expenses: list[dict] | None = None,
+        bs_assets: list[dict] | None = None,
+        bs_liabilities: list[dict] | None = None,
+        bs_equity: list[dict] | None = None,
+        consumption_method: str | None = None,
+        consumption_taxable_sales_total: int = 0,
+        consumption_tax_on_sales: int = 0,
+        consumption_tax_on_purchases: int = 0,
+        consumption_tax_due: int = 0,
+        consumption_local_tax_due: int = 0,
+        consumption_total_due: int = 0,
+        output_path: str = "output/full_tax_set.pdf",
+        taxpayer_name: str = "",
+        config_path: str | None = None,
+    ) -> dict:
+        """全帳票セットを1つのPDFに結合して生成する。"""
+        resolved_name = _resolve_taxpayer_name(taxpayer_name, config_path)
+
+        income_tax = IncomeTaxResult(
+            fiscal_year=fiscal_year,
+            salary_income_after_deduction=salary_income_after_deduction,
+            business_income=business_income,
+            total_income=total_income,
+            total_income_deductions=total_income_deductions,
+            taxable_income=taxable_income,
+            income_tax_base=income_tax_base,
+            total_tax_credits=total_tax_credits,
+            income_tax_after_credits=income_tax_after_credits,
+            reconstruction_tax=reconstruction_tax,
+            total_tax=total_tax,
+            withheld_tax=withheld_tax,
+            tax_due=tax_due,
+        )
+
+        rev_items = [PLItem(**r) for r in (pl_revenues or [])]
+        exp_items = [PLItem(**e) for e in (pl_expenses or [])]
+        pl_data = PLResult(
+            fiscal_year=fiscal_year,
+            revenues=rev_items,
+            expenses=exp_items,
+            total_revenue=sum(r.amount for r in rev_items),
+            total_expense=sum(e.amount for e in exp_items),
+            net_income=sum(r.amount for r in rev_items) - sum(e.amount for e in exp_items),
+        )
+
+        bs_data = None
+        if bs_assets is not None:
+            bs_asset_items = [BSItem(**a) for a in (bs_assets or [])]
+            bs_liab_items = [BSItem(**li) for li in (bs_liabilities or [])]
+            bs_eq_items = [BSItem(**e) for e in (bs_equity or [])]
+            bs_data = BSResult(
+                fiscal_year=fiscal_year,
+                assets=bs_asset_items,
+                liabilities=bs_liab_items,
+                equity=bs_eq_items,
+                total_assets=sum(i.amount for i in bs_asset_items),
+                total_liabilities=sum(i.amount for i in bs_liab_items),
+                total_equity=sum(i.amount for i in bs_eq_items),
+            )
+
+        consumption_tax = None
+        if consumption_method:
+            consumption_tax = ConsumptionTaxResult(
+                fiscal_year=fiscal_year,
+                method=consumption_method,
+                taxable_sales_total=consumption_taxable_sales_total,
+                tax_on_sales=consumption_tax_on_sales,
+                tax_on_purchases=consumption_tax_on_purchases,
+                tax_due=consumption_tax_due,
+                local_tax_due=consumption_local_tax_due,
+                total_due=consumption_total_due,
+            )
+
+        path = generate_full_tax_document_set(
+            income_tax=income_tax,
+            pl_data=pl_data,
+            bs_data=bs_data,
+            consumption_tax=consumption_tax,
+            output_path=output_path,
+            taxpayer_name=resolved_name,
+        )
+
+        num_pages = 3  # P1 + P2 + PL
+        if bs_data:
+            num_pages += 1
+        if consumption_tax:
+            num_pages += 2
+
+        return {"output_path": path, "pages": num_pages}
+
+    @mcp.tool()
+    def doc_preview_pdf(
+        pdf_path: str,
+        output_dir: str = "output/preview",
+        dpi: int = 150,
+    ) -> dict:
+        """生成済みPDFをページごとの画像に変換し、目視確認用のプレビューを生成する。"""
+        images = pdf_to_images(pdf_path, output_dir, dpi)
+        return {"images": images, "num_pages": len(images)}

@@ -126,6 +126,108 @@ def draw_checkbox(
         c.circle(x + size / 2, y + size / 2, size / 2, fill=1)
 
 
+def draw_digit_cells(
+    c: canvas.Canvas,
+    x_start: float,
+    y: float,
+    value: int | str,
+    cell_width: float,
+    num_cells: int,
+    font_size: float = 10,
+    font_name: str | None = None,
+    right_align: bool = True,
+) -> None:
+    """桁別セルに1桁ずつ数値を配置する.
+
+    確定申告書の金額欄や郵便番号欄など、グリッドセルに1桁ずつ記入する
+    フィールド用の描画関数。
+
+    Args:
+        c: ReportLab canvas.
+        x_start: 最初のセルの左端x座標.
+        y: ベースラインy座標.
+        value: 描画する値（int または str）.
+        cell_width: セル間隔（pt）.
+        num_cells: セル数.
+        font_size: フォントサイズ.
+        font_name: フォント名.
+        right_align: True の場合、右端セルから埋める（金額用）.
+    """
+    fn = font_name or get_font_name()
+    c.setFont(fn, font_size)
+
+    text = str(value)
+    # マイナス符号の処理
+    is_negative = text.startswith("-")
+    if is_negative:
+        text = text[1:]
+
+    # カンマを除去
+    text = text.replace(",", "")
+
+    digits = list(text)
+
+    if right_align:
+        # 右端セルから埋める
+        start_idx = num_cells - len(digits)
+        if is_negative and start_idx > 0:
+            start_idx -= 1  # マイナス符号用に1セル確保
+    else:
+        start_idx = 0
+
+    for i, digit in enumerate(digits):
+        cell_idx = start_idx + i
+        if is_negative and i == 0 and right_align:
+            # マイナス符号を先頭に配置
+            x_center = x_start + (start_idx) * cell_width + cell_width / 2
+            c.drawCentredString(x_center, y, "-")
+            cell_idx = start_idx + 1
+            # digit をもう1つ右のセルに
+            x_center = x_start + cell_idx * cell_width + cell_width / 2
+            c.drawCentredString(x_center, y, digit)
+            is_negative = False  # 符号は処理済み
+            continue
+
+        if 0 <= cell_idx < num_cells:
+            x_center = x_start + cell_idx * cell_width + cell_width / 2
+            c.drawCentredString(x_center, y, digit)
+
+
+def _draw_field(
+    c: canvas.Canvas,
+    field: dict[str, Any],
+) -> None:
+    """1つのフィールドを描画する（全タイプ対応）."""
+    ftype = field.get("type", "text")
+    value = field["value"]
+    font_size = field.get("font_size", 9)
+
+    if ftype == "digit_cells":
+        draw_digit_cells(
+            c,
+            field["x_start"],
+            field["y"],
+            value,
+            field["cell_width"],
+            field["num_cells"],
+            font_size,
+            right_align=field.get("right_align", True),
+        )
+    elif ftype == "text":
+        draw_text(c, field["x"], field["y"], str(value), font_size=font_size)
+    elif ftype == "number":
+        draw_number(
+            c,
+            field["x"],
+            field["y"],
+            int(value),
+            font_size=font_size,
+            with_comma=field.get("with_comma", True),
+        )
+    elif ftype == "checkbox":
+        draw_checkbox(c, field["x"], field["y"], bool(value))
+
+
 # ============================================================
 # Overlay Creation and Merging
 # ============================================================
@@ -139,11 +241,11 @@ def create_overlay(
 
     Args:
         fields: List of field dicts, each with:
-            - type: "text", "number", or "checkbox"
-            - x, y: coordinates
+            - type: "text", "number", "checkbox", or "digit_cells"
+            - x, y: coordinates (for text/number/checkbox)
+            - x_start, y, cell_width, num_cells: (for digit_cells)
             - value: the value to draw
             - font_size: optional
-            - with_comma: optional (for numbers)
         page_size: Page size tuple.
 
     Returns:
@@ -153,25 +255,7 @@ def create_overlay(
     c = canvas.Canvas(buf, pagesize=page_size)
 
     for field in fields:
-        ftype = field.get("type", "text")
-        x = field["x"]
-        y = field["y"]
-        value = field["value"]
-        font_size = field.get("font_size", 9)
-
-        if ftype == "text":
-            draw_text(c, x, y, str(value), font_size=font_size)
-        elif ftype == "number":
-            draw_number(
-                c,
-                x,
-                y,
-                int(value),
-                font_size=font_size,
-                with_comma=field.get("with_comma", True),
-            )
-        elif ftype == "checkbox":
-            draw_checkbox(c, x, y, bool(value))
+        _draw_field(c, field)
 
     c.save()
     return buf.getvalue()
@@ -180,40 +264,30 @@ def create_overlay(
 def create_multi_page_overlay(
     pages: list[list[dict[str, Any]]],
     page_size: tuple[float, float] = A4,
+    page_sizes: list[tuple[float, float]] | None = None,
 ) -> bytes:
     """Create a multi-page PDF overlay.
 
     Args:
         pages: List of pages, each page is a list of field dicts.
-        page_size: Page size tuple.
+        page_size: Default page size tuple.
+        page_sizes: Per-page sizes. If provided, overrides page_size for each page.
 
     Returns:
         PDF bytes of the overlay.
     """
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=page_size)
+    # 最初のページサイズで初期化（各ページで切り替え可能）
+    initial_size = page_sizes[0] if page_sizes else page_size
+    c = canvas.Canvas(buf, pagesize=initial_size)
 
-    for page_fields in pages:
+    for idx, page_fields in enumerate(pages):
+        # ページごとにサイズを切り替え
+        if page_sizes and idx < len(page_sizes):
+            c.setPageSize(page_sizes[idx])
+
         for field in page_fields:
-            ftype = field.get("type", "text")
-            x = field["x"]
-            y = field["y"]
-            value = field["value"]
-            font_size = field.get("font_size", 9)
-
-            if ftype == "text":
-                draw_text(c, x, y, str(value), font_size=font_size)
-            elif ftype == "number":
-                draw_number(
-                    c,
-                    x,
-                    y,
-                    int(value),
-                    font_size=font_size,
-                    with_comma=field.get("with_comma", True),
-                )
-            elif ftype == "checkbox":
-                draw_checkbox(c, x, y, bool(value))
+            _draw_field(c, field)
 
         c.showPage()
 
@@ -255,6 +329,53 @@ def merge_overlay(
     return output_path
 
 
+def merge_multi_template_overlay(
+    template_paths: list[str],
+    overlay_bytes: bytes,
+    output_path: str,
+) -> str:
+    """Merge a multi-page overlay with different template PDFs per page.
+
+    各ページに異なるテンプレートPDFを使用してオーバーレイをマージする。
+    確定申告書セットのように、ページごとに異なるNTA用紙を使う場合に使用。
+
+    Args:
+        template_paths: テンプレートPDFのパスリスト（ページ順）.
+        overlay_bytes: マルチページオーバーレイのPDFバイト.
+        output_path: 出力パス.
+
+    Returns:
+        出力パス.
+    """
+    if PdfReader is None or PdfWriter is None:
+        raise ImportError("pypdf is required for PDF merging")
+
+    overlay = PdfReader(io.BytesIO(overlay_bytes))
+    writer = PdfWriter()
+
+    for i, tmpl_path in enumerate(template_paths):
+        if Path(tmpl_path).exists():
+            tmpl_reader = PdfReader(tmpl_path)
+            page = tmpl_reader.pages[0]
+            if i < len(overlay.pages):
+                page.merge_page(overlay.pages[i])
+            writer.add_page(page)
+        elif i < len(overlay.pages):
+            # テンプレートがない場合はオーバーレイページをそのまま使用
+            writer.add_page(overlay.pages[i])
+
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    return output_path
+
+
+# ============================================================
+# Standalone PDF Generation
+# ============================================================
+
+
 def generate_standalone_pdf(
     fields: list[dict[str, Any]],
     output_path: str,
@@ -284,25 +405,7 @@ def generate_standalone_pdf(
         c.drawCentredString(page_size[0] / 2, page_size[1] - 30 * mm, title)
 
     for field in fields:
-        ftype = field.get("type", "text")
-        x = field["x"]
-        y = field["y"]
-        value = field["value"]
-        font_size = field.get("font_size", 9)
-
-        if ftype == "text":
-            draw_text(c, x, y, str(value), font_size=font_size)
-        elif ftype == "number":
-            draw_number(
-                c,
-                x,
-                y,
-                int(value),
-                font_size=font_size,
-                with_comma=field.get("with_comma", True),
-            )
-        elif ftype == "checkbox":
-            draw_checkbox(c, x, y, bool(value))
+        _draw_field(c, field)
 
     c.save()
     pdf_bytes = buf.getvalue()
@@ -317,6 +420,7 @@ def generate_standalone_multi_page_pdf(
     pages: list[list[dict[str, Any]]],
     output_path: str,
     page_size: tuple[float, float] = A4,
+    page_sizes: list[tuple[float, float]] | None = None,
     titles: list[str] | None = None,
 ) -> str:
     """Generate a standalone multi-page PDF (no template).
@@ -324,7 +428,8 @@ def generate_standalone_multi_page_pdf(
     Args:
         pages: List of pages, each is a list of field dicts.
         output_path: Path to write the PDF.
-        page_size: Page size.
+        page_size: Default page size.
+        page_sizes: Per-page sizes (overrides page_size).
         titles: Optional per-page titles.
 
     Returns:
@@ -332,34 +437,21 @@ def generate_standalone_multi_page_pdf(
     """
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=page_size)
+    initial_size = page_sizes[0] if page_sizes else page_size
+    c = canvas.Canvas(buf, pagesize=initial_size)
 
     for idx, page_fields in enumerate(pages):
+        if page_sizes and idx < len(page_sizes):
+            c.setPageSize(page_sizes[idx])
+
+        current_size = page_sizes[idx] if page_sizes and idx < len(page_sizes) else page_size
         if titles and idx < len(titles) and titles[idx]:
             fn = get_font_name()
             c.setFont(fn, 14)
-            c.drawCentredString(page_size[0] / 2, page_size[1] - 30 * mm, titles[idx])
+            c.drawCentredString(current_size[0] / 2, current_size[1] - 30 * mm, titles[idx])
 
         for field in page_fields:
-            ftype = field.get("type", "text")
-            x = field["x"]
-            y = field["y"]
-            value = field["value"]
-            font_size = field.get("font_size", 9)
-
-            if ftype == "text":
-                draw_text(c, x, y, str(value), font_size=font_size)
-            elif ftype == "number":
-                draw_number(
-                    c,
-                    x,
-                    y,
-                    int(value),
-                    font_size=font_size,
-                    with_comma=field.get("with_comma", True),
-                )
-            elif ftype == "checkbox":
-                draw_checkbox(c, x, y, bool(value))
+            _draw_field(c, field)
 
         c.showPage()
 
@@ -370,3 +462,50 @@ def generate_standalone_multi_page_pdf(
         f.write(pdf_bytes)
 
     return output_path
+
+
+# ============================================================
+# PDF to Image Conversion
+# ============================================================
+
+
+def pdf_to_images(
+    pdf_path: str,
+    output_dir: str,
+    dpi: int = 150,
+) -> list[str]:
+    """PDFの各ページをPNG画像に変換する.
+
+    pypdfium2を使用してPDFをページごとの画像に変換する。
+    /submit スキルのPDF目視確認ステップで使用。
+
+    Args:
+        pdf_path: PDFファイルのパス.
+        output_dir: 画像出力ディレクトリ.
+        dpi: 解像度（デフォルト150）.
+
+    Returns:
+        生成されたPNG画像のパスリスト.
+    """
+    try:
+        import pypdfium2 as pdfium
+    except ImportError:
+        raise ImportError("pypdfium2 is required for PDF to image conversion")
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    pdf = pdfium.PdfDocument(pdf_path)
+    images: list[str] = []
+
+    for i in range(len(pdf)):
+        page = pdf[i]
+        scale = dpi / 72
+        bitmap = page.render(scale=scale)
+        pil_image = bitmap.to_pil()
+
+        output_path = out / f"page_{i + 1}.png"
+        pil_image.save(str(output_path))
+        images.append(str(output_path))
+
+    return images
