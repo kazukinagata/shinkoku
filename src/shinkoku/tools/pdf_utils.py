@@ -265,6 +265,7 @@ def create_multi_page_overlay(
     pages: list[list[dict[str, Any]]],
     page_size: tuple[float, float] = A4,
     page_sizes: list[tuple[float, float]] | None = None,
+    page_rotations: list[int] | None = None,
 ) -> bytes:
     """Create a multi-page PDF overlay.
 
@@ -272,6 +273,10 @@ def create_multi_page_overlay(
         pages: List of pages, each page is a list of field dicts.
         page_size: Default page size tuple.
         page_sizes: Per-page sizes. If provided, overrides page_size for each page.
+            landscape 座標系で定義されたサイズを指定する（例: (842, 595)）。
+        page_rotations: Per-page rotation in degrees (0 or 90).
+            90 の場合、テンプレートが portrait MediaBox + /Rotate=90 であることを示す。
+            オーバーレイを portrait サイズで作成し、座標を回転変換してから描画する。
 
     Returns:
         PDF bytes of the overlay.
@@ -282,12 +287,30 @@ def create_multi_page_overlay(
     c = canvas.Canvas(buf, pagesize=initial_size)
 
     for idx, page_fields in enumerate(pages):
-        # ページごとにサイズを切り替え
+        rotation = page_rotations[idx] if page_rotations and idx < len(page_rotations) else 0
         if page_sizes and idx < len(page_sizes):
-            c.setPageSize(page_sizes[idx])
+            w, h = page_sizes[idx]
+        else:
+            w, h = page_size
+
+        if rotation == 90:
+            # テンプレートは portrait (h x w) + /Rotate=90 で landscape 表示。
+            # オーバーレイを portrait サイズで作成し、座標系を回転して
+            # landscape 座標 (w x h) → portrait 物理座標 (h x w) に変換する。
+            physical_w, physical_h = h, w  # portrait: 元の height が width に
+            c.setPageSize((physical_w, physical_h))
+            c.saveState()
+            c.translate(0, physical_h)
+            c.rotate(-90)
+            # 以降 landscape 座標系 (w x h) で描画可能
+        else:
+            c.setPageSize((w, h))
 
         for field in page_fields:
             _draw_field(c, field)
+
+        if rotation == 90:
+            c.restoreState()
 
         c.showPage()
 

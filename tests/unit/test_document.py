@@ -6,7 +6,6 @@ from shinkoku.tools.document import (
     generate_bs_pl_pdf,
     generate_income_tax_pdf,
     generate_consumption_tax_pdf,
-    generate_deduction_detail_pdf,
 )
 from shinkoku.models import (
     PLResult,
@@ -249,85 +248,6 @@ class TestGenerateConsumptionTaxPdf:
 
 
 # ============================================================
-# Task 19: Deduction Detail PDF
-# ============================================================
-
-
-@pytest.fixture
-def sample_deductions():
-    return DeductionsResult(
-        income_deductions=[
-            DeductionItem(type="basic", name="基礎控除", amount=880_000),
-            DeductionItem(type="social_insurance", name="社会保険料控除", amount=800_000),
-            DeductionItem(type="life_insurance", name="生命保険料控除", amount=40_000),
-            DeductionItem(
-                type="furusato_nozei", name="寄附金控除", amount=48_000, details="ふるさと納税"
-            ),
-        ],
-        tax_credits=[
-            DeductionItem(type="housing_loan", name="住宅ローン控除", amount=245_000),
-        ],
-        total_income_deductions=1_768_000,
-        total_tax_credits=245_000,
-    )
-
-
-class TestGenerateDeductionDetailPdf:
-    def test_generates_pdf_file(self, tmp_path, sample_deductions):
-        output = str(tmp_path / "deduction_detail.pdf")
-        result = generate_deduction_detail_pdf(
-            deductions=sample_deductions,
-            fiscal_year=2025,
-            output_path=output,
-        )
-        assert os.path.exists(result)
-
-    def test_pdf_starts_with_magic(self, tmp_path, sample_deductions):
-        output = str(tmp_path / "deduction_detail.pdf")
-        generate_deduction_detail_pdf(
-            deductions=sample_deductions,
-            fiscal_year=2025,
-            output_path=output,
-        )
-        with open(output, "rb") as f:
-            assert f.read(5) == b"%PDF-"
-
-    def test_with_taxpayer_name(self, tmp_path, sample_deductions):
-        output = str(tmp_path / "deduction_detail.pdf")
-        result = generate_deduction_detail_pdf(
-            deductions=sample_deductions,
-            fiscal_year=2025,
-            output_path=output,
-            taxpayer_name="控除太郎",
-        )
-        assert os.path.exists(result)
-
-    def test_empty_deductions(self, tmp_path):
-        output = str(tmp_path / "deduction_empty.pdf")
-        empty = DeductionsResult(
-            income_deductions=[],
-            tax_credits=[],
-            total_income_deductions=0,
-            total_tax_credits=0,
-        )
-        result = generate_deduction_detail_pdf(
-            deductions=empty,
-            fiscal_year=2025,
-            output_path=output,
-        )
-        assert os.path.exists(result)
-
-    def test_creates_parent_dirs(self, tmp_path, sample_deductions):
-        output = str(tmp_path / "a" / "b" / "detail.pdf")
-        result = generate_deduction_detail_pdf(
-            deductions=sample_deductions,
-            fiscal_year=2025,
-            output_path=output,
-        )
-        assert os.path.exists(result)
-
-
-# ============================================================
 # Medical Expense Detail PDF
 # ============================================================
 
@@ -407,96 +327,6 @@ class TestGenerateMedicalExpenseDetailPdf:
             expenses=[{"medical_institution": "病院", "patient_name": "太郎", "amount": 150_000}],
             fiscal_year=2025,
             total_income=1_000_000,
-            output_path=output,
-        )
-        assert os.path.exists(result)
-
-
-# ============================================================
-# Rent Detail PDF
-# ============================================================
-
-
-class TestGenerateRentDetailPdf:
-    def test_generates_pdf_file(self, tmp_path):
-        from shinkoku.tools.document import generate_rent_detail_pdf
-
-        output = str(tmp_path / "rent.pdf")
-        details = [
-            {
-                "usage": "自宅兼事務所",
-                "property_type": "事務所",
-                "landlord_name": "○○不動産",
-                "landlord_address": "東京都渋谷区1-1-1",
-                "monthly_rent": 100_000,
-                "annual_rent": 1_200_000,
-                "business_ratio": 40,
-            },
-        ]
-        result = generate_rent_detail_pdf(
-            rent_details=details,
-            fiscal_year=2025,
-            output_path=output,
-            taxpayer_name="テスト太郎",
-        )
-        assert os.path.exists(result)
-
-    def test_pdf_starts_with_magic(self, tmp_path):
-        from shinkoku.tools.document import generate_rent_detail_pdf
-
-        output = str(tmp_path / "rent.pdf")
-        result = generate_rent_detail_pdf(
-            rent_details=[{"usage": "事務所", "landlord_name": "A", "monthly_rent": 50_000}],
-            fiscal_year=2025,
-            output_path=output,
-        )
-        with open(result, "rb") as f:
-            assert f.read(5) == b"%PDF-"
-
-    def test_empty_details(self, tmp_path):
-        from shinkoku.tools.document import generate_rent_detail_pdf
-
-        output = str(tmp_path / "rent_empty.pdf")
-        result = generate_rent_detail_pdf(
-            rent_details=[],
-            fiscal_year=2025,
-            output_path=output,
-        )
-        assert os.path.exists(result)
-
-    def test_multiple_properties(self, tmp_path):
-        from shinkoku.tools.document import generate_rent_detail_pdf
-
-        output = str(tmp_path / "rent_multi.pdf")
-        details = [
-            {
-                "usage": "事務所",
-                "property_type": "事務所",
-                "landlord_name": f"不動産{i}",
-                "monthly_rent": 80_000 + i * 10_000,
-                "annual_rent": (80_000 + i * 10_000) * 12,
-                "business_ratio": 100,
-            }
-            for i in range(4)
-        ]
-        result = generate_rent_detail_pdf(
-            rent_details=details,
-            fiscal_year=2025,
-            output_path=output,
-        )
-        assert os.path.exists(result)
-
-    def test_max_5_lines(self, tmp_path):
-        from shinkoku.tools.document import generate_rent_detail_pdf
-
-        output = str(tmp_path / "rent_max.pdf")
-        details = [
-            {"usage": f"用途{i}", "landlord_name": f"大家{i}", "monthly_rent": 50_000}
-            for i in range(8)
-        ]
-        result = generate_rent_detail_pdf(
-            rent_details=details,
-            fiscal_year=2025,
             output_path=output,
         )
         assert os.path.exists(result)

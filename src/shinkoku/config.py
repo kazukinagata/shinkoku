@@ -59,6 +59,16 @@ class FilingConfig(BaseModel):
     tax_office_name: str = ""
 
 
+class RefundAccountConfig(BaseModel):
+    """還付金の受入先口座。"""
+
+    bank_name: str = ""
+    branch_name: str = ""
+    account_type: str = ""  # 普通 / 当座
+    account_number: str = ""
+    account_holder: str = ""  # 口座名義（カナ）
+
+
 class ShinkokuConfig(BaseModel):
     """shinkoku 設定ファイル全体。"""
 
@@ -83,6 +93,7 @@ class ShinkokuConfig(BaseModel):
     business_address: AddressConfig | None = None
     business: BusinessConfig = Field(default_factory=BusinessConfig)
     filing: FilingConfig = Field(default_factory=FilingConfig)
+    refund_account: RefundAccountConfig = Field(default_factory=RefundAccountConfig)
 
 
 def load_config(config_path: str) -> ShinkokuConfig:

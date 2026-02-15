@@ -11,7 +11,6 @@ from shinkoku.tools.document import (
     generate_income_tax_pdf,
     generate_consumption_tax_pdf,
     generate_bs_pl_pdf,
-    generate_deduction_detail_pdf,
 )
 from shinkoku.tools.ledger import (
     ledger_init,
@@ -81,33 +80,6 @@ class TestIncomeTaxToPdf:
         output = str(tmp_path / "income_tax_full.pdf")
         path = generate_income_tax_pdf(
             tax_result=tax_result,
-            output_path=output,
-            taxpayer_name="控除太郎",
-        )
-
-        assert os.path.exists(path)
-        assert os.path.getsize(path) > 100
-
-    def test_income_tax_deduction_detail_pdf(self, tmp_path):
-        """Deduction details from tax calc -> deduction detail PDF."""
-        tax_result = calc_income_tax(
-            IncomeTaxInput(
-                fiscal_year=2025,
-                salary_income=6_000_000,
-                business_revenue=3_000_000,
-                social_insurance=500_000,
-                life_insurance_premium=80_000,
-                furusato_nozei=50_000,
-                housing_loan_balance=25_000_000,
-            )
-        )
-
-        assert tax_result.deductions_detail is not None
-
-        output = str(tmp_path / "deduction_detail.pdf")
-        path = generate_deduction_detail_pdf(
-            deductions=tax_result.deductions_detail,
-            fiscal_year=2025,
             output_path=output,
             taxpayer_name="控除太郎",
         )
@@ -397,19 +369,10 @@ class TestFullTaxDocumentSet:
         )
         paths.append(p2)
 
-        if income_result.deductions_detail:
-            p3 = generate_deduction_detail_pdf(
-                deductions=income_result.deductions_detail,
-                fiscal_year=2025,
-                output_path=str(output_dir / "deduction_detail.pdf"),
-                taxpayer_name="テスト太郎",
-            )
-            paths.append(p3)
-
         # Verify all PDFs exist and are non-empty
         for path in paths:
             assert os.path.exists(path), f"PDF not found: {path}"
             assert os.path.getsize(path) > 100, f"PDF too small: {path}"
 
-        # Verify at least income tax + consumption tax + deduction detail
-        assert len(paths) == 3
+        # Verify income tax + consumption tax
+        assert len(paths) == 2

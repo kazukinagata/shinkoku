@@ -11,3 +11,4 @@ htmlcov/
 .ruff_cache/
 playground/
 .shinkoku/
+templates/

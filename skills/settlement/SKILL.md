@@ -224,15 +224,6 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 - 年間賃料 = 月額賃料 × 支払月数 で正しいか
 - 複数の物件がある場合はすべて登録する
 
-### 地代家賃内訳PDFの生成
-
-```
-doc_generate_rent_detail:
-  fiscal_year: int
-  rent_details: list[dict]    — ledger_list_rent_details の結果
-  output_path: str
-  taxpayer_name: str
-```
 
 ## ステップ3: 決算書の生成
 
@@ -274,7 +265,14 @@ doc_generate_rent_detail:
 - 現金・預金残高が実際の残高と一致するか
 - 固定資産の帳簿価額が減価償却後の金額であるか
 
-### 3-3. 決算書PDFの生成（`generate_bs_pl_pdf`）
+### 3-3. 決算書PDFの生成
+
+決算書PDFの生成は `/document` スキルに委任できる。
+決算整理完了後、ユーザーに「`/document` で確定申告書類PDFを一括生成できます」と案内する。
+
+なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
+
+#### 青色申告決算書: `generate_bs_pl_pdf`
 
 ```
 パラメータ:
@@ -287,7 +285,7 @@ doc_generate_rent_detail:
 - 青色申告決算書の様式に準拠した形式で生成する
 - 出力後、ファイルパスをユーザーに案内する
 
-### 3-3b. 収支内訳書PDFの生成（白色申告の場合）
+#### 収支内訳書（白色申告の場合）: `doc_generate_income_expense_statement`
 
 白色申告（`filing.return_type == "white"`）の場合、青色申告決算書の代わりに収支内訳書を生成する。
 
@@ -303,21 +301,6 @@ doc_generate_income_expense_statement:
 - 収支内訳書は青色申告決算書（BS/PL）の簡易版で、損益計算書のみ
 - 貸借対照表は不要
 
-### 3-4. 減価償却明細書PDFの生成（`doc_generate_depreciation_schedule`）
-
-固定資産がある場合、減価償却明細書を生成する（青色申告決算書の添付書類）。
-
-```
-パラメータ:
-  fiscal_year: int          — 会計年度
-  assets: list[dict]        — 固定資産リスト（各資産の名称、取得日、取得価額、耐用年数、
-                              償却方法、事業専用割合、本年分償却費、期末残高）
-  output_path: str          — 出力先ファイルパス
-  taxpayer_name: str        — 氏名（任意）
-```
-
-- 最大10件の固定資産を1ページに記載する
-- 各資産の当年度償却費は `calc_depreciation` ツールで事前に計算する
 
 ## ステップ4: 決算結果サマリーの提示
 

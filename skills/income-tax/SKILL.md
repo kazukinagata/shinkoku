@@ -27,7 +27,6 @@ settlement スキルで決算書の作成が完了していることを前提と
 
 config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
 - `generate_income_tax_pdf(output_path="/home/user/tax-2025/output/income_tax_2025.pdf", ...)`
-- `generate_deduction_detail_pdf(output_path="/home/user/tax-2025/output/deduction_detail_2025.pdf", ...)`
 
 ## 進捗情報の読み込み
 
@@ -585,31 +584,24 @@ PDF 生成前に、住宅ローン控除の詳細情報を DB に登録する。
 
 住宅区分別の年末残高上限テーブルは `references/deduction-tables.md` を参照。
 
-## ステップ4: 控除明細PDFの生成
+## ステップ4-5: PDF帳票の生成
 
-### `generate_deduction_detail_pdf` の呼び出し
+PDF帳票の生成は `/document` スキルに委任する。
+所得税計算完了後、ユーザーに「`/document` で確定申告書類PDFを一括生成できます」と案内する。
 
-```
-パラメータ:
-  deductions: DeductionsResult — 控除の計算結果
-  output_path: str             — 出力先ファイルパス
-```
+なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
 
-- 各控除の明細と計算根拠を記載したPDFを生成する
-- 確定申告書の第二表「所得から差し引かれる金額に関する事項」の根拠資料となる
-
-## ステップ5: 確定申告書PDFの生成
-
-### `generate_income_tax_pdf` の呼び出し
+### 確定申告書PDF: `generate_income_tax_pdf`
 
 ```
 パラメータ:
   result: IncomeTaxResult — 所得税の計算結果
   output_path: str        — 出力先ファイルパス
+  config_path: str        — 設定ファイルパス（住所等をPDFに反映）
 ```
 
 - 確定申告書B様式（第一表・第二表）のPDFを生成する
-- references/form-b-fields.md の各欄に計算結果を設定する
+- config_path を渡すことで住所・氏名・電話等がPDFに自動記入される
 - 出力後、主要な記載内容をサマリーとして表示する
 
 ## ステップ6: 計算結果サマリーの提示

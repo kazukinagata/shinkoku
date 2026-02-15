@@ -69,3 +69,11 @@ filing:
   blue_return_deduction: 650000
   electronic_bookkeeping: false
   tax_office_name: ""
+
+# --- 還付金口座（還付がある場合） ---
+refund_account:
+  bank_name: ""             # 銀行名
+  branch_name: ""           # 支店名
+  account_type: ""          # 普通 / 当座
+  account_number: ""        # 口座番号
+  account_holder: ""        # 口座名義（カナ）

@@ -1044,6 +1044,15 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     )
     tax_due = total_tax - total_withheld
 
+    # 個別の税額控除額を抽出
+    _dividend_credit = 0
+    _housing_loan_credit = 0
+    for tc in deductions.tax_credits:
+        if tc.type == "dividend":
+            _dividend_credit += tc.amount
+        elif tc.type == "housing_loan":
+            _housing_loan_credit += tc.amount
+
     return IncomeTaxResult(
         fiscal_year=input_data.fiscal_year,
         salary_income_after_deduction=salary_income_after,
@@ -1052,6 +1061,8 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         total_income_deductions=total_income_deductions,
         taxable_income=taxable_income,
         income_tax_base=income_tax_base,
+        dividend_credit=_dividend_credit,
+        housing_loan_credit=_housing_loan_credit,
         total_tax_credits=total_tax_credits,
         income_tax_after_credits=income_tax_after_credits,
         reconstruction_tax=reconstruction_tax,

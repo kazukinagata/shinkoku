@@ -385,6 +385,8 @@ class IncomeTaxResult(BaseModel):
     taxable_income: int = 0
     # 税額
     income_tax_base: int = 0
+    dividend_credit: int = 0  # 配当控除（税額控除）
+    housing_loan_credit: int = 0  # 住宅ローン控除（税額控除）
     total_tax_credits: int = 0
     income_tax_after_credits: int = 0
     reconstruction_tax: int = 0

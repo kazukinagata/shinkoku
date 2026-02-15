@@ -23,7 +23,6 @@ from shinkoku.tools.tax_calc import calc_income_tax
 from shinkoku.tools.document import (
     generate_income_tax_pdf,
     generate_bs_pl_pdf,
-    generate_deduction_detail_pdf,
 )
 from shinkoku.models import (
     JournalEntry,
@@ -226,16 +225,6 @@ class TestIncomeTaxFullFlow:
         )
         assert os.path.exists(bs_pl_path)
         assert os.path.getsize(bs_pl_path) > 100
-
-        # Deduction detail PDF
-        if tax_result.deductions_detail:
-            deduction_path = generate_deduction_detail_pdf(
-                deductions=tax_result.deductions_detail,
-                fiscal_year=fiscal_year,
-                output_path=str(output_dir / "deduction_detail.pdf"),
-                taxpayer_name=taxpayer_name,
-            )
-            assert os.path.exists(deduction_path)
 
         # Verify all PDFs have valid headers
         for pdf_name in ["income_tax.pdf", "bs_pl.pdf"]:
