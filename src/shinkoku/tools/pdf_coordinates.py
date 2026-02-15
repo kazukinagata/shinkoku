@@ -600,8 +600,8 @@ BLUE_RETURN_PL_P1: dict[str, dict] = {
     # 雑費（plumb 450.3-467.8 → ly ≈ 130）
     "miscellaneous": {"x": 538.0, "y": 130.0, "font_size": 8, "type": "number"},
     # --- 左列 経費小計・合計 ---
-    # 利子割引料（plumb 381-398 → ly ≈ 200）
-    "interest_discount": {"x": 300.0, "y": 200.0, "font_size": 8, "type": "number"},
+    # 利子割引料（plumb 346-363 → ly ≈ 234）— 地代家賃の次行（セクション区切り後）
+    "interest_discount": {"x": 300.0, "y": 234.0, "font_size": 8, "type": "number"},
     # 小計（plumb 450.3-467.8 → ly ≈ 130）
     "expenses_left_subtotal": {"x": 300.0, "y": 130.0, "font_size": 8, "type": "number"},
     # 中央列小計（plumb 467.8-485.3 → ly ≈ 113）
@@ -701,90 +701,94 @@ BLUE_RETURN_PL_P3: dict[str, dict] = {
     "taxpayer_name": {"x": 120.0, "y": 559.0, "font_size": 9, "type": "text"},
 }
 
-# 減価償却資産（最大5行）
-# Page 2 (idx 2) of r07/10.pdf — 減価償却費の計算セクション
-# H-line boundaries: 179.1, 197.8, 216.6, 235.4, 254.2, 273.6
-# 行間隔: 18.8pt, 5 data rows
-# V-line boundaries: x=164.3 (名称右端), x=344.9 (取得価額右端),
-#   x=397.5 (header only), x=478.5 (償却費右端)
-# baseline = 595 - plumb_bottom + 3
-_DEPR_ROW_SPACING = 18.8
-_DEPR_FIRST_ROW_Y = 595.0 - 197.8 + 3.0  # = 400.2 (first data row)
+# 減価償却費の計算（最大5行）
+# Page 2 (idx 2) of r07/10.pdf — full-width 減価償却費の計算セクション
+# Section spans x=59.2-810.3, pdfplumber y=296.6-482.9
+# Header rows: y=296.6-340.3 (column labels ㋑㋺㋩㋥㋭㋬㋣㋠㋷㋦)
+# Data row H-lines: 340.3, 358.2, 376.0, 393.9, 411.8, 429.7, 447.5, 465.4
+# 行間隔: 17.9pt, 7 data rows (using first 5)
+# V-lines: 59.2, 118.1, 147.6, 177.0, 243.3, 309.6, 339.0, 368.5,
+#   397.9, 427.4, 486.3, 545.2, 604.1, 633.5, 692.5, 751.4, 810.3
+# Total row: 465.4-482.9
+# baseline = 595 - plumb_row_bottom + 3
+_DEPR_ROW_SPACING = 17.9
+_DEPR_FIRST_ROW_Y = 595.0 - 358.2 + 3.0  # = 239.8 (first data row)
 
 for _i in range(5):
     _y = _DEPR_FIRST_ROW_Y - _i * _DEPR_ROW_SPACING
-    # 資産名称 — 左寄せ x=15
+    # 資産名称 — 左寄せ x=62 (v-line 59.2 の右)
     BLUE_RETURN_PL_P3[f"depr_{_i}_name"] = {
-        "x": 15.0,
+        "x": 62.0,
         "y": _y,
         "font_size": 6,
         "type": "text",
     }
-    # 取得年月 — 左寄せ x=168 (v-line 164.3 の右)
+    # 取得年月 — 左寄せ Col 2 (v-line 147.6-177.0)
     BLUE_RETURN_PL_P3[f"depr_{_i}_acq_date"] = {
-        "x": 168.0,
+        "x": 150.0,
         "y": _y,
         "font_size": 6,
         "type": "text",
     }
-    # 取得価額 — 右寄せ x=342 (v-line 344.9 の内側)
+    # ㋑ 取得価額 — 右寄せ x=240 (v-line 243.3 の内側)
     BLUE_RETURN_PL_P3[f"depr_{_i}_acq_cost"] = {
-        "x": 342.0,
+        "x": 240.0,
         "y": _y,
         "font_size": 6,
         "type": "number",
     }
-    # 耐用年数 — 左寄せ x=348
-    BLUE_RETURN_PL_P3[f"depr_{_i}_useful_life"] = {
-        "x": 348.0,
-        "y": _y,
-        "font_size": 6,
-        "type": "text",
-    }
-    # 償却方法 — 左寄せ x=390
+    # 償却方法 — 左寄せ x=312 (v-line 309.6 の右)
     BLUE_RETURN_PL_P3[f"depr_{_i}_method"] = {
-        "x": 390.0,
+        "x": 312.0,
         "y": _y,
         "font_size": 6,
         "type": "text",
     }
-    # 償却率 — 左寄せ x=420
+    # 耐用年数 — 左寄せ x=341 (v-line 339.0 の右)
+    BLUE_RETURN_PL_P3[f"depr_{_i}_useful_life"] = {
+        "x": 341.0,
+        "y": _y,
+        "font_size": 6,
+        "type": "text",
+    }
+    # ㋩ 償却率 — 左寄せ x=371 (v-line 368.5 の右)
     BLUE_RETURN_PL_P3[f"depr_{_i}_ratio"] = {
-        "x": 420.0,
+        "x": 371.0,
         "y": _y,
         "font_size": 6,
         "type": "text",
     }
-    # 本年分の償却費合計 — 右寄せ x=475 (v-line 478.5 の内側)
+    # ㋣ 本年分の償却費合計 — 右寄せ x=601 (v-line 604.1 の内側)
     BLUE_RETURN_PL_P3[f"depr_{_i}_amount"] = {
-        "x": 475.0,
+        "x": 601.0,
         "y": _y,
         "font_size": 6,
         "type": "number",
     }
-    # 未償却残高 — 右寄せ x=808 (右端列)
+    # ㋦ 未償却残高 — 右寄せ x=748 (v-line 751.4 の内側)
     BLUE_RETURN_PL_P3[f"depr_{_i}_book_value"] = {
-        "x": 808.0,
+        "x": 748.0,
         "y": _y,
         "font_size": 6,
         "type": "number",
     }
 
-# 減価償却費合計 — 最下行 (plumb 273.6 の行)
+# 減価償却費合計 — row 6 合計行 (plumb 447.5-465.4)
 BLUE_RETURN_PL_P3["depr_total"] = {
-    "x": 475.0,
-    "y": 595.0 - 273.6 + 3.0,
+    "x": 601.0,
+    "y": 595.0 - 465.4 + 3.0,
     "font_size": 7,
     "type": "number",
 }
 
-# 地代家賃の内訳（最大3行）
-# 下部右セクション: plumb 527.1-585.4
-# H-lines: 527.1, 546.3, 565.5, 585.4 (行間隔 19.2pt)
-# V-lines: x=611.5, 633.5, 677.7, 692.5, 744.0, 751.4
+# 地代家賃の内訳（最大2行）
+# 下部右セクション: plumb y=509.6-565.5, x=442.1-810.3
+# H-lines: 527.1, 546.3 (行間隔 19.2pt)
+# V-lines: x=611.5, 677.7, 744.0 (within section)
+# 2 data rows: 527.1→546.3, 546.3→565.5
 _RENT_ROW_SPACING = 19.2
 _RENT_FIRST_ROW_Y = 595.0 - 546.3 + 3.0  # = 51.7 (first data row)
-for _i in range(3):
+for _i in range(2):
     _y = _RENT_FIRST_ROW_Y - _i * _RENT_ROW_SPACING
     # 支払先の住所・氏名 — 左寄せ x=615
     BLUE_RETURN_PL_P3[f"rent_{_i}_landlord"] = {
@@ -793,9 +797,9 @@ for _i in range(3):
         "font_size": 5,
         "type": "text",
     }
-    # 賃借料（月額）— 右寄せ x=689 (v-line 692.5 の内側)
+    # 賃借料（月額）— 右寄せ x=675 (v-line 677.7 の内側)
     BLUE_RETURN_PL_P3[f"rent_{_i}_monthly"] = {
-        "x": 689.0,
+        "x": 675.0,
         "y": _y,
         "font_size": 6,
         "type": "number",
@@ -826,7 +830,8 @@ BLUE_RETURN_BS: dict[str, dict] = {
     # Displayed as Landscape 842x595 (pdfplumber)
     # Coordinate transform: rx = 595 - ly, ry = lx, rotate(90)
     # --- ヘッダー ---
-    "taxpayer_name": {"x": 120.0, "y": 559.0, "font_size": 9, "type": "text"},
+    # 氏名欄: タイトル下ヘッダー行（plumb 50-58, 住所/屋号及び氏名ラベル帯）
+    "taxpayer_name": {"x": 120.0, "y": 540.0, "font_size": 9, "type": "text"},
     "fiscal_year_end": {"x": 390.0, "y": 545.0, "font_size": 8, "type": "text"},
     # --- 資産の部（期末欄: 右端 x=313, v-line x=315.5 の内側） ---
     # H-lines: 91.7, 109.1, 126.6, 144.0, 161.5, 179.0, 196.4, 213.9, ...
@@ -1273,11 +1278,25 @@ HOUSING_LOAN_DETAIL_FORM: dict[str, dict] = {
     # ⑪ 年末残高の合計額: top≈572-580
     "total_year_end_balance": {"x": 448.0, "y": 240.0, "font_size": 8, "type": "number"},
     # --- セクション9: 控除額 ---
-    # ⑳ 控除額: rect 468.6-554.6, top=685.3-704.6
-    # 金額右寄せ right edge≈550
-    "credit_amount": {"x": 550.0, "y": 117.0, "font_size": 8, "type": "number"},
-    # 番号欄: cells at 444.9-466.7
-    "credit_type_number": {"x": 452.0, "y": 117.0, "font_size": 7, "type": "text"},
+    # ⑳ 控除額: digit cells at 484.8-552.7, row top=688.1-701.8
+    # 6 cells: cell_width≈11.5, right edge≈552.7
+    "credit_amount": {
+        "x_start": 484.8,
+        "y": 117.0,
+        "cell_width": 11.5,
+        "num_cells": 6,
+        "font_size": 8,
+        "type": "digit_cells",
+    },
+    # 番号欄: 2 digit cells at 444.9-466.7, cell_width≈11.6
+    "credit_type_number": {
+        "x_start": 444.9,
+        "y": 117.0,
+        "cell_width": 11.6,
+        "num_cells": 2,
+        "font_size": 7,
+        "type": "digit_cells",
+    },
     # --- セクション10: 控除証明書の交付を要しない場合 ---
     "no_certificate_needed": {"x": 270.0, "y": 42.0, "font_size": 7, "type": "text"},
 }
