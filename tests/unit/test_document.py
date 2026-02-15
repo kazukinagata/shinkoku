@@ -6,6 +6,9 @@ from shinkoku.tools.document import (
     generate_bs_pl_pdf,
     generate_income_tax_pdf,
     generate_consumption_tax_pdf,
+    _consolidate_social_insurance,
+    _build_income_tax_p2_fields,
+    generate_income_detail_sheet_pdf,
 )
 from shinkoku.models import (
     PLResult,
@@ -864,3 +867,164 @@ class TestPdfToImages:
         for img_path in images:
             assert os.path.exists(img_path)
             assert img_path.endswith(".png")
+
+
+# ============================================================
+# Social Insurance Consolidation
+# ============================================================
+
+
+class TestSocialInsuranceConsolidation:
+    def test_two_items_unchanged(self):
+        items = [
+            {"type": "健康保険", "payer": "全国健康保険協会", "amount": 300_000},
+            {"type": "厚生年金", "payer": "日本年金機構", "amount": 500_000},
+        ]
+        result = _consolidate_social_insurance(items)
+        assert len(result) == 2
+        assert result[0]["type"] == "健康保険"
+        assert result[1]["type"] == "厚生年金"
+
+    def test_consolidates_three_to_two(self):
+        items = [
+            {"type": "健康保険", "payer": "協会けんぽ", "amount": 200_000},
+            {"type": "介護保険", "payer": "協会けんぽ", "amount": 50_000},
+            {"type": "厚生年金", "payer": "日本年金機構", "amount": 500_000},
+        ]
+        result = _consolidate_social_insurance(items)
+        assert len(result) <= 2
+        # 健康保険+介護保険 → 健康保険等
+        amounts = {r["type"]: r["amount"] for r in result}
+        assert amounts.get("健康保険等", 0) == 250_000
+        assert amounts.get("年金", 0) == 500_000
+
+    def test_amounts_preserved(self):
+        items = [
+            {"type": "健康保険", "amount": 200_000},
+            {"type": "介護保険", "amount": 50_000},
+            {"type": "雇用保険", "amount": 30_000},
+            {"type": "厚生年金", "amount": 400_000},
+            {"type": "国民年金", "amount": 100_000},
+        ]
+        original_total = sum(i["amount"] for i in items)
+        result = _consolidate_social_insurance(items)
+        result_total = sum(r["amount"] for r in result)
+        assert result_total == original_total
+        assert len(result) <= 2
+
+    def test_empty_list(self):
+        result = _consolidate_social_insurance([])
+        assert result == []
+
+    def test_one_item_unchanged(self):
+        items = [{"type": "国民年金", "payer": "日本年金機構", "amount": 200_000}]
+        result = _consolidate_social_insurance(items)
+        assert len(result) == 1
+        assert result[0]["type"] == "国民年金"
+
+    def test_unknown_types_grouped_separately(self):
+        """未知の保険種別はそれぞれ独立のグループとして扱われる。"""
+        items = [
+            {"type": "健康保険", "amount": 100_000},
+            {"type": "共済組合", "amount": 200_000},
+            {"type": "その他", "amount": 50_000},
+        ]
+        result = _consolidate_social_insurance(items)
+        # 3グループ → 1行に合計
+        assert len(result) == 1
+        assert result[0]["amount"] == 350_000
+
+
+# ============================================================
+# Income Detail Overflow
+# ============================================================
+
+
+class TestIncomeDetailOverflow:
+    def test_four_items_no_overflow(self):
+        details = [
+            {"type": "給与", "payer": f"会社{i}", "revenue": 1_000_000, "withheld": 100_000}
+            for i in range(4)
+        ]
+        fields, overflow = _build_income_tax_p2_fields(income_details=details)
+        assert overflow == []
+        # 各行の type, payer, revenue, withheld = 最大16フィールド
+        type_fields = [f for f in fields if f.get("value") == "給与"]
+        assert len(type_fields) == 4
+
+    def test_five_items_causes_overflow(self):
+        details = [
+            {"type": "給与", "payer": f"会社{i}", "revenue": 1_000_000, "withheld": 100_000}
+            for i in range(5)
+        ]
+        fields, overflow = _build_income_tax_p2_fields(income_details=details)
+        assert len(overflow) == 5
+        # P2には「各種」「別紙のとおり」+ 合計のみ
+        payer_fields = [f for f in fields if f.get("value") == "別紙のとおり"]
+        assert len(payer_fields) == 1
+        # 合計金額
+        revenue_fields = [f for f in fields if f.get("value") == 5_000_000]
+        assert len(revenue_fields) == 1
+
+    def test_overflow_preserves_all_details(self):
+        details = [
+            {"type": f"所得{i}", "payer": f"支払者{i}", "revenue": 100_000 * (i + 1), "withheld": 0}
+            for i in range(10)
+        ]
+        _, overflow = _build_income_tax_p2_fields(income_details=details)
+        assert len(overflow) == 10
+        assert overflow[0]["type"] == "所得0"
+        assert overflow[9]["type"] == "所得9"
+
+
+# ============================================================
+# Income Detail Sheet PDF
+# ============================================================
+
+
+class TestIncomeDetailSheet:
+    def test_generates_pdf_with_overflow(self, tmp_path):
+        output = str(tmp_path / "detail_sheet.pdf")
+        details = [
+            {
+                "type": f"所得{i}",
+                "payer": f"支払者{i}",
+                "revenue": 100_000 * (i + 1),
+                "withheld": 10_000 * (i + 1),
+            }
+            for i in range(6)
+        ]
+        result = generate_income_detail_sheet_pdf(
+            income_details=details,
+            output_path=output,
+            taxpayer_name="テスト太郎",
+            fiscal_year=2025,
+        )
+        assert os.path.exists(result)
+        assert os.path.getsize(result) > 100
+
+    def test_pdf_magic_bytes(self, tmp_path):
+        output = str(tmp_path / "detail_sheet.pdf")
+        details = [
+            {"type": "給与", "payer": "テスト株式会社", "revenue": 5_000_000, "withheld": 500_000},
+        ]
+        result = generate_income_detail_sheet_pdf(
+            income_details=details,
+            output_path=output,
+        )
+        with open(result, "rb") as f:
+            assert f.read(5) == b"%PDF-"
+
+    def test_with_address(self, tmp_path):
+        output = str(tmp_path / "detail_sheet.pdf")
+        details = [
+            {"type": "事業", "payer": "クライアントA", "revenue": 3_000_000, "withheld": 30_000},
+        ]
+        result = generate_income_detail_sheet_pdf(
+            income_details=details,
+            output_path=output,
+            taxpayer_name="テスト太郎",
+            address="東京都千代田区1-1-1",
+            fiscal_year=2025,
+        )
+        assert os.path.exists(result)

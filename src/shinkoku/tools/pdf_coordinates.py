@@ -2138,4 +2138,125 @@ TEMPLATE_NAMES: dict[str, str] = {
     "consumption_tax_p2": "consumption_tax_p2.pdf",
     "housing_loan_p1": "r07/14.pdf",
     "housing_loan_p2": "housing_loan_p2.pdf",
+    "income_detail_sheet": "income_detail_sheet.pdf",
+}
+
+
+# ============================================================
+# 所得の内訳書 (Income Detail Sheet)
+# Landscape 1264.25 x 915.591 (NTA公式様式, /Rotate=0)
+# 座標は pdfplumber で実測し ReportLab 座標 (y=0 bottom) に変換済み
+# ============================================================
+
+# ページサイズ
+INCOME_DETAIL_SHEET_SIZE = (1264.25, 915.591)
+
+_IDS_PH = 915.591  # page height
+
+INCOME_DETAIL_SHEET: dict[str, dict] = {
+    # --- ヘッダー ---
+    # 住所欄: header area (pdfplumber y=129.4-157.9, x=383.9-588.2)
+    # ラベル「住 所」は x≈384-410、データ入力は x=415 以降
+    "address": {
+        "x": 415.0,
+        "y": _IDS_PH - 140.0,
+        "font_size": 7,
+        "type": "text",
+    },
+    # 氏名欄
+    # ラベル「氏 名」は x≈378-410、データ入力は x=415 以降
+    "name_kanji": {
+        "x": 415.0,
+        "y": _IDS_PH - 155.0,
+        "font_size": 9,
+        "type": "text",
+    },
+    # 年分 (テーブル上部左)
+    "fiscal_year": {
+        "x": 125.0,
+        "y": _IDS_PH - 155.0,
+        "font_size": 9,
+        "type": "text",
+    },
+}
+
+# データ行 (19行) — pdfplumber で実測した行上端 y 座標
+# 行間隔 ~32.5pt, baseline offset 22pt (行上端からの位置)
+_IDS_ROW_TOPS = [
+    206.5,
+    239.3,
+    271.8,
+    304.3,
+    336.8,
+    369.3,
+    401.8,
+    434.3,
+    466.8,
+    499.3,
+    531.8,
+    564.3,
+    596.8,
+    629.3,
+    661.8,
+    694.3,
+    726.8,
+    759.3,
+    791.8,
+]
+_IDS_BASELINE_OFFSET = 22.0
+
+# 列座標 (pdfplumber x → ReportLab x, 同一)
+# Col 1: 122.8-169.7 (所得の種類)
+# Col 2: 169.7-222.5 (種目)
+# Col 3: 222.5-376.0 (支払者の名称・所在地)
+# Col 5: 430.7-485.4 (収入金額, 右寄せ)
+# Col 6: 485.4-540.2 (源泉徴収税額, 右寄せ)
+
+for _i in range(19):
+    _row_top = _IDS_ROW_TOPS[_i]
+    _y = _IDS_PH - _row_top - _IDS_BASELINE_OFFSET
+    INCOME_DETAIL_SHEET[f"row_{_i}_type"] = {
+        "x": 125.0,
+        "y": _y,
+        "font_size": 6,
+        "type": "text",
+    }
+    INCOME_DETAIL_SHEET[f"row_{_i}_category"] = {
+        "x": 172.0,
+        "y": _y,
+        "font_size": 6,
+        "type": "text",
+    }
+    INCOME_DETAIL_SHEET[f"row_{_i}_payer"] = {
+        "x": 225.0,
+        "y": _y,
+        "font_size": 6,
+        "type": "text",
+    }
+    INCOME_DETAIL_SHEET[f"row_{_i}_revenue"] = {
+        "x": 483.0,
+        "y": _y,
+        "font_size": 7,
+        "type": "number",
+    }
+    INCOME_DETAIL_SHEET[f"row_{_i}_withheld"] = {
+        "x": 538.0,
+        "y": _y,
+        "font_size": 7,
+        "type": "number",
+    }
+
+# 合計行 (pdfplumber top=824.3)
+_IDS_TOTAL_Y = _IDS_PH - 824.3 - _IDS_BASELINE_OFFSET
+INCOME_DETAIL_SHEET["total_revenue"] = {
+    "x": 483.0,
+    "y": _IDS_TOTAL_Y,
+    "font_size": 8,
+    "type": "number",
+}
+INCOME_DETAIL_SHEET["total_withheld"] = {
+    "x": 538.0,
+    "y": _IDS_TOTAL_Y,
+    "font_size": 8,
+    "type": "number",
 }

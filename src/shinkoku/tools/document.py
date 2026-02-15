@@ -50,6 +50,8 @@ from shinkoku.tools.pdf_coordinates import (
     BLUE_RETURN_PL_P1,
     BLUE_RETURN_BS,
     CONSUMPTION_TAX_P1,
+    INCOME_DETAIL_SHEET,
+    INCOME_DETAIL_SHEET_SIZE,
     TEMPLATE_NAMES,
 )
 from shinkoku.tax_constants import (
@@ -1143,6 +1145,35 @@ def generate_schedule_4_pdf(
 # Income Tax Page 2 (確定申告書B 第二表)
 # ============================================================
 
+# 社会保険料グループ — 第二表の2行枠に合算するための分類
+_SOCIAL_INSURANCE_GROUP: dict[str, str] = {
+    "健康保険": "健康保険等",
+    "介護保険": "健康保険等",
+    "雇用保険": "健康保険等",
+    "厚生年金": "年金",
+    "国民年金": "年金",
+    "国民年金基金": "年金",
+}
+
+
+def _consolidate_social_insurance(items: list[dict]) -> list[dict]:
+    """社会保険料を2行以内に合算する。
+
+    2行以下の場合はそのまま返す。3行以上の場合は健康保険等/年金に
+    グループ化して合算し、それでも2行を超える場合は1行に全合計する。
+    """
+    if len(items) <= 2:
+        return items
+    grouped: dict[str, int] = {}
+    for item in items:
+        key = _SOCIAL_INSURANCE_GROUP.get(item.get("type", ""), item.get("type", "その他"))
+        grouped[key] = grouped.get(key, 0) + item.get("amount", 0)
+    result = [{"type": k, "payer": "", "amount": v} for k, v in grouped.items()]
+    if len(result) > 2:
+        total = sum(r["amount"] for r in result)
+        return [{"type": "社会保険料合計", "payer": "", "amount": total}]
+    return result[:2]
+
 
 def _build_income_tax_p2_fields(
     taxpayer_name: str = "",
@@ -1151,27 +1182,51 @@ def _build_income_tax_p2_fields(
     dependents: list[dict] | None = None,
     spouse: dict | None = None,
     housing_loan_move_in_date: str = "",
-) -> list[dict[str, Any]]:
-    """第二表のフィールドを構築する。INCOME_TAX_P2 座標を使用。"""
+) -> tuple[list[dict[str, Any]], list[dict]]:
+    """第二表のフィールドを構築する。INCOME_TAX_P2 座標を使用。
+
+    Returns:
+        (fields, overflow_income_details):
+        - fields: P2に描画するフィールドリスト
+        - overflow_income_details: 5件以上の所得内訳がある場合、
+          全件を所得の内訳書に出力するためのリスト（4件以下なら空リスト）
+    """
     fields: list[dict[str, Any]] = []
+    overflow_income_details: list[dict] = []
 
     if taxpayer_name:
         fields.append(_coord_field(INCOME_TAX_P2["name_kanji"], taxpayer_name))
 
     # 所得の内訳（最大4行 — フォームの枠数に合わせる）
-    for i, detail in enumerate((income_details or [])[:4]):
-        prefix = f"income_detail_{i}"
-        if detail.get("type"):
-            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], detail["type"]))
-        if detail.get("payer"):
-            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_payer"], detail["payer"]))
-        if detail.get("revenue"):
-            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_revenue"], detail["revenue"]))
-        if detail.get("withheld"):
-            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_withheld"], detail["withheld"]))
+    details = income_details or []
+    if len(details) <= 4:
+        # 4行以下: 通常処理
+        for i, detail in enumerate(details):
+            prefix = f"income_detail_{i}"
+            if detail.get("type"):
+                fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], detail["type"]))
+            if detail.get("payer"):
+                fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_payer"], detail["payer"]))
+            if detail.get("revenue"):
+                fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_revenue"], detail["revenue"]))
+            if detail.get("withheld"):
+                fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_withheld"], detail["withheld"]))
+    else:
+        # 5行以上: P2には「別紙のとおり」+ 合計のみ記載、全件をoverflowへ
+        total_revenue = sum(d.get("revenue", 0) for d in details)
+        total_withheld = sum(d.get("withheld", 0) for d in details)
+        prefix = "income_detail_0"
+        fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], "各種"))
+        fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_payer"], "別紙のとおり"))
+        if total_revenue:
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_revenue"], total_revenue))
+        if total_withheld:
+            fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_withheld"], total_withheld))
+        overflow_income_details = details
 
-    # 社会保険料の内訳（最大2行 — フォームの枠数に合わせる）
-    for i, si in enumerate((social_insurance_details or [])[:2]):
+    # 社会保険料の内訳（合算して2行以内に収める）
+    consolidated = _consolidate_social_insurance(social_insurance_details or [])
+    for i, si in enumerate(consolidated[:2]):
         prefix = f"social_insurance_{i}"
         if si.get("type"):
             fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], si["type"]))
@@ -1216,7 +1271,84 @@ def _build_income_tax_p2_fields(
             )
         )
 
+    return fields, overflow_income_details
+
+
+def _build_income_detail_sheet_fields(
+    income_details: list[dict],
+    taxpayer_name: str = "",
+    address: str = "",
+    fiscal_year: int = 2025,
+) -> list[dict[str, Any]]:
+    """所得の内訳書のフィールドを構築する。INCOME_DETAIL_SHEET 座標を使用。
+
+    NTA公式テンプレートに最大19行の所得明細を記入する。
+    """
+    fields: list[dict[str, Any]] = []
+
+    # ヘッダー
+    if taxpayer_name:
+        fields.append(_coord_field(INCOME_DETAIL_SHEET["name_kanji"], taxpayer_name))
+    if address:
+        fields.append(_coord_field(INCOME_DETAIL_SHEET["address"], address))
+    fields.append(
+        _coord_field(
+            INCOME_DETAIL_SHEET["fiscal_year"],
+            f"令和{fiscal_year - 2018}年分",
+        )
+    )
+
+    # データ行（最大19行）
+    total_revenue = 0
+    total_withheld = 0
+    for i, detail in enumerate(income_details[:19]):
+        prefix = f"row_{i}"
+        if detail.get("type"):
+            fields.append(_coord_field(INCOME_DETAIL_SHEET[f"{prefix}_type"], detail["type"]))
+        if detail.get("payer"):
+            fields.append(_coord_field(INCOME_DETAIL_SHEET[f"{prefix}_payer"], detail["payer"]))
+        revenue = detail.get("revenue", 0)
+        withheld = detail.get("withheld", 0)
+        if revenue:
+            fields.append(_coord_field(INCOME_DETAIL_SHEET[f"{prefix}_revenue"], revenue))
+            total_revenue += revenue
+        if withheld:
+            fields.append(_coord_field(INCOME_DETAIL_SHEET[f"{prefix}_withheld"], withheld))
+            total_withheld += withheld
+
+    # 合計行
+    if total_revenue:
+        fields.append(_coord_field(INCOME_DETAIL_SHEET["total_revenue"], total_revenue))
+    if total_withheld:
+        fields.append(_coord_field(INCOME_DETAIL_SHEET["total_withheld"], total_withheld))
+
     return fields
+
+
+def generate_income_detail_sheet_pdf(
+    income_details: list[dict],
+    output_path: str = "output/income_detail_sheet.pdf",
+    taxpayer_name: str = "",
+    address: str = "",
+    fiscal_year: int = 2025,
+) -> str:
+    """所得の内訳書 PDFを生成する。
+
+    NTA公式テンプレートにオーバーレイして所得明細を記入する。
+    """
+    fields = _build_income_detail_sheet_fields(
+        income_details=income_details,
+        taxpayer_name=taxpayer_name,
+        address=address,
+        fiscal_year=fiscal_year,
+    )
+
+    tmpl = _resolve_template("income_detail_sheet")
+    if tmpl:
+        overlay_bytes = create_overlay(fields, page_size=INCOME_DETAIL_SHEET_SIZE)
+        return merge_overlay(str(tmpl), overlay_bytes, output_path)
+
+    return generate_standalone_pdf(fields=fields, output_path=output_path)
 
 
 def generate_income_tax_page2_pdf(
@@ -1228,8 +1360,11 @@ def generate_income_tax_page2_pdf(
     output_path: str = "output/income_tax_p2.pdf",
     taxpayer_name: str = "",
 ) -> str:
-    """確定申告書B 第二表 PDFを生成する。"""
-    fields = _build_income_tax_p2_fields(
+    """確定申告書B 第二表 PDFを生成する。
+
+    所得内訳が5件以上の場合、別途「所得の内訳書」PDFも生成する。
+    """
+    fields, overflow = _build_income_tax_p2_fields(
         taxpayer_name=taxpayer_name,
         income_details=income_details,
         social_insurance_details=social_insurance_details,
@@ -1241,9 +1376,20 @@ def generate_income_tax_page2_pdf(
     tmpl = _resolve_template("income_tax_p2")
     if tmpl:
         overlay_bytes = create_overlay(fields, page_size=NTA_PORTRAIT)
-        return merge_overlay(str(tmpl), overlay_bytes, output_path)
+        result_path = merge_overlay(str(tmpl), overlay_bytes, output_path)
+    else:
+        result_path = generate_standalone_pdf(fields=fields, output_path=output_path)
 
-    return generate_standalone_pdf(fields=fields, output_path=output_path)
+    # overflow がある場合、所得の内訳書も生成
+    if overflow:
+        detail_output = str(Path(output_path).parent / "income_detail_sheet.pdf")
+        generate_income_detail_sheet_pdf(
+            income_details=overflow,
+            output_path=detail_output,
+            taxpayer_name=taxpayer_name,
+        )
+
+    return result_path
 
 
 # ============================================================
@@ -1267,9 +1413,10 @@ def generate_full_tax_document_set(
 ) -> str:
     """全帳票を1つのPDFに結合して出力する。
 
-    ベンチマーク（freee出力）と同じページ順序:
+    ページ順序:
     1. 確定申告書B 第一表
     2. 確定申告書B 第二表
+    2a. 所得の内訳書 (所得内訳5件以上の場合)
     3. 青色申告決算書 損益計算書 P1
     4. 青色申告決算書 貸借対照表 (if bs_data)
     5-6. 消費税 (if consumption_tax)
@@ -1299,18 +1446,34 @@ def generate_full_tax_document_set(
     )
 
     # 2. 確定申告書B 第二表
-    _add_page(
-        _build_income_tax_p2_fields(
-            taxpayer_name=taxpayer_name,
-            income_details=income_details,
-            social_insurance_details=social_insurance_details,
-            dependents=dependents,
-            spouse=spouse,
-            housing_loan_move_in_date=housing_loan_move_in_date,
-        ),
-        NTA_PORTRAIT,
-        "income_tax_p2",
+    p2_fields, overflow_income_details = _build_income_tax_p2_fields(
+        taxpayer_name=taxpayer_name,
+        income_details=income_details,
+        social_insurance_details=social_insurance_details,
+        dependents=dependents,
+        spouse=spouse,
+        housing_loan_move_in_date=housing_loan_move_in_date,
     )
+    _add_page(p2_fields, NTA_PORTRAIT, "income_tax_p2")
+
+    # 2a. 所得の内訳書（overflow がある場合のみ）
+    if overflow_income_details:
+        # config から住所を取得（あれば）
+        addr = ""
+        if config and config.address:
+            addr = (
+                config.address.prefecture
+                + config.address.city
+                + config.address.street
+                + config.address.building
+            )
+        detail_fields = _build_income_detail_sheet_fields(
+            income_details=overflow_income_details,
+            taxpayer_name=taxpayer_name,
+            address=addr,
+            fiscal_year=income_tax.fiscal_year,
+        )
+        _add_page(detail_fields, INCOME_DETAIL_SHEET_SIZE, "income_detail_sheet")
 
     # 3. 青色申告決算書 損益計算書 P1 — NTA PDF は portrait + /Rotate=90
     _add_page(
@@ -1797,6 +1960,9 @@ def register(mcp) -> None:
         )
 
         num_pages = 3  # P1 + P2 + PL
+        # 所得の内訳書（income_details が5件以上あれば追加）
+        # generate_full_tax_document_set 内で自動判定されるが、
+        # ここでも件数でカウント
         if bs_data:
             num_pages += 1
         if consumption_tax:
