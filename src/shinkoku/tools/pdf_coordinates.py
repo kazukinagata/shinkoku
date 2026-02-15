@@ -93,6 +93,7 @@ INCOME_TAX_P1: dict[str, dict] = {
         "y": 710.0,
         "font_size": 10,
         "type": "text",
+        "max_width": 55.0,  # 氏名欄 x=344-400 area
     },
     # 生年月日 (入力セル top=72.1, x0=401.9-443.8; ラベル at x~403, top~54)
     "birth_date": {
@@ -409,6 +410,7 @@ for _i in range(4):
         "y": _y,
         "font_size": 6,
         "type": "text",
+        "max_width": 80.0,  # 支払者列 x=114.1-199.3
     }
     INCOME_TAX_P2[f"income_detail_{_i}_revenue"] = {
         "x": 248.0,
@@ -523,9 +525,9 @@ BLUE_RETURN_PL_P1: dict[str, dict] = {
     # 金額右端: 左列 x=300, 中列 x=538, 右列 x=775
     # --- ヘッダー ---
     # 住所（右上ヘッダー x=487.7-634.4, plumb 75.0-101.1）
-    "address": {"x": 490.0, "y": 505.0, "font_size": 7, "type": "text"},
+    "address": {"x": 490.0, "y": 505.0, "font_size": 7, "type": "text", "max_width": 140.0},
     # 氏名（x=634.4-777.5, plumb 75.0-101.1）
-    "taxpayer_name": {"x": 650.0, "y": 505.0, "font_size": 8, "type": "text"},
+    "taxpayer_name": {"x": 650.0, "y": 505.0, "font_size": 8, "type": "text", "max_width": 125.0},
     # 電話番号（x=676.3-777.5, plumb 127.3-148.7）
     "phone": {"x": 680.0, "y": 453.0, "font_size": 7, "type": "text"},
     # 令和XX年分（年号ボックス x=327-393, plumb 127.3-153.5）
@@ -817,7 +819,7 @@ BLUE_RETURN_BS: dict[str, dict] = {
     # Coordinate transform: rx = 595 - ly, ry = lx, rotate(90)
     # --- ヘッダー ---
     # 氏名欄: タイトル下ヘッダー行（plumb 50-58, 住所/屋号及び氏名ラベル帯）
-    "taxpayer_name": {"x": 120.0, "y": 540.0, "font_size": 9, "type": "text"},
+    "taxpayer_name": {"x": 120.0, "y": 540.0, "font_size": 9, "type": "text", "max_width": 125.0},
     "fiscal_year_end": {"x": 390.0, "y": 545.0, "font_size": 8, "type": "text"},
     # --- 資産の部（期末欄: 右端 x=313, v-line x=315.5 の内側） ---
     # H-lines: 91.7, 109.1, 126.6, 144.0, 161.5, 179.0, 196.4, 213.9, ...
@@ -2162,6 +2164,7 @@ INCOME_DETAIL_SHEET: dict[str, dict] = {
         "y": _IDS_PH - 140.0,
         "font_size": 7,
         "type": "text",
+        "max_width": 170.0,  # 住所欄 x=383.9-588.2
     },
     # 氏名欄
     # ラベル「氏 名」は x≈378-410、データ入力は x=415 以降
@@ -2232,6 +2235,7 @@ for _i in range(19):
         "y": _y,
         "font_size": 6,
         "type": "text",
+        "max_width": 148.0,  # 支払者列 x=222.5-376.0
     }
     INCOME_DETAIL_SHEET[f"row_{_i}_revenue"] = {
         "x": 483.0,
