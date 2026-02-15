@@ -19,14 +19,14 @@ assess スキルで消費税の課税事業者と判定され、settlement ス�
 1. `shinkoku.config.yaml` を Read ツールで読み込む
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
-   - `db_path`: MCP ツールの `db_path` 引数に使用
-   - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
+   - `db_path`: CLI スクリプトの `--db-path` 引数に使用
+   - `output_dir`: PDF 生成時の `--output-path` 引数のベースディレクトリに使用
    - 各ディレクトリ: ファイル参照時に使用
 
 ### パス解決の例
 
 config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
-- `generate_consumption_tax_pdf(output_path="/home/user/tax-2025/output/consumption_tax_2025.pdf", ...)`
+- `doc_generate.py consumption-tax --output-path /home/user/tax-2025/output/consumption_tax_2025.pdf ...`
 
 ## 進捗情報の読み込み
 
@@ -79,7 +79,7 @@ Q3. 簡易課税制度選択届出書を提出済みで、
 
 ## ステップ1: 課税売上の集計
 
-帳簿から課税売上高を税率区分別に集計する。`ledger_trial_balance` や `ledger_search` の結果から以下を算出する:
+帳簿から課税売上高を税率区分別に集計する。`ledger.py trial-balance` や `ledger.py search` の結果から以下を算出する:
 
 ### 集計項目
 
@@ -98,28 +98,34 @@ Q3. 簡易課税制度選択届出書を提出済みで、
 
 ## ステップ2: 消費税額の計算
 
-### `calc_consumption_tax` の呼び出し
+### `tax_calc.py calc-consumption` の呼び出し
 
+```bash
+python skills/income-tax/scripts/tax_calc.py calc-consumption --input consumption_input.json
 ```
-パラメータ: ConsumptionTaxInput
-  - fiscal_year: int                — 会計年度
-  - method: str                     — "twenty_percent" / "simplified" / "standard"
-  - taxable_sales_standard: int     — 標準税率(10%)対象の課税売上高（税抜）
-  - taxable_sales_reduced: int      — 軽減税率(8%)対象の課税売上高（税抜）
-  - taxable_purchases_standard: int — 標準税率対象の課税仕入高（本則課税の場合）
-  - taxable_purchases_reduced: int  — 軽減税率対象の課税仕入高（本則課税の場合）
-  - business_type: int | None       — 簡易課税の事業区分（第1種〜第6種）
-  - interim_payment: int            — 中間納付額（該当する場合）
-
-戻り値: ConsumptionTaxResult
-  - method: 適用した申告方法
-  - taxable_sales_total: 課税売上高合計
-  - tax_on_sales: 課税売上に係る消費税額
-  - tax_on_purchases: 控除対象仕入税額
-  - subtotal: 差引税額
-  - interim_payment: 中間納付税額
-  - tax_due: 納付税額（マイナスの場合は還付）
+入力 JSON (ConsumptionTaxInput):
+```json
+{
+  "fiscal_year": 2025,
+  "method": "special_20pct",
+  "taxable_sales_10": 5500000,
+  "taxable_sales_8": 0,
+  "taxable_purchases_10": 0,
+  "taxable_purchases_8": 0,
+  "simplified_business_type": null,
+  "interim_payment": 0
+}
 ```
+出力 (ConsumptionTaxResult):
+- `method`: 適用した申告方法
+- `taxable_sales_total`: 課税売上高合計
+- `tax_on_sales`: 課税売上に係る消費税額
+- `tax_on_purchases`: 控除対象仕入税額
+- `subtotal`: 差引税額
+- `interim_payment`: 中間納付税額
+- `tax_due`: 納付税額（マイナスの場合は還付）
+- `local_tax_due`: 地方消費税額
+- `total_due`: 合計納付税額
 
 ### 2割特例の計算ロジック
 
@@ -202,13 +208,12 @@ Q3. 簡易課税制度選択届出書を提出済みで、
 
 なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
 
-### `generate_consumption_tax_pdf` の呼び出し
+### `doc_generate.py consumption-tax` の呼び出し
 
+```bash
+python skills/document/scripts/doc_generate.py consumption-tax --input consumption_result.json --output-path output/consumption_tax_2025.pdf
 ```
-パラメータ:
-  result: ConsumptionTaxResult — 消費税の計算結果
-  output_path: str             — 出力先ファイルパス
-```
+入力 JSON には ConsumptionTaxResult の全フィールドを含める。
 
 - 消費税及び地方消費税の申告書を生成する
 - 適用した方法（2割特例/簡易課税/本則課税）に応じた様式で出力する

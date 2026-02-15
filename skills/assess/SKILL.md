@@ -19,7 +19,7 @@ description: >
 1. `shinkoku.config.yaml` を Read ツールで読み込む
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
-   - `db_path`: MCP ツールの `db_path` 引数に使用
+   - `db_path`: CLI スクリプトの `--db-path` 引数に使用
    - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
    - 各ディレクトリ: ファイル参照時に使用
 

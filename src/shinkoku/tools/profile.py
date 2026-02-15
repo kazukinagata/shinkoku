@@ -45,16 +45,3 @@ def get_taxpayer_profile(*, config_path: str) -> dict:
         "output_dir": config.output_dir,
     }
     return result
-
-
-def register(mcp) -> None:
-    """Register profile tools with the MCP server."""
-
-    @mcp.tool()
-    def profile_get_taxpayer(config_path: str) -> dict:
-        """Get taxpayer profile from config file.
-
-        Returns taxpayer info, address, business details, and filing method.
-        my_number is never exposed — only has_my_number flag is returned.
-        """
-        return get_taxpayer_profile(config_path=config_path)

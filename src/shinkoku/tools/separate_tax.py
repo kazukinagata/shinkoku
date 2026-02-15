@@ -114,36 +114,3 @@ def calc_separate_tax(input_data: SeparateTaxInput) -> SeparateTaxResult:
         # Total
         total_separate_tax=stock_total + fx_total,
     )
-
-
-def register(mcp) -> None:
-    """Register separate tax tools with the MCP server."""
-
-    @mcp.tool()
-    def tax_calc_separate(
-        fiscal_year: int,
-        stock_gains: int = 0,
-        stock_losses: int = 0,
-        stock_dividend_separate: int = 0,
-        stock_withheld_income_tax: int = 0,
-        stock_withheld_residential_tax: int = 0,
-        stock_loss_carryforward: int = 0,
-        fx_gains: int = 0,
-        fx_expenses: int = 0,
-        fx_loss_carryforward: int = 0,
-    ) -> dict:
-        """Calculate separate taxation for stock and FX trading."""
-        input_data = SeparateTaxInput(
-            fiscal_year=fiscal_year,
-            stock_gains=stock_gains,
-            stock_losses=stock_losses,
-            stock_dividend_separate=stock_dividend_separate,
-            stock_withheld_income_tax=stock_withheld_income_tax,
-            stock_withheld_residential_tax=stock_withheld_residential_tax,
-            stock_loss_carryforward=stock_loss_carryforward,
-            fx_gains=fx_gains,
-            fx_expenses=fx_expenses,
-            fx_loss_carryforward=fx_loss_carryforward,
-        )
-        result = calc_separate_tax(input_data)
-        return result.model_dump()

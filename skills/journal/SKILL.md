@@ -14,18 +14,27 @@ description: >
 CSV・レシート・請求書からデータを取り込み、ユーザー確認のうえ仕訳を登録するスキル。
 帳簿の初期化、仕訳の検索・修正・削除も本スキルで対応する。
 
+## CLI スクリプト
+
+本スキルでは以下の CLI スクリプトを使用する:
+
+- **帳簿管理**: `uv run python skills/journal/scripts/ledger.py <subcommand> [args]`
+- **データ取り込み**: `uv run python skills/journal/scripts/import_data.py <subcommand> [args]`
+
+すべてのコマンドは JSON を stdout に出力する。入力はコマンドライン引数または `--input <json_file>` で渡す。
+
 ## 設定の読み込み（最初に実行）
 
 1. `shinkoku.config.yaml` を Read ツールで読み込む
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
-   - `db_path`: MCP ツールの `db_path` 引数に使用
-   - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
+   - `db_path`: CLI スクリプトの `--db-path` 引数に使用
+   - `output_dir`: PDF 生成時の出力先ベースディレクトリに使用
    - 各ディレクトリ: ファイル参照時に使用
 
 ### パス解決の例（db_path）
 
-config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の場合、MCP ツールには絶対パス `/home/user/tax-2025/shinkoku.db` を渡す。`ledger_init`, `ledger_add_journal`, `ledger_add_journals_batch`, `ledger_search`, `ledger_update_journal`, `ledger_delete_journal` すべてに同じ絶対パスを使用する。
+config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の場合、CLI スクリプトには絶対パス `/home/user/tax-2025/shinkoku.db` を `--db-path` で渡す。`init`, `journal-add`, `journal-batch-add`, `search`, `journal-update`, `journal-delete` すべてに同じ絶対パスを使用する。
 
 ## 進捗情報の読み込み
 
@@ -50,7 +59,7 @@ config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の�
 
 仕訳入力を開始する前に以下を確認する:
 
-1. **帳簿が初期化済みか**: 未初期化の場合は `ledger_init` で初期化を案内する
+1. **帳簿が初期化済みか**: 未初期化の場合は `init` コマンドで初期化を案内する
 2. **会計年度**: 対象の会計年度（例: 2025）を確認する
 3. **青色申告 or 白色申告**: 複式簿記（青色65万円控除）か簡易簿記かで記帳方法が変わる
 
@@ -58,12 +67,12 @@ config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の�
 
 初回利用時、または新しい会計年度を開始する際に帳簿を初期化する。
 
-### `ledger_init` の呼び出し
+### `init` コマンド
 
-```
-パラメータ:
-  fiscal_year: int  — 会計年度（例: 2025）
-  db_path: str      — データベースファイルのパス
+```bash
+uv run python skills/journal/scripts/ledger.py init \
+  --db-path /path/to/shinkoku.db \
+  --fiscal-year 2025
 ```
 
 - 会計年度と保存先パスをユーザーに確認してから実行する
@@ -74,20 +83,20 @@ config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の�
 
 ユーザーが持つ取引データの形式に応じて適切なインポートツールを選択する。
 
-### 2-1. CSV取り込み（`import_csv`）
+### 2-1. CSV取り込み（`csv` コマンド）
 
 クレジットカード明細・銀行取引明細・会計ソフトのエクスポートデータ等を読み込む。
 
+```bash
+uv run python skills/journal/scripts/import_data.py csv \
+  --file-path /path/to/transactions.csv
 ```
-パラメータ:
-  file_path: str — CSVファイルのパス
 
-戻り値:
-  - headers: 検出されたカラムヘッダ一覧
-  - rows: パースされた各行のデータ
-  - encoding: 自動検出されたエンコーディング
-  - row_count: 行数
-```
+戻り値（JSON）:
+- `headers`: 検出されたカラムヘッダ一覧
+- `rows`: パースされた各行のデータ
+- `encoding`: 自動検出されたエンコーディング
+- `row_count`: 行数
 
 **取り込み後の処理手順:**
 
@@ -106,15 +115,20 @@ config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の�
 - 摘要に「家賃」「賃料」→ 地代家賃（5250）
 - 推定できない場合は「不明」として候補一覧を提示し、ユーザーに選択を求める
 
-### 2-2. レシート取り込み（`import_receipt`）
+### 2-2. レシート取り込み（`receipt` コマンド）
 
 紙のレシート・領収書の画像ファイルからOCRでデータを抽出する。
+
+```bash
+uv run python skills/journal/scripts/import_data.py receipt \
+  --file-path /path/to/receipt.jpg
+```
 
 **重要: 画像の読み取りは receipt-reader サブエージェントに委任する。** メインコンテキストで直接 Read ツールによる画像読み取りを行わないこと（Vision トークンでコンテキストが圧迫されるため）。
 
 #### 単一レシートの場合
 
-1. `import_receipt` でファイルの存在を確認する
+1. `receipt` コマンドでファイルの存在を確認する
 2. **Task ツールで receipt-reader サブエージェントに画像読み取りを委任する:**
    ```
    Task(
@@ -131,7 +145,7 @@ config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の�
 #### 複数レシートの一括処理
 
 1. Glob ツールでレシート画像の一覧を取得する（例: `receipts/*.jpg`, `receipts/*.png`）
-2. `import_receipt` で各ファイルの存在を確認する
+2. `receipt` コマンドで各ファイルの存在を確認する
 3. **全ファイルパスをまとめて receipt-reader サブエージェントに渡す:**
    ```
    Task(
@@ -141,25 +155,25 @@ config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の�
    ```
 4. サブエージェントから返された各レシートの結果をまとめてユーザーに提示する
 5. 各レシートの勘定科目を推定し、一覧でユーザーに確認する
-6. 確認後、`ledger_add_journals_batch` で一括登録する
+6. 確認後、`journal-batch-add` コマンドで一括登録する
 
-### 2-3. 請求書取り込み（`import_invoice`）
+### 2-3. 請求書取り込み（`invoice` コマンド）
 
 PDFの請求書からテキストを抽出する。
 
+```bash
+uv run python skills/journal/scripts/import_data.py invoice \
+  --file-path /path/to/invoice.pdf
 ```
-パラメータ:
-  file_path: str — PDFファイルのパス
 
-戻り値:
-  - vendor: 請求元
-  - date: 請求日
-  - due_date: 支払期日
-  - amount: 請求金額
-  - tax_amount: 消費税額
-  - items: 明細行
-  - raw_text: 抽出生テキスト
-```
+戻り値（JSON）:
+- `vendor`: 請求元
+- `date`: 請求日
+- `due_date`: 支払期日
+- `amount`: 請求金額
+- `tax_amount`: 消費税額
+- `items`: 明細行
+- `raw_text`: 抽出生テキスト
 
 **取り込み後の処理手順:**
 
@@ -173,52 +187,72 @@ PDFの請求書からテキストを抽出する。
 
 CSVインポートのフローに重複チェックを組み込む:
 
-1. **ファイル重複チェック**: `import_check_csv_imported` でファイルのハッシュを確認
+1. **ファイル重複チェック**: `check-imported` コマンドでファイルのハッシュを確認
+   ```bash
+   uv run python skills/journal/scripts/import_data.py check-imported \
+     --db-path DB --file-path /path/to/file.csv
+   ```
    - 既にインポート済みの場合はユーザーに警告し、再インポートの意思を確認する
-2. **仕訳登録時の自動チェック**: `ledger_add_journals_batch` が自動的に重複を検出
+2. **仕訳登録時の自動チェック**: `journal-batch-add` が自動的に重複を検出
    - exact（完全一致）: 登録をブロック、既存の仕訳IDを表示
    - similar（類似）: 警告を表示し、ユーザーに確認を求める
-   - ユーザーが「登録する」と回答した場合は force=True で再実行
-3. **インポート記録**: 登録成功後、`import_record_source` でインポート履歴を記録する
+   - ユーザーが「登録する」と回答した場合は `--force` を付けて再実行
+3. **インポート記録**: 登録成功後、`record-source` コマンドでインポート履歴を記録する
+   ```bash
+   uv run python skills/journal/scripts/import_data.py record-source \
+     --db-path DB --file-path /path/to/file.csv --source-type csv
+   ```
 
 ### 申告前の重複チェック
 
-決算処理の前に `ledger_check_duplicates` を実行し、重複の疑いのある仕訳ペアを一覧表示する。
-ユーザーに確認の上、不要な重複は `ledger_delete_journal` で削除する。
+決算処理の前に `check-duplicates` コマンドを実行し、重複の疑いのある仕訳ペアを一覧表示する。
+
+```bash
+uv run python skills/journal/scripts/ledger.py check-duplicates \
+  --db-path DB --fiscal-year 2025
+```
+
+ユーザーに確認の上、不要な重複は `journal-delete` コマンドで削除する。
 
 ## ステップ3: 仕訳の登録
 
 ユーザーが確認したデータを帳簿に登録する。
 
-### 3-1. 単一仕訳の登録（`ledger_add_journal`）
+### 3-1. 単一仕訳の登録（`journal-add`）
 
-```
-パラメータ:
-  db_path: str
-  entry: JournalEntry
-    - date: str          — 日付（YYYY-MM-DD）
-    - debit_code: str    — 借方勘定科目コード
-    - credit_code: str   — 貸方勘定科目コード
-    - amount: int        — 金額（円）
-    - description: str   — 摘要
-    - tax_rate: float | None — 消費税率（0.10 / 0.08 / None）
+```bash
+# journal.json に JournalEntry を JSON で記述
+uv run python skills/journal/scripts/ledger.py journal-add \
+  --db-path DB --fiscal-year 2025 --input journal.json
 ```
 
-### 3-2. 一括仕訳登録（`ledger_add_journals_batch`）
+`journal.json` の形式:
+```json
+{
+  "date": "2025-01-15",
+  "description": "摘要テキスト",
+  "lines": [
+    {"side": "debit", "account_code": "5200", "amount": 1000},
+    {"side": "credit", "account_code": "1100", "amount": 1000}
+  ]
+}
+```
+
+### 3-2. 一括仕訳登録（`journal-batch-add`）
 
 CSV取り込み等で複数の仕訳を一度に登録する場合に使用する。
 
-```
-パラメータ:
-  db_path: str
-  entries: list[JournalEntry] — 仕訳エントリのリスト
+```bash
+# entries.json に JournalEntry の配列を記述
+uv run python skills/journal/scripts/ledger.py journal-batch-add \
+  --db-path DB --fiscal-year 2025 --input entries.json [--force]
 ```
 
 **登録前の確認事項:**
 
 - 登録件数と合計金額をサマリーとして提示する
 - 「以下の N 件の仕訳を登録します。よろしいですか？」と確認する
-- ユーザーの明示的な承認を得てから `ledger_add_journals_batch` を実行する
+- ユーザーの明示的な承認を得てから `journal-batch-add` を実行する
 
 ### 登録時の検証ルール
 
@@ -234,18 +268,23 @@ CSV取り込み等で複数の仕訳を一度に登録する場合に使用す�
 
 登録済みの仕訳を検索する。
 
-### `ledger_search` の呼び出し
+### `search` コマンド
 
+```bash
+# search_params.json に JournalSearchParams を記述
+uv run python skills/journal/scripts/ledger.py search \
+  --db-path DB --input search_params.json
 ```
-パラメータ:
-  db_path: str
-  params: JournalSearchParams
-    - date_from: str | None — 開始日
-    - date_to: str | None   — 終了日
-    - account_code: str | None — 勘定科目コード
-    - description: str | None  — 摘要キーワード
-    - amount_min: int | None   — 金額下限
-    - amount_max: int | None   — 金額上限
+
+`search_params.json` の形式:
+```json
+{
+  "fiscal_year": 2025,
+  "date_from": "2025-01-01",
+  "date_to": "2025-03-31",
+  "account_code": "5200",
+  "description_contains": "Amazon"
+}
 ```
 
 **検索結果の表示:**
@@ -256,24 +295,21 @@ CSV取り込み等で複数の仕訳を一度に登録する場合に使用す�
 
 ## ステップ5: 仕訳の修正・削除
 
-### 5-1. 仕訳の修正（`ledger_update_journal`）
+### 5-1. 仕訳の修正（`journal-update`）
 
-```
-パラメータ:
-  db_path: str
-  journal_id: int    — 修正対象の仕訳ID
-  entry: JournalEntry — 修正後の仕訳データ
+```bash
+uv run python skills/journal/scripts/ledger.py journal-update \
+  --db-path DB --fiscal-year 2025 --journal-id 42 --input updated.json
 ```
 
 - 修正前後の差分を表示してから確認する
 - 修正理由を摘要に追記することを推奨する
 
-### 5-2. 仕訳の削除（`ledger_delete_journal`）
+### 5-2. 仕訳の削除（`journal-delete`）
 
-```
-パラメータ:
-  db_path: str
-  journal_id: int — 削除対象の仕訳ID
+```bash
+uv run python skills/journal/scripts/ledger.py journal-delete \
+  --db-path DB --journal-id 42
 ```
 
 - 削除対象の仕訳内容を表示して確認する
@@ -315,7 +351,11 @@ CSV取り込み等で複数の仕訳を一度に登録する場合に使用す�
 仕訳入力が完了したら、以下を案内する:
 
 - `settlement` スキルで決算整理・決算書作成を行う
-- `ledger_trial_balance` で残高試算表を確認して仕訳漏れがないか検証する
+- `trial-balance` コマンドで残高試算表を確認して仕訳漏れがないか検証する:
+  ```bash
+  uv run python skills/journal/scripts/ledger.py trial-balance \
+    --db-path DB --fiscal-year 2025
+  ```
 - 全取引の登録完了を確認してから決算処理に進む
 
 ## 引継書の出力

@@ -18,7 +18,7 @@ assess スキルの判定結果を前提として動作する。判定結果が�
 1. `shinkoku.config.yaml` を Read ツールで読み込む
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
-   - `db_path`: MCP ツールの `db_path` 引数に使用
+   - `db_path`: CLI スクリプトの `--db-path` 引数に使用
    - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
    - 各ディレクトリ: ファイル参照時に使用
 
@@ -74,9 +74,9 @@ assess スキルの判定結果から以下を確認する:
 | 収支内訳書（白色の場合） | 国税庁 | e-Taxで作成 | -- |
 | 売上の根拠資料（請求書控え等） | 手元 | 年間の請求書・契約書を整理 | 取引先別に月別集計できるとよい |
 | 経費の根拠資料 | 手元 | レシート・領収書・クレカ明細 | shinkokuの journal スキルで取込可能 |
-| クレジットカード明細（CSV） | カード会社Webサイト | ダウンロード | shinkokuの import_csv で取込可能 |
+| クレジットカード明細（CSV） | カード会社Webサイト | ダウンロード | `import_data.py csv` で取込可能 |
 | 銀行口座の取引明細 | 銀行のWebサイト | ダウンロード or 通帳記帳 | 事業用口座 |
-| 支払調書 | 取引先 | 取引先から1月末までに交付 | shinkokuの import_payment_statement で取込可能 |
+| 支払調書 | 取引先 | 取引先から1月末までに交付 | `import_data.py payment-statement` で取込可能 |
 | 開業届の控え（任意） | 手元 or 税務署 | 提出時の控え | 開業日の確認用 |
 | 青色申告承認申請書の控え（任意） | 手元 or 税務署 | 提出時の控え | 青色申告の承認確認用 |
 
@@ -91,8 +91,8 @@ assess スキルの判定結果から以下を確認する:
   - 源泉徴収税額
   - 区分（報酬/料金/契約金等）
 - **shinkoku での取り込み**:
-  1. `import_payment_statement` で PDF/画像からデータ抽出
-  2. `ledger_add_business_withholding` で取引先別に登録
+  1. `import_data.py payment-statement --file-path PATH` で PDF/画像からデータ抽出
+  2. `ledger.py add-business-withholding --db-path DB --input FILE` で取引先別に登録
   3. 源泉徴収税額の合計が確定申告で控除される
 - **注意**: 支払調書は法的に交付義務がない（税務署への提出義務はある）。届かない場合は取引先に問い合わせるか、自身の請求書控え等から集計する
 

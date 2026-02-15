@@ -12,68 +12,6 @@ from shinkoku.duplicate_detection import check_source_file_imported, record_impo
 from shinkoku.hashing import compute_file_hash
 
 
-def register(mcp) -> None:
-    """Register import tools with the MCP server."""
-
-    @mcp.tool()
-    def mcp_import_csv(file_path: str) -> dict:
-        """Parse a CSV file and return structured candidates."""
-        return import_csv(file_path=file_path)
-
-    @mcp.tool()
-    def mcp_import_receipt(file_path: str) -> dict:
-        """Check receipt file existence and return template for OCR."""
-        return import_receipt(file_path=file_path)
-
-    @mcp.tool()
-    def mcp_import_invoice(file_path: str) -> dict:
-        """Extract text from an invoice PDF."""
-        return import_invoice(file_path=file_path)
-
-    @mcp.tool()
-    def mcp_import_withholding(file_path: str) -> dict:
-        """Extract text from a withholding slip PDF."""
-        return import_withholding(file_path=file_path)
-
-    @mcp.tool()
-    def mcp_import_furusato_receipt(file_path: str) -> dict:
-        """Check furusato receipt file and return template for OCR."""
-        return import_furusato_receipt(file_path=file_path)
-
-    @mcp.tool()
-    def mcp_import_payment_statement(file_path: str) -> dict:
-        """Extract data from a payment statement (支払調書) PDF or image."""
-        return import_payment_statement(file_path=file_path)
-
-    @mcp.tool()
-    def mcp_import_deduction_certificate(file_path: str) -> dict:
-        """Check deduction certificate file and return template for OCR.
-
-        Controls: life insurance, earthquake insurance, social insurance,
-        and small business mutual aid contribution certificates.
-        """
-        return import_deduction_certificate(file_path=file_path)
-
-    @mcp.tool()
-    def mcp_import_check_csv_imported(db_path: str, fiscal_year: int, file_path: str) -> dict:
-        """Check if a CSV file has already been imported."""
-        return import_check_csv_imported(
-            db_path=db_path, fiscal_year=fiscal_year, file_path=file_path
-        )
-
-    @mcp.tool()
-    def mcp_import_record_source(
-        db_path: str, fiscal_year: int, file_path: str, row_count: int = 0
-    ) -> dict:
-        """Record that a file has been imported."""
-        return import_record_source(
-            db_path=db_path,
-            fiscal_year=fiscal_year,
-            file_path=file_path,
-            row_count=row_count,
-        )
-
-
 def _detect_encoding(file_path: str) -> str:
     """Detect file encoding (UTF-8 or Shift_JIS)."""
     raw = Path(file_path).read_bytes()

@@ -19,15 +19,15 @@ journal スキルで日常仕訳の入力が完了していることを前提と
 1. `shinkoku.config.yaml` を Read ツールで読み込む
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
-   - `db_path`: MCP ツールの `db_path` 引数に使用
-   - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
+   - `db_path`: CLI スクリプトの `--db-path` 引数に使用
+   - `output_dir`: PDF 生成時の `--output-path` 引数のベースディレクトリに使用
    - 各ディレクトリ: ファイル参照時に使用
 
 ### パス解決の例
 
 config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
-- `ledger_trial_balance(db_path="/home/user/tax-2025/shinkoku.db", ...)`
-- `generate_bs_pl_pdf(output_path="/home/user/tax-2025/output/bs_pl_2025.pdf", ...)`
+- `ledger.py trial-balance --db-path /home/user/tax-2025/shinkoku.db --input query.json`
+- `doc_generate.py bs-pl --output-path /home/user/tax-2025/output/bs_pl_2025.pdf --input bs_pl_input.json`
 
 ## 進捗情報の読み込み
 
@@ -66,18 +66,21 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 ## ステップ1: 残高試算表の確認
 
-### `ledger_trial_balance` の呼び出し
+### `ledger.py trial-balance` の呼び出し
 
+```bash
+python skills/journal/scripts/ledger.py trial-balance --db-path DB_PATH --input query.json
 ```
-パラメータ:
-  db_path: str
-  fiscal_year: int — 会計年度
-
-戻り値:
-  - accounts: 各勘定科目の借方合計・貸方合計・残高
-  - total_debit: 借方合計
-  - total_credit: 貸方合計
+入力 JSON:
+```json
+{
+  "fiscal_year": 2025
+}
 ```
+出力:
+- `accounts`: 各勘定科目の借方合計・貸方合計・残高
+- `total_debit`: 借方合計
+- `total_credit`: 貸方合計
 
 **確認項目:**
 
@@ -90,7 +93,7 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 ## ステップ2: 決算整理仕訳の登録
 
-以下の決算整理項目を順に確認・処理する。各仕訳は `ledger_add_journal` で登録する。
+以下の決算整理項目を順に確認・処理する。各仕訳は `ledger.py add-journal --db-path DB_PATH --input journal.json` で登録する。
 
 ### 2-1. 減価償却費の計上
 
@@ -98,22 +101,32 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 **計算ツールの呼び出し:**
 
-定額法の場合: `calc_depreciation_straight_line`
-```
-パラメータ:
-  acquisition_cost: int  — 取得原価
-  useful_life: int       — 耐用年数
-  residual_rate: float   — 残存価額率（通常0、旧定額法は0.1）
-  months_used: int       — 当期の使用月数（期中取得の場合は月割り）
+```bash
+python skills/income-tax/scripts/tax_calc.py calc-depreciation --input depreciation_input.json
 ```
 
-定率法の場合: `calc_depreciation_declining_balance`
+定額法の場合:
+```json
+{
+  "method": "straight_line",
+  "acquisition_cost": 300000,
+  "useful_life": 4,
+  "business_use_ratio": 100,
+  "months": 12
+}
 ```
-パラメータ:
-  acquisition_cost: int  — 取得原価
-  book_value: int        — 期首帳簿価額
-  useful_life: int       — 耐用年数
-  months_used: int       — 当期の使用月数
+
+定率法の場合:
+```json
+{
+  "method": "declining_balance",
+  "acquisition_cost": 300000,
+  "book_value": 200000,
+  "useful_life": 4,
+  "declining_rate": 500,
+  "business_use_ratio": 100,
+  "months": 12
+}
 ```
 
 **仕訳の登録:**
@@ -133,18 +146,19 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 #### 在庫データの登録
 
-まず `ledger_list_inventory` で登録済みの棚卸データを確認する。
-未登録の場合は `ledger_set_inventory` で期首・期末の棚卸高を登録する:
+まず `ledger.py list-inventory --db-path DB_PATH --input query.json` で登録済みの棚卸データを確認する。
+未登録の場合は `ledger.py set-inventory --db-path DB_PATH --input inventory.json` で期首・期末の棚卸高を登録する:
 
-```
-パラメータ:
-  db_path: str
-  fiscal_year: int
-  detail:
-    period: str    — "beginning"（期首）または "ending"（期末）
-    amount: int    — 棚卸高（円）
-    method: str    — 評価方法（"cost" = 原価法、デフォルト）
-    details: str   — 品目の明細等（任意）
+```json
+{
+  "fiscal_year": 2025,
+  "detail": {
+    "period": "ending",
+    "amount": 200000,
+    "method": "cost",
+    "details": "品目の明細等"
+  }
+}
 ```
 
 #### 棚卸仕訳の登録
@@ -160,7 +174,7 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 - 期末の在庫数量と単価をユーザーに確認する
 - 評価方法（最終仕入原価法等）を確認する
 - **売上原価の計算**: 期首棚卸高 + 仕入高 - 期末棚卸高
-- 登録した棚卸データは `ledger_pl` と青色申告決算書 PDF に自動反映される
+- 登録した棚卸データは `ledger.py pl` と青色申告決算書 PDF に自動反映される
 
 ### 2-3. 未払費用の計上
 
@@ -201,21 +215,26 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 事業で地代家賃を計上している場合、内訳を登録する（青色申告決算書の添付資料）。
 
-### `ledger_add_rent_detail` の呼び出し
+### `ledger.py add-rent-detail` の呼び出し
 
+```bash
+python skills/journal/scripts/ledger.py add-rent-detail --db-path DB_PATH --input rent.json
 ```
-パラメータ:
-  db_path: str
-  fiscal_year: int
-  detail:
-    property_type: str      — 物件種類（事務所/自宅兼事務所/駐車場）
-    usage: str              — 用途（事務所/自宅兼事務所）
-    landlord_name: str      — 賃貸先の名称
-    landlord_address: str   — 賃貸先の住所
-    monthly_rent: int       — 月額賃料（円）
-    annual_rent: int        — 年間賃料（円）
-    deposit: int            — 権利金等（円、デフォルト0）
-    business_ratio: int     — 事業割合（%、デフォルト100）
+入力 JSON:
+```json
+{
+  "fiscal_year": 2025,
+  "detail": {
+    "property_type": "自宅兼事務所",
+    "usage": "自宅兼事務所",
+    "landlord_name": "賃貸先の名称",
+    "landlord_address": "賃貸先の住所",
+    "monthly_rent": 100000,
+    "annual_rent": 1200000,
+    "deposit": 0,
+    "business_ratio": 50
+  }
+}
 ```
 
 **確認項目:**
@@ -229,36 +248,42 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 決算整理仕訳がすべて登録された後、決算書を生成する。
 
-### 3-1. 損益計算書の確認（`ledger_pl`）
+### 3-1. 損益計算書の確認（`ledger.py pl`）
 
+```bash
+python skills/journal/scripts/ledger.py pl --db-path DB_PATH --input query.json
 ```
-パラメータ:
-  db_path: str
-  fiscal_year: int
-
-戻り値:
-  - revenue: 収益の内訳と合計
-  - expenses: 費用の内訳と合計
-  - net_income: 当期純利益（収益合計 − 費用合計）
+入力 JSON:
+```json
+{
+  "fiscal_year": 2025
+}
 ```
+出力:
+- `revenue`: 収益の内訳と合計
+- `expenses`: 費用の内訳と合計
+- `net_income`: 当期純利益（収益合計 - 費用合計）
 
 **確認項目:**
 - 売上金額が実績と一致するか
 - 各経費科目が妥当か（異常に大きい・小さい科目がないか）
 - 青色申告特別控除前の所得金額を確認する
 
-### 3-2. 貸借対照表の確認（`ledger_bs`）
+### 3-2. 貸借対照表の確認（`ledger.py bs`）
 
+```bash
+python skills/journal/scripts/ledger.py bs --db-path DB_PATH --input query.json
 ```
-パラメータ:
-  db_path: str
-  fiscal_year: int
-
-戻り値:
-  - assets: 資産の内訳と合計
-  - liabilities: 負債の内訳と合計
-  - equity: 純資産の内訳と合計
+入力 JSON:
+```json
+{
+  "fiscal_year": 2025
+}
 ```
+出力:
+- `assets`: 資産の内訳と合計
+- `liabilities`: 負債の内訳と合計
+- `equity`: 純資産の内訳と合計
 
 **確認項目:**
 - 資産合計 = 負債合計 + 純資産合計 であるか（貸借一致）
@@ -272,31 +297,25 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 
 なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
 
-#### 青色申告決算書: `generate_bs_pl_pdf`
+#### 青色申告決算書: `doc_generate.py bs-pl`
 
+```bash
+python skills/document/scripts/doc_generate.py bs-pl --input bs_pl_input.json --output-path output/bs_pl_2025.pdf
 ```
-パラメータ:
-  fiscal_year: int
-  db_path: str
-  output_path: str — 出力先のファイルパス
-```
+入力 JSON には `fiscal_year`, `pl_revenues`, `pl_expenses`, `bs_assets`, `bs_liabilities`, `bs_equity` を含める。
 
 - 損益計算書と貸借対照表を1つのPDFファイルに出力する
 - 青色申告決算書の様式に準拠した形式で生成する
 - 出力後、ファイルパスをユーザーに案内する
 
-#### 収支内訳書（白色申告の場合）: `doc_generate_income_expense_statement`
+#### 収支内訳書（白色申告の場合）: `doc_generate.py income-expense`
 
 白色申告（`filing.return_type == "white"`）の場合、青色申告決算書の代わりに収支内訳書を生成する。
 
+```bash
+python skills/document/scripts/doc_generate.py income-expense --input income_expense_input.json --output-path output/income_expense_2025.pdf
 ```
-doc_generate_income_expense_statement:
-  fiscal_year: int
-  pl_revenues: list[dict]     — 収入の内訳（ledger_pl の結果）
-  pl_expenses: list[dict]     — 経費の内訳（ledger_pl の結果）
-  output_path: str
-  taxpayer_name: str
-```
+入力 JSON には `fiscal_year`, `pl_revenues`, `pl_expenses` を含める（`ledger.py pl` の結果を使用）。
 
 - 収支内訳書は青色申告決算書（BS/PL）の簡易版で、損益計算書のみ
 - 貸借対照表は不要

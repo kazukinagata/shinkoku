@@ -1,6 +1,6 @@
 # shinkoku
 
-確定申告自動化 Claude Code Plugin（MCP Server）。Python 3.11+、SQLite WAL モードで動作する。
+確定申告自動化 Claude Code Plugin。Python 3.11+、SQLite WAL モードで動作する。
 会社員＋副業（事業所得・青色申告）の所得税・消費税確定申告をエンドツーエンドで支援する。
 
 ## 対象ペルソナ
@@ -31,16 +31,17 @@
 ## アーキテクチャ
 
 ```
-agents/ (*.md)         ← サブエージェント定義（OCR等の委任先）
-skills/ (SKILL.md)     ← 対話フロー定義（9スキル、setup 含む）
+agents/ (*.md)              ← サブエージェント定義（OCR等の委任先）
+skills/ (SKILL.md)          ← 対話フロー定義（9スキル、setup 含む）
+skills/*/scripts/*.py       ← CLI スクリプト（Bash 経由で呼び出し）
   ↓
-src/shinkoku/tools/    ← MCP ツール（register(mcp) で登録）
+src/shinkoku/tools/         ← ビジネスロジック（純粋関数）
   ↓
-src/shinkoku/          ← コア（models, db, master_accounts）
+src/shinkoku/               ← コア（models, db, master_accounts）
 ```
 
-- エントリーポイント: `src/shinkoku/server.py` — `FastMCP("shinkoku")` を生成し `mcp.run()` で起動
-- ツール登録: 各 `tools/*.py` の `register(mcp)` 関数で MCP ツールを登録
+- ツール呼び出し: `skills/*/scripts/*.py` を `uv run python` で実行（argparse サブコマンド + JSON 入出力）
+- ビジネスロジック: `src/shinkoku/tools/*.py` に純粋関数として定義（CLI スクリプトから呼び出し）
 
 ## コマンド
 
@@ -49,12 +50,36 @@ make dev          # Claude Code をプラグインモードで起動
 make test         # 全テスト実行
 make lint         # Ruff lint チェック
 
-uv run pytest tests/unit/ -v         # ユニットテストのみ
-uv run pytest tests/integration/ -v  # 統合テストのみ
-uv run pytest tests/e2e/ -v          # E2Eテストのみ
+uv run pytest tests/unit/ -v      # ユニットテストのみ
+uv run pytest tests/scripts/ -v   # CLI スクリプトテスト
+uv run pytest tests/visual/ -v    # PDF ビジュアルリグレッションテスト
 
 uv run mypy src/shinkoku/ --ignore-missing-imports  # 型チェック
 uv run ruff format --check src/ tests/              # フォーマットチェック
+```
+
+### CLI スクリプト呼び出し例
+
+```bash
+# 帳簿 CRUD
+uv run python skills/journal/scripts/ledger.py init --db-path shinkoku.db --fiscal-year 2025
+uv run python skills/journal/scripts/ledger.py journal-add --db-path shinkoku.db --input journal.json
+uv run python skills/journal/scripts/ledger.py trial-balance --db-path shinkoku.db --fiscal-year 2025
+
+# 税額計算
+uv run python skills/income-tax/scripts/tax_calc.py calc-income --input income_params.json
+
+# PDF 帳票生成
+uv run python skills/document/scripts/doc_generate.py income-tax --input tax_result.json --output-path output/
+
+# データ取込
+uv run python skills/journal/scripts/import_data.py csv --file-path transactions.csv
+
+# ふるさと納税
+uv run python skills/furusato/scripts/furusato.py summary --db-path shinkoku.db --fiscal-year 2025
+
+# プロファイル
+uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
 ```
 
 ## コーディング規約
@@ -88,11 +113,14 @@ uv run ruff format --check src/ tests/              # フォーマットチェ�
 - `*Record` — DBレコード（例: `JournalRecord`）
 - 定義は `src/shinkoku/models.py` に集約する
 
-### MCP ツール登録
+### CLI スクリプト規約
 
-- 各ツールファイルで `register(mcp)` 関数を定義し、その中で `@mcp.tool()` デコレータを使用
-- ツール関数は `dict` を返す（`result.model_dump()`）
-- ビジネスロジックはツール関数の外に純粋関数として分離する
+- 各スクリプトは argparse サブコマンド方式
+- 入力: 複雑なパラメータは `--input <json_file>` で JSON ファイル受け取り。単純パラメータは CLI 引数
+- 出力: JSON を stdout に出力。PDF 生成系は `--output-path` でファイル出力 + メタ情報を stdout
+- エラー: `{"status": "error", "message": "..."}` を stdout + exit code 1
+- DB 系: `--db-path` 引数で SQLite パスを受け取り
+- ビジネスロジックは `src/shinkoku/tools/` の純粋関数として分離する
 
 ### Ruff
 
@@ -122,27 +150,54 @@ uv run ruff format --check src/ tests/              # フォーマットチェ�
 
 ## テスト規約
 
-- 構成: `tests/unit/` / `tests/integration/` / `tests/e2e/`
+- 構成: `tests/unit/` / `tests/scripts/` / `tests/visual/`
+- `tests/scripts/`: CLI スクリプトの統合テスト（subprocess でスクリプトを呼び出し、JSON 出力を検証）
+- `tests/unit/`: DB・config・xtx 等のコアモジュールのユニットテスト
+- `tests/visual/`: PDF ビジュアルリグレッションテスト
 - 共有フィクスチャ: `in_memory_db`, `in_memory_db_with_accounts`, `sample_journals`
 - マーカー: `@pytest.mark.slow`, `@pytest.mark.visual_regression`
-- asyncio_mode: `auto`
 
 ## 主要ファイル
 
+### コアモジュール
+
 | ファイルパス | 役割 |
 |------------|------|
-| `src/shinkoku/server.py` | MCP Server エントリーポイント |
 | `src/shinkoku/models.py` | Pydantic モデル定義（全ツールの入出力型） |
 | `src/shinkoku/db.py` | SQLite 接続管理・マイグレーション |
 | `src/shinkoku/master_accounts.py` | 勘定科目マスタ（1xxx〜5xxx） |
 | `src/shinkoku/tax_constants.py` | 税制定数の一元管理（税率・控除額・速算表等） |
-| `src/shinkoku/tools/ledger.py` | 帳簿管理ツール（仕訳CRUD・財務諸表） |
-| `src/shinkoku/tools/tax_calc.py` | 税額計算ツール（所得税・消費税・控除・減価償却） |
-| `src/shinkoku/tools/import_data.py` | データ取り込みツール（CSV・レシート・請求書） |
-| `src/shinkoku/tools/document.py` | PDF帳票生成ツール |
+
+### ビジネスロジック（純粋関数）
+
+| ファイルパス | 役割 |
+|------------|------|
+| `src/shinkoku/tools/ledger.py` | 帳簿管理（仕訳CRUD・財務諸表） |
+| `src/shinkoku/tools/tax_calc.py` | 税額計算（所得税・消費税・控除・減価償却） |
+| `src/shinkoku/tools/import_data.py` | データ取り込み（CSV・レシート・請求書） |
+| `src/shinkoku/tools/document.py` | PDF帳票生成 |
+| `src/shinkoku/tools/furusato.py` | ふるさと納税 CRUD・集計 |
+| `src/shinkoku/tools/profile.py` | 納税者プロファイル取得 |
+| `src/shinkoku/tools/separate_tax.py` | 分離課税（株式・FX） |
 | `src/shinkoku/tools/pdf_utils.py` | PDF生成ユーティリティ |
 | `src/shinkoku/tools/pdf_coordinates.py` | PDF帳票の座標定義 |
-| `src/shinkoku/xtx/generator.py` | xtx（e-Tax XML）生成エンジン（XtxBuilder クラス） |
+
+### CLI スクリプト（skills/*/scripts/）
+
+| ファイルパス | サブコマンド数 | 役割 |
+|------------|-------------|------|
+| `skills/journal/scripts/ledger.py` | 67 | 帳簿管理 CLI（init, journal-add, search, trial-balance 等） |
+| `skills/income-tax/scripts/tax_calc.py` | 9 | 税額計算 CLI（calc-income, calc-deductions 等） |
+| `skills/document/scripts/doc_generate.py` | 11 | PDF帳票生成 CLI（income-tax, bs-pl, full-set 等） |
+| `skills/journal/scripts/import_data.py` | 9 | データ取込 CLI（csv, receipt, invoice 等） |
+| `skills/furusato/scripts/furusato.py` | 4 | ふるさと納税 CLI（add, list, delete, summary） |
+| `skills/setup/scripts/profile.py` | 1 | プロファイル取得 CLI |
+
+### xtx（e-Tax XML）
+
+| ファイルパス | 役割 |
+|------------|------|
+| `src/shinkoku/xtx/generator.py` | xtx 生成エンジン（XtxBuilder クラス） |
 | `src/shinkoku/xtx/field_codes.py` | ABB コード定数辞書・名前空間・ネスト構造定義 |
 | `src/shinkoku/xtx/income_tax.py` | 所得税申告書B 第一表・第二表 xtx ビルダー |
 | `src/shinkoku/xtx/blue_return.py` | 青色申告決算書 PL・BS xtx ビルダー |
@@ -151,6 +206,11 @@ uv run ruff format --check src/ tests/              # フォーマットチェ�
 | `src/shinkoku/xtx/attachments.py` | 医療費・住宅ローン控除明細書 xtx ビルダー |
 | `src/shinkoku/xtx/generate_xtx.py` | xtx 生成オーケストレーション（DB→計算→XML出力） |
 | `scripts/generate_xtx.py` | xtx 生成 CLI エントリーポイント |
+
+### スキル・エージェント
+
+| ファイルパス | 役割 |
+|------------|------|
 | `skills/e-tax/SKILL.md` | e-Tax 電子申告スキル（xtx 生成→アップロード案内） |
 | `skills/setup/SKILL.md` | セットアップウィザード（設定ファイル生成・DB初期化） |
 | `agents/receipt-reader.md` | レシート画像OCRサブエージェント（Vision トークン分離） |

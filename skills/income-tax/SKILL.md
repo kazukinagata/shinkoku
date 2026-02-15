@@ -19,14 +19,14 @@ settlement スキルで決算書の作成が完了していることを前提と
 1. `shinkoku.config.yaml` を Read ツールで読み込む
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
-   - `db_path`: MCP ツールの `db_path` 引数に使用
-   - `output_dir`: PDF 生成時の `output_path` 引数のベースディレクトリに使用
+   - `db_path`: CLI スクリプトの `--db-path` 引数に使用
+   - `output_dir`: PDF 生成時の `--output-path` 引数のベースディレクトリに使用
    - 各ディレクトリ: ファイル参照時に使用
 
 ### パス解決の例
 
 config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
-- `generate_income_tax_pdf(output_path="/home/user/tax-2025/output/income_tax_2025.pdf", ...)`
+- `doc_generate.py income-tax --output-path /home/user/tax-2025/output/income_tax_2025.pdf ...`
 
 ## 進捗情報の読み込み
 
@@ -53,7 +53,7 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 所得税計算を開始する前に以下を確認する:
 
 1. **青色申告決算書が完成しているか**: settlement スキルの出力を確認する
-2. **納税者プロファイルの読み込み**: `profile_get_taxpayer` ツールで config から納税者情報を取得する
+2. **納税者プロファイルの読み込み**: `skills/setup/scripts/profile.py get-taxpayer` で config から納税者情報を取得する
    - 氏名・住所・税務署名 → PDF 帳票の自動記入に使用
    - 寡婦/ひとり親・障害者・勤労学生の状態 → 人的控除の計算に使用
 3. **事業所得以外の所得**: 給与所得・雑所得・配当所得・一時所得等がある場合は情報を収集する
@@ -62,26 +62,34 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 6. **予定納税額**: assess で確認済みの予定納税額を取得する
    - 未確認の場合は、前年の確定申告書（㊺欄）から判定する
    - 予定納税額は源泉徴収税額とは別に管理する
-7. **分離課税の確認**: 株式取引・FX取引がある場合は別途 `tax_calc_separate` で計算する
+7. **分離課税の確認**: 株式取引・FX取引がある場合は別途 `tax_calc.py calc-separate` で計算する
 
 ## ステップ1: 源泉徴収票の取り込み
 
 給与所得がある場合、源泉徴収票からデータを取り込む。
 
-### `import_withholding` の呼び出し
+### `import_data.py import-withholding` の呼び出し
 
+```bash
+python skills/journal/scripts/import_data.py import-withholding --input withholding_input.json
 ```
-パラメータ:
-  file_path: str — 源泉徴収票の画像またはPDFファイルのパス
-
-戻り値:
-  - payer_name: 支払者名
-  - payment_amount: 支払金額（給与収入）
-  - deduction_amount: 給与所得控除後の金額
-  - income_tax_withheld: 源泉徴収税額
-  - social_insurance: 社会保険料等の金額
-  - life_insurance: 生命保険料の控除額
-  - spouse_deduction: 配偶者控除の額
+入力 JSON:
+```json
+{
+  "file_path": "path/to/withholding_slip.pdf"
+}
+```
+出力:
+```json
+{
+  "payer_name": "支払者名",
+  "payment_amount": 5000000,
+  "deduction_amount": 3560000,
+  "income_tax_withheld": 100000,
+  "social_insurance": 700000,
+  "life_insurance": 50000,
+  "spouse_deduction": 0
+}
 ```
 
 **取り込み後の処理:**
@@ -97,8 +105,8 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 ### DB からの読み込み
 
-1. `ledger_get_spouse` で配偶者情報を取得する（登録済みの場合）
-2. `ledger_list_dependents` で扶養親族のリストを取得する（登録済みの場合）
+1. `ledger.py get-spouse --db-path DB_PATH` で配偶者情報を取得する（登録済みの場合）
+2. `ledger.py list-dependents --db-path DB_PATH` で扶養親族のリストを取得する（登録済みの場合）
 
 ### 未登録の場合の確認項目
 
@@ -106,7 +114,7 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
    - 所得48万円以下 → 配偶者控除（38万円）
    - 所得48万円超133万円以下 → 配偶者特別控除（段階的）
    - 納税者の所得が1,000万円超 → 配偶者控除なし
-   - 確認後 `ledger_set_spouse` で DB に登録する
+   - 確認後 `ledger.py set-spouse --db-path DB_PATH --input spouse.json` で DB に登録する
 
 2. **扶養親族**: 以下の情報を収集する
    - 氏名、続柄、生年月日、年間所得、障害の有無、同居の有無
@@ -114,14 +122,14 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
    - 16歳以上: 一般扶養38万円
    - 19歳以上23歳未満: 特定扶養63万円
    - 70歳以上: 老人扶養48万円（同居58万円）
-   - 確認後 `ledger_add_dependent` で各人を DB に登録する
+   - 確認後 `ledger.py add-dependent --db-path DB_PATH --input dependent.json` で各人を DB に登録する
 
 3. **障害者控除**: 扶養親族に障害がある場合
    - 一般障害者: 27万円、特別障害者: 40万円、同居特別障害者: 75万円
 
 ## ステップ1.6: iDeCo・小規模企業共済の確認
 
-掛金払込証明書がある場合は `import_deduction_certificate` で取り込むことができる。
+掛金払込証明書がある場合は `import_data.py import-deduction-certificate` で取り込むことができる。
 
 1. iDeCo（個人型確定拠出年金）の年間掛金を確認する
    - 小規模企業共済等掛金払込証明書から金額を確認
@@ -134,19 +142,20 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 ### 医療費の登録・集計
 
-1. `ledger_list_medical_expenses` で登録済み医療費明細を取得する
-2. 未登録の医療費がある場合は `ledger_add_medical_expense` で登録する:
-   ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       date: str               — 診療日 (YYYY-MM-DD)
-       patient_name: str        — 患者名
-       medical_institution: str — 医療機関名
-       amount: int              — 医療費（円）
-       insurance_reimbursement: int — 保険金等の補填額（円）
-       description: str | None  — 備考
+1. `ledger.py list-medical-expenses --db-path DB_PATH --input query.json` で登録済み医療費明細を取得する
+2. 未登録の医療費がある場合は `ledger.py add-medical-expense --db-path DB_PATH --input medical.json` で登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "date": "2025-03-15",
+       "patient_name": "山田太郎",
+       "medical_institution": "ABC病院",
+       "amount": 150000,
+       "insurance_reimbursement": 0,
+       "description": null
+     }
+   }
    ```
 3. 集計結果（total_amount - total_reimbursement）を医療費控除の計算に使用する
 
@@ -156,36 +165,38 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 ### 支払調書の取り込み
 
-1. `import_payment_statement` で支払調書PDF/画像からデータを抽出する
-2. `ledger_add_business_withholding` で取引先別の源泉徴収情報を登録する:
+1. `import_data.py import-payment-statement --input payment_input.json` で支払調書PDF/画像からデータを抽出する
+2. `ledger.py add-business-withholding --db-path DB_PATH --input withholding.json` で取引先別の源泉徴収情報を登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "client_name": "取引先名",
+       "gross_amount": 1000000,
+       "withholding_tax": 102100
+     }
+   }
    ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       client_name: str     — 取引先名
-       gross_amount: int    — 支払金額
-       withholding_tax: int — 源泉徴収税額
-   ```
-3. `ledger_list_business_withholding` で登録済み情報を確認する
+3. `ledger.py list-business-withholding --db-path DB_PATH --input query.json` で登録済み情報を確認する
 4. 源泉徴収税額の合計を `business_withheld_tax` として所得税計算に使用する
 
 ## ステップ1.8.5: 税理士等報酬の登録
 
 税理士・弁護士等に報酬を支払っている場合、報酬明細を登録する。
 
-1. `ledger_list_professional_fees` で登録済みの税理士等報酬を確認する
-2. 未登録の場合は `ledger_add_professional_fee` で登録する:
-   ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       payer_address: str    — 支払者住所
-       payer_name: str       — 支払者名（税理士・弁護士名）
-       fee_amount: int       — 報酬金額（円）
-       expense_deduction: int — 必要経費（円）
-       withheld_tax: int     — 源泉徴収税額（円）
+1. `ledger.py list-professional-fees --db-path DB_PATH --input query.json` で登録済みの税理士等報酬を確認する
+2. 未登録の場合は `ledger.py add-professional-fee --db-path DB_PATH --input fee.json` で登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "payer_address": "支払者住所",
+       "payer_name": "税理士名",
+       "fee_amount": 300000,
+       "expense_deduction": 0,
+       "withheld_tax": 30630
+     }
+   }
    ```
 3. 源泉徴収税額は `business_withheld_tax` に合算する
 
@@ -193,15 +204,16 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 前年以前に事業で損失が発生し、青色申告している場合、繰越控除を適用できる。
 
-1. `ledger_list_loss_carryforward` で登録済みの繰越損失を確認する
-2. 未登録の場合は `ledger_add_loss_carryforward` で登録する:
-   ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       loss_year: int  — 損失が発生した年（3年以内）
-       amount: int     — 繰越損失額（円）
+1. `ledger.py list-loss-carryforward --db-path DB_PATH --input query.json` で登録済みの繰越損失を確認する
+2. 未登録の場合は `ledger.py add-loss-carryforward --db-path DB_PATH --input loss.json` で登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "loss_year": 2023,
+       "amount": 500000
+     }
+   }
    ```
 3. 繰越損失の合計を `loss_carryforward_amount` として所得税計算に使用する
 
@@ -214,18 +226,26 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 公的年金等の収入がある場合、年金控除を計算して雑所得を求める。
 
 1. 年金収入の有無を確認する
-2. `tax_calc_pension_deduction` で公的年金等控除を計算する:
+2. `skills/income-tax/scripts/tax_calc.py calc-pension` で公的年金等控除を計算する:
+   ```bash
+   python skills/income-tax/scripts/tax_calc.py calc-pension --input pension_input.json
    ```
-   パラメータ:
-     pension_income: int   — 公的年金等の収入金額（円）
-     is_over_65: bool      — 65歳以上かどうか（年度末12/31時点）
-     other_income: int     — 公的年金等以外の合計所得金額（0の場合は省略可）
-
-   戻り値:
-     pension_income: int              — 入力の年金収入
-     deduction_amount: int            — 公的年金等控除額
-     taxable_pension_income: int      — 雑所得（年金） = 収入 - 控除
-     other_income_adjustment: int     — 所得金額調整額
+   入力 JSON:
+   ```json
+   {
+     "pension_income": 2000000,
+     "is_over_65": true,
+     "other_income": 0
+   }
+   ```
+   出力:
+   ```json
+   {
+     "pension_income": 2000000,
+     "deduction_amount": 1100000,
+     "taxable_pension_income": 900000,
+     "other_income_adjustment": 0
+   }
    ```
 3. `taxable_pension_income` を雑所得として `misc_income` に加算する
 4. 令和7年改正: 65歳未満の最低保障額60万→70万、65歳以上の最低保障額110万→130万
@@ -235,19 +255,27 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 退職金を受け取った場合、退職所得を計算する。
 
 1. 退職金の有無を確認する
-2. `tax_calc_retirement_income` で退職所得を計算する:
+2. `skills/income-tax/scripts/tax_calc.py calc-retirement` で退職所得を計算する:
+   ```bash
+   python skills/income-tax/scripts/tax_calc.py calc-retirement --input retirement_input.json
    ```
-   パラメータ:
-     severance_pay: int              — 退職手当等の収入金額（円）
-     years_of_service: int           — 勤続年数（1年未満切上げ）
-     is_officer: bool                — 役員等かどうか（デフォルト: false）
-     is_disability_retirement: bool  — 障害退職かどうか（デフォルト: false）
-
-   戻り値:
-     severance_pay: int                — 入力の退職金
-     retirement_income_deduction: int  — 退職所得控除額
-     taxable_retirement_income: int    — 退職所得（1/2適用後）
-     half_taxation_applied: bool       — 1/2課税が適用されたか
+   入力 JSON:
+   ```json
+   {
+     "severance_pay": 10000000,
+     "years_of_service": 20,
+     "is_officer": false,
+     "is_disability_retirement": false
+   }
+   ```
+   出力:
+   ```json
+   {
+     "severance_pay": 10000000,
+     "retirement_income_deduction": 8000000,
+     "taxable_retirement_income": 1000000,
+     "half_taxation_applied": true
+   }
    ```
 3. 退職所得は原則分離課税（退職時に源泉徴収済み）だが、確定申告で精算する場合もある
 4. 役員等の短期退職（勤続5年以下）は1/2課税が適用されない
@@ -256,19 +284,20 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 副業の原稿料、暗号資産の売却益、その他の雑収入。
 
-1. `ledger_list_other_income` で登録済み雑所得を確認する
-2. 未登録の収入がある場合は `ledger_add_other_income` で登録する:
-   ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       income_type: "miscellaneous"
-       description: str       — 収入の内容
-       revenue: int           — 収入金額
-       expenses: int          — 必要経費
-       withheld_tax: int      — 源泉徴収税額
-       payer_name: str | None — 支払者名
+1. `ledger.py list-other-income --db-path DB_PATH --input query.json` で登録済み雑所得を確認する
+2. 未登録の収入がある場合は `ledger.py add-other-income --db-path DB_PATH --input other_income.json` で登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "income_type": "miscellaneous",
+       "description": "収入の内容",
+       "revenue": 500000,
+       "expenses": 50000,
+       "withheld_tax": 51050,
+       "payer_name": "支払者名"
+     }
+   }
    ```
 3. 雑所得 = 収入 - 経費（特別控除なし）
 
@@ -276,16 +305,17 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 暗号資産の売却益は雑所得（総合課税）として申告する。
 
-1. `ledger_list_crypto_income` で登録済み仮想通貨所得を確認する
-2. 未登録の場合は `ledger_add_crypto_income` で取引所別に登録する:
-   ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       exchange_name: str — 取引所名
-       gains: int         — 売却益
-       expenses: int      — 取引手数料等
+1. `ledger.py list-crypto-income --db-path DB_PATH --input query.json` で登録済み仮想通貨所得を確認する
+2. 未登録の場合は `ledger.py add-crypto-income --db-path DB_PATH --input crypto.json` で取引所別に登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "exchange_name": "取引所名",
+       "gains": 300000,
+       "expenses": 10000
+     }
+   }
    ```
 3. 合計を雑所得として total_income に加算する
 
@@ -293,16 +323,16 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 総合課税を選択した配当は配当控除（税額控除）の対象となる。
 
-1. `ledger_list_other_income` で `income_type: "dividend_comprehensive"` を確認する
-2. 未登録の場合は `ledger_add_other_income` で登録する
+1. `ledger.py list-other-income --db-path DB_PATH --input query.json` で `income_type: "dividend_comprehensive"` を確認する
+2. 未登録の場合は `ledger.py add-other-income --db-path DB_PATH --input dividend.json` で登録する
 3. 配当控除: 課税所得1,000万以下の部分 → 配当の10%、超える部分 → 5%
 
 ### 一時所得
 
 保険満期金、懸賞金等の一時的な所得。
 
-1. `ledger_list_other_income` で `income_type: "one_time"` を確認する
-2. 未登録の場合は `ledger_add_other_income` で登録する
+1. `ledger.py list-other-income --db-path DB_PATH --input query.json` で `income_type: "one_time"` を確認する
+2. 未登録の場合は `ledger.py add-other-income --db-path DB_PATH --input one_time.json` で登録する
 3. 一時所得 = max(0, (収入 - 経費 - 特別控除50万円)) × 1/2
 
 ### `calc_income_tax` への反映
@@ -316,7 +346,7 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 ## ステップ1.11: 分離課税の確認（株式・FX）
 
 株式取引や FX 取引がある場合、分離課税として別途計算する。
-総合課税の所得税とは別に `tax_calc_separate` ツールで計算する。
+総合課税の所得税とは別に `tax_calc.py calc-separate` で計算する。
 
 詳細なパラメータ・登録手順・引継書テンプレートは `references/separate-tax-guide.md` を参照。
 
@@ -326,58 +356,64 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 所得控除の内訳書に種別ごとの記載が必要なため、社会保険料を種別別に登録する。
 
-社会保険料の控除証明書がある場合は `import_deduction_certificate` で取り込むことができる。
+社会保険料の控除証明書がある場合は `import_data.py import-deduction-certificate` で取り込むことができる。
 
-1. `ledger_list_social_insurance_items` で登録済み項目を確認する
-2. 未登録の場合は `ledger_add_social_insurance_item` で種別ごとに登録する:
+1. `ledger.py list-social-insurance-items --db-path DB_PATH --input query.json` で登録済み項目を確認する
+2. 未登録の場合は `ledger.py add-social-insurance-item --db-path DB_PATH --input insurance.json` で種別ごとに登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "insurance_type": "national_health",
+       "name": "保険者名",
+       "amount": 300000
+     }
+   }
    ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       insurance_type: str  — 種別（national_health / national_pension / national_pension_fund / nursing_care / labor_insurance / other）
-       name: str | None     — 保険者名等
-       amount: int          — 年間支払額（円）
-   ```
+   insurance_type: national_health / national_pension / national_pension_fund / nursing_care / labor_insurance / other
 3. 合計額を `social_insurance` として控除計算に使用する
 
 ## ステップ1.13: 保険契約の保険会社名の登録
 
 所得控除の内訳書に保険会社名の記載が必要なため、保険契約を登録する。
 
-控除証明書の画像・PDFがある場合は `import_deduction_certificate` で取り込むことができる。
-取り込み後、抽出データに基づいて `ledger_add_insurance_policy` で登録する。
+控除証明書の画像・PDFがある場合は `import_data.py import-deduction-certificate` で取り込むことができる。
+取り込み後、抽出データに基づいて `ledger.py add-insurance-policy` で登録する。
 
-1. `ledger_list_insurance_policies` で登録済み項目を確認する
-2. 未登録の場合は `ledger_add_insurance_policy` で登録する:
+1. `ledger.py list-insurance-policies --db-path DB_PATH --input query.json` で登録済み項目を確認する
+2. 未登録の場合は `ledger.py add-insurance-policy --db-path DB_PATH --input policy.json` で登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "policy_type": "life_general_new",
+       "company_name": "保険会社名",
+       "premium": 80000
+     }
+   }
    ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       policy_type: str   — 種別（life_general_new / life_general_old / life_medical_care / life_annuity_new / life_annuity_old / earthquake / old_long_term）
-       company_name: str  — 保険会社名
-       premium: int       — 年間保険料（円）
-   ```
+   policy_type: life_general_new / life_general_old / life_medical_care / life_annuity_new / life_annuity_old / earthquake / old_long_term
 3. 生命保険料は `life_insurance_detail` パラメータに、地震保険料は `earthquake_insurance_premium` に反映する
 
 ## ステップ1.14: ふるさと納税以外の寄附金の確認
 
 政治活動寄附金、認定NPO法人、公益社団法人等への寄附金を確認する。
 
-1. `ledger_list_donations` で登録済み寄附金を確認する
-2. 未登録の場合は `ledger_add_donation` で登録する:
+1. `ledger.py list-donations --db-path DB_PATH --input query.json` で登録済み寄附金を確認する
+2. 未登録の場合は `ledger.py add-donation --db-path DB_PATH --input donation.json` で登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "donation_type": "npo",
+       "recipient_name": "寄附先名",
+       "amount": 50000,
+       "date": "2025-06-01",
+       "receipt_number": null
+     }
+   }
    ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail:
-       donation_type: str      — 種別（political / npo / public_interest / specified / other）
-       recipient_name: str     — 寄附先名
-       amount: int             — 寄附金額（円）
-       date: str               — 寄附日（YYYY-MM-DD）
-       receipt_number: str | None — 領収書番号
-   ```
+   donation_type: political / npo / public_interest / specified / other
 3. 寄附金控除の計算:
    - **所得控除**: 全寄附金 - 2,000円（総所得金額の40%上限）
    - **税額控除（政治活動寄附金）**: (寄附金 - 2,000円) × 30%（所得税額の25%上限）
@@ -386,44 +422,34 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 ## ステップ2: 所得控除の計算
 
-### `calc_deductions` の呼び出し
+### `tax_calc.py calc-deductions` の呼び出し
 
+```bash
+python skills/income-tax/scripts/tax_calc.py calc-deductions --input deductions_input.json
 ```
-パラメータ:
-  total_income: int              — 合計所得金額
-  social_insurance: int          — 社会保険料の年間支払額
-  life_insurance_premium: int    — 生命保険料
-  earthquake_insurance_premium: int — 地震保険料
-  medical_expenses: int          — 医療費合計（保険金差引後）
-  furusato_nozei: int            — ふるさと納税寄附金合計
-  housing_loan_balance: int      — 住宅ローン年末残高
-  spouse_income: int | None      — 配偶者の所得金額
-  ideco_contribution: int        — iDeCo/小規模企業共済掛金
-  dependents: list[DependentInfo] — 扶養親族のリスト
-  fiscal_year: int               — 会計年度
-  housing_loan_detail: HousingLoanDetail | None — 住宅ローン控除の詳細
-  donations: list[DonationRecordRecord] | None — ふるさと納税以外の寄附金
-
-戻り値: DeductionsResult
-  - income_deductions: 所得控除の一覧
-    - basic_deduction: 基礎控除（Reiwa 7 改正対応）
-    - social_insurance_deduction: 社会保険料控除
-    - life_insurance_deduction: 生命保険料控除
-    - earthquake_insurance_deduction: 地震保険料控除
-    - ideco_deduction: 小規模企業共済等掛金控除
-    - medical_deduction: 医療費控除
-    - furusato_deduction: 寄附金控除（ふるさと納税）
-    - donation_deduction: 寄附金控除（その他）
-    - spouse_deduction: 配偶者控除/配偶者特別控除
-    - dependent_deduction: 扶養控除
-    - disability_deduction: 障害者控除
-  - tax_credits: 税額控除の一覧
-    - housing_loan_credit: 住宅ローン控除
-    - political_donation_credit: 政治活動寄附金控除
-    - npo_donation_credit: 認定NPO等寄附金控除
-  - total_income_deductions: 所得控除合計
-  - total_tax_credits: 税額控除合計
+入力 JSON:
+```json
+{
+  "total_income": 5000000,
+  "social_insurance": 700000,
+  "life_insurance_premium": 80000,
+  "earthquake_insurance_premium": 30000,
+  "medical_expenses": 200000,
+  "furusato_nozei": 50000,
+  "housing_loan_balance": 0,
+  "spouse_income": null,
+  "ideco_contribution": 276000,
+  "dependents": [],
+  "fiscal_year": 2025,
+  "housing_loan_detail": null,
+  "donations": null
+}
 ```
+出力 (DeductionsResult):
+- `income_deductions`: 所得控除の一覧（basic_deduction, social_insurance_deduction, life_insurance_deduction, earthquake_insurance_deduction, ideco_deduction, medical_deduction, furusato_deduction, donation_deduction, spouse_deduction, dependent_deduction, disability_deduction）
+- `tax_credits`: 税額控除の一覧（housing_loan_credit, political_donation_credit, npo_donation_credit）
+- `total_income_deductions`: 所得控除合計
+- `total_tax_credits`: 税額控除合計
 
 **各控除の確認事項:**
 
@@ -460,45 +486,49 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 ## ステップ3: 所得税額の計算
 
-### `calc_income_tax` の呼び出し
+### `tax_calc.py calc-income` の呼び出し
 
+```bash
+python skills/income-tax/scripts/tax_calc.py calc-income --input income_input.json
 ```
-パラメータ: IncomeTaxInput
-  - fiscal_year: int                — 会計年度
-  - salary_income: int              — 給与収入（収入金額）
-  - business_revenue: int           — 事業収入
-  - business_expenses: int          — 事業経費
-  - blue_return_deduction: int      — 青色申告特別控除額（65万/10万/0）
-  - social_insurance: int           — 社会保険料
-  - life_insurance_premium: int     — 生命保険料
-  - earthquake_insurance_premium: int — 地震保険料
-  - medical_expenses: int           — 医療費（保険金差引後）
-  - furusato_nozei: int             — ふるさと納税寄附金合計
-  - housing_loan_balance: int       — 住宅ローン年末残高
-  - spouse_income: int | None       — 配偶者の所得
-  - ideco_contribution: int         — iDeCo掛金
-  - withheld_tax: int               — 源泉徴収税額（給与分のみ）
-  - business_withheld_tax: int      — 事業所得の源泉徴収税額（取引先別合計）
-  - estimated_tax_payment: int      — 予定納税額（第1期 + 第2期の合計）
-  - loss_carryforward_amount: int   — 繰越損失額
-
-戻り値: IncomeTaxResult
-  - salary_income_after_deduction: 給与所得控除後の金額
-  - business_income: 事業所得
-  - total_income: 合計所得金額（繰越損失適用後）
-  - total_income_deductions: 所得控除合計
-  - taxable_income: 課税所得金額（1,000円未満切り捨て）
-  - income_tax_base: 算出税額
-  - total_tax_credits: 税額控除合計
-  - income_tax_after_credits: 税額控除後
-  - reconstruction_tax: 復興特別所得税（基準所得税額 × 2.1%）
-  - total_tax: 所得税及び復興特別所得税の額（100円未満切り捨て）
-  - withheld_tax: 源泉徴収税額（給与分）
-  - business_withheld_tax: 事業所得の源泉徴収税額
-  - estimated_tax_payment: 予定納税額
-  - loss_carryforward_applied: 適用した繰越損失額
-  - tax_due: 申告納税額（= total_tax - withheld_tax - business_withheld_tax - estimated_tax_payment）
+入力 JSON (IncomeTaxInput):
+```json
+{
+  "fiscal_year": 2025,
+  "salary_income": 5000000,
+  "business_revenue": 3000000,
+  "business_expenses": 1000000,
+  "blue_return_deduction": 650000,
+  "social_insurance": 700000,
+  "life_insurance_premium": 80000,
+  "earthquake_insurance_premium": 30000,
+  "medical_expenses": 0,
+  "furusato_nozei": 50000,
+  "housing_loan_balance": 0,
+  "spouse_income": null,
+  "ideco_contribution": 276000,
+  "withheld_tax": 100000,
+  "business_withheld_tax": 30000,
+  "estimated_tax_payment": 0,
+  "loss_carryforward_amount": 0
+}
 ```
+出力 (IncomeTaxResult):
+- `salary_income_after_deduction`: 給与所得控除後の金額
+- `business_income`: 事業所得
+- `total_income`: 合計所得金額（繰越損失適用後）
+- `total_income_deductions`: 所得控除合計
+- `taxable_income`: 課税所得金額（1,000円未満切り捨て）
+- `income_tax_base`: 算出税額
+- `total_tax_credits`: 税額控除合計
+- `income_tax_after_credits`: 税額控除後
+- `reconstruction_tax`: 復興特別所得税（基準所得税額 x 2.1%）
+- `total_tax`: 所得税及び復興特別所得税の額（100円未満切り捨て）
+- `withheld_tax`: 源泉徴収税額（給与分）
+- `business_withheld_tax`: 事業所得の源泉徴収税額
+- `estimated_tax_payment`: 予定納税額
+- `loss_carryforward_applied`: 適用した繰越損失額
+- `tax_due`: 申告納税額（= total_tax - withheld_tax - business_withheld_tax - estimated_tax_payment）
 
 **寄附金控除の反映:**
 
@@ -525,15 +555,25 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 医療費控除を適用する場合、明細書PDFを生成する。
 
-### `doc_generate_medical_expense_detail` の呼び出し
+### `doc_generate.py medical-expense` の呼び出し
 
+```bash
+python skills/document/scripts/doc_generate.py medical-expense --input medical_input.json --output-path output/medical_expense_2025.pdf
 ```
-パラメータ:
-  fiscal_year: int              — 会計年度
-  expenses: list[dict]          — 医療費明細リスト（ledger_list_medical_expenses の結果）
-  total_income: int             — 合計所得金額（控除額の計算に使用）
-  output_path: str              — 出力先ファイルパス
-  taxpayer_name: str            — 氏名
+入力 JSON:
+```json
+{
+  "fiscal_year": 2025,
+  "expenses": [
+    {
+      "medical_institution": "ABC病院",
+      "patient_name": "山田太郎",
+      "amount": 150000,
+      "insurance_reimbursement": 0
+    }
+  ],
+  "total_income": 5000000
+}
 ```
 
 ## ステップ3.7: 住宅ローン控除の計算明細書PDF生成（該当者のみ）
@@ -544,42 +584,47 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 PDF 生成前に、住宅ローン控除の詳細情報を DB に登録する。
 
-1. `ledger_add_housing_loan_detail` で住宅ローン控除の明細を登録する:
-   ```
-   パラメータ:
-     db_path: str
-     fiscal_year: int
-     detail: HousingLoanDetailInput
-       housing_type: str            — 住宅区分
-       housing_category: str        — 住宅性能区分
-       move_in_date: str            — 入居年月日
-       year_end_balance: int        — 年末残高
-       is_new_construction: bool    — 新築かどうか
-       is_childcare_household: bool — 子育て世帯
-       has_pre_r6_building_permit: bool — R5以前の建築確認済み
-       purchase_date: str | None    — 住宅購入日
-       purchase_price: int          — 住宅の価格
-       total_floor_area: int        — 総床面積（㎡×100）
-       residential_floor_area: int  — 居住用部分の面積（㎡×100）
-       property_number: str | None  — 不動産番号
-       application_submitted: bool  — 適用申請書提出有無
+1. `ledger.py add-housing-loan-detail --db-path DB_PATH --input housing.json` で住宅ローン控除の明細を登録する:
+   ```json
+   {
+     "fiscal_year": 2025,
+     "detail": {
+       "housing_type": "new_custom",
+       "housing_category": "certified",
+       "move_in_date": "2024-03-15",
+       "year_end_balance": 30000000,
+       "is_new_construction": true,
+       "is_childcare_household": false,
+       "has_pre_r6_building_permit": false,
+       "purchase_date": "2024-01-20",
+       "purchase_price": 40000000,
+       "total_floor_area": 8000,
+       "residential_floor_area": 8000,
+       "property_number": null,
+       "application_submitted": false
+     }
+   }
    ```
 2. 登録後、DB の情報を使って PDF を生成する
 
-### `doc_generate_housing_loan_detail` の呼び出し
+### `doc_generate.py housing-loan` の呼び出し
 
+```bash
+python skills/document/scripts/doc_generate.py housing-loan --input housing_loan_input.json --output-path output/housing_loan_2025.pdf
 ```
-パラメータ:
-  fiscal_year: int              — 会計年度
-  housing_detail: dict          — 住宅ローン控除の詳細情報
-    housing_type: str            — 住宅区分（new_custom/new_subdivision/resale/used/renovation）
-    housing_category: str        — 住宅性能区分（general/certified/zeh/energy_efficient）
-    move_in_date: str            — 入居年月日（YYYY-MM-DD）
-    year_end_balance: int        — 年末残高
-    is_new_construction: bool    — 新築かどうか
-  credit_amount: int            — 計算された控除額
-  output_path: str              — 出力先ファイルパス
-  taxpayer_name: str            — 氏名
+入力 JSON:
+```json
+{
+  "fiscal_year": 2025,
+  "housing_detail": {
+    "housing_type": "new_custom",
+    "housing_category": "certified",
+    "move_in_date": "2024-03-15",
+    "year_end_balance": 30000000,
+    "is_new_construction": true
+  },
+  "credit_amount": 210000
+}
 ```
 
 住宅区分別の年末残高上限テーブルは `references/deduction-tables.md` を参照。
@@ -591,17 +636,14 @@ PDF帳票の生成は `/document` スキルに委任する。
 
 なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
 
-### 確定申告書PDF: `generate_income_tax_pdf`
+### 確定申告書PDF: `doc_generate.py income-tax`
 
-```
-パラメータ:
-  result: IncomeTaxResult — 所得税の計算結果
-  output_path: str        — 出力先ファイルパス
-  config_path: str        — 設定ファイルパス（住所等をPDFに反映）
+```bash
+python skills/document/scripts/doc_generate.py income-tax --input income_tax_result.json --output-path output/income_tax_2025.pdf --config-path shinkoku.config.yaml
 ```
 
-- 確定申告書B様式（第一表・第二表）のPDFを生成する
-- config_path を渡すことで住所・氏名・電話等がPDFに自動記入される
+- 確定申告書B様式（第一表）のPDFを生成する
+- `--config-path` を渡すことで住所・氏名・電話等がPDFに自動記入される
 - 出力後、主要な記載内容をサマリーとして表示する
 
 ## ステップ6: 計算結果サマリーの提示
@@ -783,6 +825,6 @@ fiscal_year: {tax_year}
 ## 免責事項
 
 - この計算は一般的な所得税の計算ロジックに基づく
-- 分離課税（株式・FX）は `tax_calc_separate` で計算する（第三表の生成含む）
+- 分離課税（株式・FX）は `tax_calc.py calc-separate` で計算する（第三表の生成含む）
 - 不動産所得、譲渡所得（不動産売却等）、退職所得は現時点で未対応
 - 最終的な申告内容は税理士等の専門家に確認することを推奨する

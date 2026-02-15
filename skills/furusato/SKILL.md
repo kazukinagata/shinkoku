@@ -17,7 +17,7 @@ description: >
 1. `shinkoku.config.yaml` を Read ツールで読み込む
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握する:
-   - `db_path`: MCP ツールの `db_path` 引数に使用（CWD基準で絶対パスに変換）
+   - `db_path`: CLI スクリプトの `--db-path` 引数に使用（CWD基準で絶対パスに変換）
    - `tax_year`: 対象年度
    - `furusato_receipts_dir`: 受領証明書の格納ディレクトリ（任意）
 
@@ -35,7 +35,7 @@ description: >
 
 ### 1-1. ファイルの確認
 
-`import_furusato_receipt` でファイルの存在を確認する。
+`import_data.py furusato-receipt --file-path PATH` でファイルの存在を確認する。
 
 ### 1-2. receipt-reader サブエージェントで読み取り
 
@@ -62,7 +62,7 @@ Task(
 #### 複数の受領証明書を一括処理する場合
 
 1. Glob ツールで受領証明書画像の一覧を取得する（例: `furusato_receipts/*.jpg`, `furusato_receipts/*.png`）
-2. `import_furusato_receipt` で各ファイルの存在を確認する
+2. `import_data.py furusato-receipt --file-path PATH` で各ファイルの存在を確認する
 3. **全ファイルパスをまとめて receipt-reader サブエージェントに渡す:**
    ```
    Task(
@@ -78,18 +78,23 @@ Task(
 
 ## ステップ2: 寄附データの登録
 
-確認が完了したら `furusato_add_donation` で登録する。
+確認が完了したら `furusato.py add` で登録する。
 
+```bash
+uv run python skills/furusato/scripts/furusato.py add --db-path DB --input FILE
 ```
-パラメータ:
-  db_path: str
-  fiscal_year: int
-  municipality_name: str   -- 自治体名
-  amount: int              -- 寄附金額（円）
-  date: str                -- 寄附日（YYYY-MM-DD）
-  municipality_prefecture: str | None -- 都道府県
-  receipt_number: str | None -- 受領証明書番号
-  one_stop_applied: bool   -- ワンストップ特例申請済みか
+
+入力 JSON ファイルのフォーマット:
+```json
+{
+  "fiscal_year": 2025,
+  "municipality_name": "自治体名",
+  "amount": 30000,
+  "date": "2025-06-15",
+  "municipality_prefecture": "都道府県",
+  "receipt_number": "受領証明書番号",
+  "one_stop_applied": false
+}
 ```
 
 ### ワンストップ特例の確認
@@ -105,7 +110,11 @@ Task(
 
 ## ステップ4: 集計と控除上限チェック
 
-すべての寄附データを登録したら `furusato_summary` で集計する。
+すべての寄附データを登録したら `furusato.py summary` で集計する。
+
+```bash
+uv run python skills/furusato/scripts/furusato.py summary --db-path DB --fiscal-year YEAR [--estimated-limit N]
+```
 
 表示する情報:
 - 寄附先自治体数と合計金額
@@ -115,7 +124,11 @@ Task(
 
 ### 控除上限の推定
 
-所得情報が把握できている場合は `tax_calc_furusato_limit` で上限を推定する。
+所得情報が把握できている場合は `tax_calc.py furusato-limit` で上限を推定する。
+
+```bash
+uv run python skills/income-tax/scripts/tax_calc.py furusato-limit --input FILE
+```
 
 上限超過の場合は警告を表示:
 「寄附合計額が推定上限を超えています。超過分は自己負担となります。」

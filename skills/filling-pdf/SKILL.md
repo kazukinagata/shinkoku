@@ -69,49 +69,47 @@ spawn 元から渡された以下のデータを確認する:
 
 ## ステップ5: PDF生成の実行
 
-`src/shinkoku/tools/document.py` の既存ビルダー関数を使用する。
-各帳票に対応する関数:
+`skills/document/scripts/doc_generate.py` CLI スクリプトを使用する。
+各帳票に対応するサブコマンド:
 
-| 帳票種類 | 生成関数 |
-|---------|---------|
-| 確定申告書 第一表 | `generate_income_tax_pdf()` |
-| 確定申告書 第二表 | `generate_income_tax_page2_pdf()` |
-| 青色申告決算書 PL/BS | `generate_bs_pl_pdf()` |
-| 消費税申告書 | `generate_consumption_tax_pdf()` |
-| 収支内訳書 | `generate_income_expense_statement_pdf()` |
-| 医療費控除明細書 | `generate_medical_expense_detail_pdf()` |
-| 住宅ローン控除明細書 | `generate_housing_loan_detail_pdf()` |
-| 第三表 | `generate_schedule_3_pdf()` |
-| 第四表 | `generate_schedule_4_pdf()` |
-| 全帳票セット | `generate_full_tax_document_set()` |
+| 帳票種類 | サブコマンド |
+|---------|------------|
+| 確定申告書 第一表 | `doc_generate.py income-tax` |
+| 確定申告書 第二表 | `doc_generate.py income-tax-p2` |
+| 青色申告決算書 PL/BS | `doc_generate.py bs-pl` |
+| 消費税申告書 | `doc_generate.py consumption-tax` |
+| 収支内訳書 | `doc_generate.py income-expense` |
+| 医療費控除明細書 | `doc_generate.py medical-expense` |
+| 住宅ローン控除明細書 | `doc_generate.py housing-loan` |
+| 第三表 | `doc_generate.py schedule-3` |
+| 第四表 | `doc_generate.py schedule-4` |
+| 全帳票セット | `doc_generate.py full-set` |
 
 ### 生成方法
 
-既存のビルダー関数を Bash ツールで Python スクリプトとして実行する:
+CLI スクリプトを Bash ツールで実行する:
 
-```python
-from shinkoku.tools.document import generate_income_tax_pdf
-from shinkoku.models import IncomeTaxResult
+```bash
+python skills/document/scripts/doc_generate.py income-tax \
+  --input income_tax_result.json \
+  --output-path output/income_tax_p1_2025.pdf \
+  --config-path shinkoku.config.yaml
+```
 
-result = IncomeTaxResult(
-    fiscal_year=2025,
-    # ... 計算結果の値
-)
+全帳票を一括生成する場合:
 
-path = generate_income_tax_pdf(
-    tax_result=result,
-    output_path="output/income_tax_p1_2025.pdf",
-    config_path="shinkoku.config.yaml",
-)
-print(f"Generated: {path}")
+```bash
+python skills/document/scripts/doc_generate.py full-set \
+  --input full_set_input.json \
+  --output-path output/full_set_2025.pdf \
+  --config-path shinkoku.config.yaml
 ```
 
 ## ステップ6: プレビューと検証
 
-1. `pdf_to_images()` で PDF を PNG 画像に変換する:
-   ```python
-   from shinkoku.tools.pdf_utils import pdf_to_images
-   images = pdf_to_images("output/income_tax_p1_2025.pdf", "output/")
+1. `doc_generate.py preview` で PDF を PNG 画像に変換する:
+   ```bash
+   python skills/document/scripts/doc_generate.py preview --pdf-path output/income_tax_p1_2025.pdf --output-dir output/preview
    ```
 2. 生成された画像を Read ツールで確認する
 3. 記入内容が正しい位置に表示されているか検証する

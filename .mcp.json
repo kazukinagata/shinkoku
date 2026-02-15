@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "shinkoku": {
-      "command": "uv",
-      "args": ["run", "shinkoku"],
-      "cwd": "${CLAUDE_PLUGIN_ROOT}"
-    }
-  }
-}

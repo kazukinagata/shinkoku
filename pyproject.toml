@@ -1,10 +1,9 @@
 [project]
 name = "shinkoku"
 version = "0.1.0"
-description = "確定申告自動化 Claude Code Plugin - MCP Server"
+description = "確定申告自動化 Claude Code Plugin"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.0.0",
     "pydantic>=2.0",
     "reportlab>=4.0",
     "pypdf>=4.0",
@@ -21,9 +20,6 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
 ]
-
-[project.scripts]
-shinkoku = "shinkoku.server:main"
 
 [build-system]
 requires = ["hatchling"]

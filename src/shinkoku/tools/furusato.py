@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 import sqlite3
 
-from shinkoku.db import get_connection
 from shinkoku.models import FurusatoDonationRecord, FurusatoDonationSummary
 from shinkoku.tools.tax_calc import calc_furusato_deduction
 
@@ -132,86 +131,3 @@ def summarize_furusato_donations(
         needs_tax_return=needs_tax_return,
         donations=donations,
     )
-
-
-# ============================================================
-# MCP Tool Registration
-# ============================================================
-
-
-def register(mcp) -> None:
-    """Register furusato nozei tools with the MCP server."""
-
-    @mcp.tool()
-    def furusato_add_donation(
-        db_path: str,
-        fiscal_year: int,
-        municipality_name: str,
-        amount: int,
-        date: str,
-        municipality_prefecture: str | None = None,
-        receipt_number: str | None = None,
-        one_stop_applied: bool = False,
-        source_file: str | None = None,
-    ) -> dict:
-        """Register a furusato nozei donation."""
-        conn = get_connection(db_path)
-        try:
-            donation_id = add_furusato_donation(
-                conn=conn,
-                fiscal_year=fiscal_year,
-                municipality_name=municipality_name,
-                amount=amount,
-                date=date,
-                municipality_prefecture=municipality_prefecture,
-                receipt_number=receipt_number,
-                one_stop_applied=one_stop_applied,
-                source_file=source_file,
-            )
-            return {"status": "ok", "donation_id": donation_id}
-        except ValueError as e:
-            return {"status": "error", "message": str(e)}
-        finally:
-            conn.close()
-
-    @mcp.tool()
-    def furusato_list_donations(db_path: str, fiscal_year: int) -> dict:
-        """List all furusato nozei donations for a fiscal year."""
-        conn = get_connection(db_path)
-        try:
-            donations = list_furusato_donations(conn, fiscal_year)
-            return {
-                "status": "ok",
-                "donations": [d.model_dump() for d in donations],
-                "count": len(donations),
-            }
-        finally:
-            conn.close()
-
-    @mcp.tool()
-    def furusato_delete_donation(db_path: str, donation_id: int) -> dict:
-        """Delete a furusato nozei donation."""
-        conn = get_connection(db_path)
-        try:
-            deleted = delete_furusato_donation(conn, donation_id)
-            if not deleted:
-                return {"status": "error", "message": f"Donation {donation_id} not found"}
-            return {"status": "ok", "donation_id": donation_id}
-        finally:
-            conn.close()
-
-    @mcp.tool()
-    def furusato_summary(
-        db_path: str,
-        fiscal_year: int,
-        estimated_limit: int | None = None,
-    ) -> dict:
-        """Get furusato nozei summary with deduction calculation."""
-        conn = get_connection(db_path)
-        try:
-            summary = summarize_furusato_donations(
-                conn, fiscal_year, estimated_limit=estimated_limit
-            )
-            return {"status": "ok", **summary.model_dump()}
-        finally:
-            conn.close()

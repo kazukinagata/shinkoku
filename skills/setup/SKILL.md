@@ -200,14 +200,21 @@ credit_card_statements_dir: {credit_card_statements_dir}
 
 未設定の項目は値を空にする（`key:` のみ）。
 
-**`my_number` の取扱い**: マイナンバーは config YAML に保存するが、ツール出力（`profile_get_taxpayer`）では `has_my_number: true/false` のみ返す。ログ・会話には出力しない。PDF 生成時のみ config から直接読み取る。
+**`my_number` の取扱い**: マイナンバーは config YAML に保存するが、`profile.py` の出力では `has_my_number: true/false` のみ返す。ログ・会話には出力しない。PDF 生成時のみ config から直接読み取る。
+
+```bash
+uv run python skills/setup/scripts/profile.py --config PATH
+```
 
 ## ステップ6: データベースの初期化
 
 1. `db_path` の値を確認し、相対パスの場合は CWD を基準に絶対パスに変換する
-2. `ledger_init` ツールを呼び出してデータベースを初期化する:
-   - `fiscal_year`: ステップ2 で設定した `tax_year`
-   - `db_path`: 絶対パスに変換した値
+2. `ledger.py init` コマンドでデータベースを初期化する:
+   ```bash
+   uv run python skills/journal/scripts/ledger.py init --db-path DB --fiscal-year YEAR
+   ```
+   - `--fiscal-year`: ステップ2 で設定した `tax_year`
+   - `--db-path`: 絶対パスに変換した値
 
 ## ステップ7: 次のステップの案内
 

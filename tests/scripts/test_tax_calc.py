@@ -1,0 +1,363 @@
+"""Tests for tax_calc.py CLI script."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+SCRIPT = PROJECT_ROOT / "skills" / "income-tax" / "scripts" / "tax_calc.py"
+
+
+def _run(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(script), *args],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+        timeout=60,
+    )
+
+
+# ============================================================
+# Helper
+# ============================================================
+
+
+def _write_input(tmp_path: Path, data: dict) -> Path:
+    f = tmp_path / "input.json"
+    f.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return f
+
+
+# ============================================================
+# calc-deductions
+# ============================================================
+
+
+def test_calc_deductions_basic(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "total_income": 5_000_000,
+            "social_insurance": 700_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-deductions", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert "total_income_deductions" in output
+    assert isinstance(output["total_income_deductions"], int)
+    assert output["total_income_deductions"] > 0
+
+
+def test_calc_deductions_with_furusato(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "total_income": 5_000_000,
+            "social_insurance": 700_000,
+            "furusato_nozei": 50_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-deductions", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    # ふるさと納税控除が含まれている
+    deduction_types = [d["type"] for d in output["income_deductions"]]
+    assert "furusato_nozei" in deduction_types
+
+
+# ============================================================
+# calc-income
+# ============================================================
+
+
+def test_calc_income_salary_only(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "salary_income": 5_000_000,
+            "social_insurance": 700_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-income", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert "taxable_income" in output
+    assert isinstance(output["taxable_income"], int)
+    assert output["fiscal_year"] == 2025
+
+
+def test_calc_income_with_business(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "salary_income": 5_000_000,
+            "business_revenue": 3_000_000,
+            "business_expenses": 1_000_000,
+            "blue_return_deduction": 650_000,
+            "social_insurance": 700_000,
+            "withheld_tax": 100_000,
+            "business_withheld_tax": 30_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-income", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["business_income"] == 3_000_000 - 1_000_000 - 650_000
+    assert "tax_due" in output
+
+
+# ============================================================
+# calc-depreciation
+# ============================================================
+
+
+def test_calc_depreciation_straight_line(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "method": "straight_line",
+            "acquisition_cost": 300_000,
+            "useful_life": 4,
+            "business_use_ratio": 100,
+            "months": 12,
+        },
+    )
+    result = _run(SCRIPT, "calc-depreciation", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["method"] == "straight_line"
+    assert output["depreciation_amount"] == 300_000 // 4
+
+
+def test_calc_depreciation_declining_balance(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "method": "declining_balance",
+            "book_value": 200_000,
+            "declining_rate": 500,
+            "business_use_ratio": 100,
+            "months": 12,
+            "acquisition_cost": 300_000,
+            "useful_life": 4,
+        },
+    )
+    result = _run(SCRIPT, "calc-depreciation", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["method"] == "declining_balance"
+    # 200,000 * 500/1000 * 100/100 * 12/12 = 100,000
+    assert output["depreciation_amount"] == 100_000
+
+
+def test_calc_depreciation_declining_missing_params(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "method": "declining_balance",
+            "acquisition_cost": 300_000,
+            "useful_life": 4,
+        },
+    )
+    result = _run(SCRIPT, "calc-depreciation", "--input", str(input_file))
+    assert result.returncode == 1
+    output = json.loads(result.stdout)
+    assert output["status"] == "error"
+
+
+# ============================================================
+# calc-consumption
+# ============================================================
+
+
+def test_calc_consumption_special(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "method": "special_20pct",
+            "taxable_sales_10": 5_500_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-consumption", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["method"] == "special_20pct"
+    assert output["total_due"] > 0
+
+
+def test_calc_consumption_simplified(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "method": "simplified",
+            "taxable_sales_10": 5_500_000,
+            "simplified_business_type": 5,
+        },
+    )
+    result = _run(SCRIPT, "calc-consumption", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["method"] == "simplified"
+
+
+# ============================================================
+# calc-furusato-limit
+# ============================================================
+
+
+def test_calc_furusato_limit(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "total_income": 5_000_000,
+            "total_income_deductions": 1_500_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-furusato-limit", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert "estimated_limit" in output
+    assert isinstance(output["estimated_limit"], int)
+    assert output["estimated_limit"] > 0
+
+
+# ============================================================
+# calc-pension
+# ============================================================
+
+
+def test_calc_pension_over_65(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "pension_income": 2_000_000,
+            "is_over_65": True,
+            "other_income": 0,
+        },
+    )
+    result = _run(SCRIPT, "calc-pension", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["is_over_65"] is True
+    assert output["deduction_amount"] > 0
+    assert output["taxable_pension_income"] < output["pension_income"]
+
+
+def test_calc_pension_under_65(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "pension_income": 1_000_000,
+            "is_over_65": False,
+        },
+    )
+    result = _run(SCRIPT, "calc-pension", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["is_over_65"] is False
+
+
+# ============================================================
+# calc-retirement
+# ============================================================
+
+
+def test_calc_retirement_normal(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "severance_pay": 10_000_000,
+            "years_of_service": 20,
+        },
+    )
+    result = _run(SCRIPT, "calc-retirement", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["severance_pay"] == 10_000_000
+    assert output["years_of_service"] == 20
+    # 20年 × 40万 = 800万 → 控除後200万 → 1/2 = 100万
+    assert output["retirement_income_deduction"] == 8_000_000
+    assert output["taxable_retirement_income"] == 1_000_000
+    assert output["half_taxation_applied"] is True
+
+
+def test_calc_retirement_officer(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "severance_pay": 5_000_000,
+            "years_of_service": 3,
+            "is_officer": True,
+        },
+    )
+    result = _run(SCRIPT, "calc-retirement", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["is_officer"] is True
+    # 役員等短期: 1/2なし
+    assert output["half_taxation_applied"] is False
+
+
+# ============================================================
+# calc-separate
+# ============================================================
+
+
+def test_calc_separate_stock(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "stock_gains": 1_000_000,
+            "stock_losses": 200_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-separate", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["stock_net_gain"] == 800_000
+    assert output["stock_taxable_income"] == 800_000
+    assert output["stock_income_tax"] > 0
+
+
+def test_calc_separate_fx(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "fx_gains": 500_000,
+            "fx_expenses": 50_000,
+        },
+    )
+    result = _run(SCRIPT, "calc-separate", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["fx_net_income"] == 450_000
+    assert output["fx_taxable_income"] == 450_000
+    assert output["fx_income_tax"] > 0
+
+
+# ============================================================
+# Error handling
+# ============================================================
+
+
+def test_missing_input_file(tmp_path: Path) -> None:
+    result = _run(SCRIPT, "calc-income", "--input", str(tmp_path / "nonexistent.json"))
+    assert result.returncode == 1
+    output = json.loads(result.stdout)
+    assert output["status"] == "error"
+
+
+def test_no_command() -> None:
+    result = _run(SCRIPT)
+    assert result.returncode == 1
