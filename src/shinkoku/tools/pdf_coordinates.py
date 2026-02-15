@@ -406,11 +406,11 @@ for _i in range(4):
         "type": "text",
     }
     INCOME_TAX_P2[f"income_detail_{_i}_payer"] = {
-        "x": 116.0,
+        "x": 117.0,
         "y": _y,
         "font_size": 6,
         "type": "text",
-        "max_width": 80.0,  # 支払者列 x=114.1-199.3
+        "max_width": 76.0,  # 支払者列 x=114.1-199.3（左右paddingを確保）
     }
     INCOME_TAX_P2[f"income_detail_{_i}_revenue"] = {
         "x": 248.0,
@@ -446,6 +446,7 @@ for _i in range(2):
         "y": _y,
         "font_size": 6,
         "type": "text",
+        "max_width": 68.0,  # 支払者列 x=415.2-489.4（overflow防止）
     }
     INCOME_TAX_P2[f"social_insurance_{_i}_amount"] = {
         "x": 488.0,
@@ -2231,11 +2232,11 @@ for _i in range(19):
         "type": "text",
     }
     INCOME_DETAIL_SHEET[f"row_{_i}_payer"] = {
-        "x": 225.0,
+        "x": 227.0,
         "y": _y,
         "font_size": 6,
         "type": "text",
-        "max_width": 148.0,  # 支払者列 x=222.5-376.0
+        "max_width": 140.0,  # 支払者列 x=222.5-376.0（左右paddingを確保）
     }
     INCOME_DETAIL_SHEET[f"row_{_i}_revenue"] = {
         "x": 483.0,
