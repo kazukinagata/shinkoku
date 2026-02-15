@@ -390,19 +390,13 @@ INCOME_TAX_P2: dict[str, dict] = {
 }
 
 # 所得内訳行（最大4行）— NTA第二表には4行分のスペースのみ
-# document.py は最大8行まで参照するため、8行分定義するが row 4-7 は
-# テーブル外にはみ出す可能性がある
+# 所得の内訳（4行 — フォームの実際の行数に合わせる）
 _INCOME_DETAIL_ROW_TOPS = [243.3, 265.3, 287.3, 309.3]
-_INCOME_DETAIL_ROW_HEIGHT = 22.0
 _INCOME_DETAIL_BASELINE_OFFSET = 14.0  # 22pt row, 7pt font
 _PH = 814.791  # page height
 
-for _i in range(8):
-    if _i < 4:
-        _row_top = _INCOME_DETAIL_ROW_TOPS[_i]
-    else:
-        # 4行目以降は外挿（実際のフォームには枠なし）
-        _row_top = _INCOME_DETAIL_ROW_TOPS[3] + (_i - 3) * _INCOME_DETAIL_ROW_HEIGHT
+for _i in range(4):
+    _row_top = _INCOME_DETAIL_ROW_TOPS[_i]
     _y = _PH - _row_top - _INCOME_DETAIL_BASELINE_OFFSET
     INCOME_TAX_P2[f"income_detail_{_i}_type"] = {
         "x": 44.0,
@@ -429,23 +423,15 @@ for _i in range(8):
         "type": "number",
     }
 
-# 社会保険料の内訳（最大4行）
+# 社会保険料の内訳（2行 — フォームの実際の行数に合わせる）
 # 右側パネル ⑬⑭セクション: h_lines at top 64.6(header), 83.9, 103.1
 # V-lines: x=324.5(左端), x=415.2(種類/金額divider), x=489.4(計/うち divider), x=565.7(右端)
-# Row height ~19.2pt, baseline offset 12pt
 # 円 markers: 計 x0=481.8 → right-align x=488; うち x0=558.1 → right-align x=564
-# NTA第二表には2行分のスペースのみ（83.9-103.1, 103.1-122.4）
-# document.py は最大4行参照するため4行分定義するが、row 2-3 は枠外（⑮セクションに重なる）
 _SOCIAL_INS_ROW_TOPS = [83.9, 103.1]
-_SOCIAL_INS_ROW_HEIGHT = 19.2
 _SOCIAL_INS_BASELINE_OFFSET = 12.0
 
-for _i in range(4):
-    if _i < 2:
-        _row_top = _SOCIAL_INS_ROW_TOPS[_i]
-    else:
-        # 外挿 — 実際のフォームでは⑮セクションに重なる
-        _row_top = _SOCIAL_INS_ROW_TOPS[1] + (_i - 1) * _SOCIAL_INS_ROW_HEIGHT
+for _i in range(2):
+    _row_top = _SOCIAL_INS_ROW_TOPS[_i]
     _y = _PH - _row_top - _SOCIAL_INS_BASELINE_OFFSET
     INCOME_TAX_P2[f"social_insurance_{_i}_type"] = {
         "x": 327.0,

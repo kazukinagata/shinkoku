@@ -1158,8 +1158,8 @@ def _build_income_tax_p2_fields(
     if taxpayer_name:
         fields.append(_coord_field(INCOME_TAX_P2["name_kanji"], taxpayer_name))
 
-    # 所得の内訳（最大8行）
-    for i, detail in enumerate((income_details or [])[:8]):
+    # 所得の内訳（最大4行 — フォームの枠数に合わせる）
+    for i, detail in enumerate((income_details or [])[:4]):
         prefix = f"income_detail_{i}"
         if detail.get("type"):
             fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], detail["type"]))
@@ -1170,8 +1170,8 @@ def _build_income_tax_p2_fields(
         if detail.get("withheld"):
             fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_withheld"], detail["withheld"]))
 
-    # 社会保険料の内訳（最大4行）
-    for i, si in enumerate((social_insurance_details or [])[:4]):
+    # 社会保険料の内訳（最大2行 — フォームの枠数に合わせる）
+    for i, si in enumerate((social_insurance_details or [])[:2]):
         prefix = f"social_insurance_{i}"
         if si.get("type"):
             fields.append(_coord_field(INCOME_TAX_P2[f"{prefix}_type"], si["type"]))
