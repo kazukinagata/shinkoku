@@ -6,6 +6,7 @@ Uses ReportLab for drawing overlays and pypdf for merging with templates.
 from __future__ import annotations
 
 import io
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,8 @@ try:
 except ImportError:
     PdfReader = None  # type: ignore[misc,assignment]
     PdfWriter = None  # type: ignore[misc,assignment]
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -78,10 +81,24 @@ def draw_text(
     text: str,
     font_size: float = 9,
     font_name: str | None = None,
+    max_width: float | None = None,
 ) -> None:
-    """Draw text at the specified position."""
+    """Draw text at the specified position.
+
+    max_width が指定された場合、テキスト幅が max_width を超えると
+    フォントサイズを自動縮小して枠内に収める（最小4pt）。
+    """
     fn = font_name or get_font_name()
-    c.setFont(fn, font_size)
+    if max_width is not None:
+        size = font_size
+        while size > 4:
+            c.setFont(fn, size)
+            if c.stringWidth(text, fn, size) <= max_width:
+                break
+            size -= 0.5
+        c.setFont(fn, size)
+    else:
+        c.setFont(fn, font_size)
     c.drawString(x, y, text)
 
 
@@ -167,6 +184,14 @@ def draw_digit_cells(
 
     digits = list(text)
 
+    if len(digits) > num_cells:
+        logger.warning(
+            "digit overflow: %s has %d digits but only %d cells — upper digits truncated",
+            value,
+            len(digits),
+            num_cells,
+        )
+
     if right_align:
         # 右端セルから埋める
         start_idx = num_cells - len(digits)
@@ -214,7 +239,14 @@ def _draw_field(
             right_align=field.get("right_align", True),
         )
     elif ftype == "text":
-        draw_text(c, field["x"], field["y"], str(value), font_size=font_size)
+        draw_text(
+            c,
+            field["x"],
+            field["y"],
+            str(value),
+            font_size=font_size,
+            max_width=field.get("max_width"),
+        )
     elif ftype == "number":
         draw_number(
             c,
@@ -297,11 +329,13 @@ def create_multi_page_overlay(
             # テンプレートは portrait (h x w) + /Rotate=90 で landscape 表示。
             # オーバーレイを portrait サイズで作成し、座標系を回転して
             # landscape 座標 (w x h) → portrait 物理座標 (h x w) に変換する。
+            # /Rotate=90 は表示時に90°CW回転するため、逆変換として
+            # translate(W, 0) + rotate(90) で landscape→portrait 変換する。
             physical_w, physical_h = h, w  # portrait: 元の height が width に
             c.setPageSize((physical_w, physical_h))
             c.saveState()
-            c.translate(0, physical_h)
-            c.rotate(-90)
+            c.translate(physical_w, 0)
+            c.rotate(90)
             # 以降 landscape 座標系 (w x h) で描画可能
         else:
             c.setPageSize((w, h))
