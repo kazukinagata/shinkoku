@@ -22,13 +22,11 @@ from shinkoku.tools.tax_calc import (  # noqa: E402
     calc_pension_deduction,
     calc_retirement_income,
 )
-from shinkoku.tools.separate_tax import calc_separate_tax  # noqa: E402
 from shinkoku.models import (  # noqa: E402
     IncomeTaxInput,
     ConsumptionTaxInput,
     PensionDeductionInput,
     RetirementIncomeInput,
-    SeparateTaxInput,
     LifeInsurancePremiumInput,
     HousingLoanDetail,
     DependentInfo,
@@ -198,14 +196,6 @@ def _handle_calc_retirement(args: argparse.Namespace) -> None:
     _output_json(result.model_dump())
 
 
-def _handle_calc_separate(args: argparse.Namespace) -> None:
-    """calc-separate: 分離課税計算。"""
-    params = _load_json(args.input)
-    input_data = SeparateTaxInput(**params)
-    result = calc_separate_tax(input_data)
-    _output_json(result.model_dump())
-
-
 # ============================================================
 # CLI setup
 # ============================================================
@@ -223,7 +213,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "calc-furusato-limit",
         "calc-pension",
         "calc-retirement",
-        "calc-separate",
     ]:
         p = sub.add_parser(name)
         p.add_argument("--input", required=True, help="入力 JSON ファイルパス")
@@ -239,7 +228,6 @@ _HANDLERS: dict[str, callable] = {
     "calc-furusato-limit": _handle_calc_furusato_limit,
     "calc-pension": _handle_calc_pension,
     "calc-retirement": _handle_calc_retirement,
-    "calc-separate": _handle_calc_separate,
 }
 
 

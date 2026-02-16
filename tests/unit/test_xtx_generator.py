@@ -25,6 +25,11 @@ def _find(root: ET.Element, path: str, ns: dict[str, str] = _NS_INCOME) -> ET.El
     return root.find(ns_path, ns_map)
 
 
+def _find_gen(root: ET.Element, tag: str) -> ET.Element | None:
+    """gen名前空間の子要素を検索するヘルパー。"""
+    return root.find(f"{{{NS_GENERAL}}}{tag}")
+
+
 def _findall(root: ET.Element, path: str, ns: dict[str, str] = _NS_INCOME) -> list[ET.Element]:
     """名前空間を考慮した findall() ヘルパー。"""
     parts = path.split("/")
@@ -238,8 +243,8 @@ class TestXtxBuilderBuild:
         it = _find(root, "RKO0010/CONTENTS/IT")
         zip_el = _find(it, "NOZEISHA_ZIP")
         assert zip_el is not None
-        assert _find(zip_el, "zip1").text == "100"
-        assert _find(zip_el, "zip2").text == "0001"
+        assert _find_gen(zip_el, "zip1").text == "100"
+        assert _find_gen(zip_el, "zip2").text == "0001"
 
     def test_build_it_has_tax_office(self) -> None:
         builder = self._minimal_builder()
@@ -248,8 +253,8 @@ class TestXtxBuilderBuild:
         it = _find(root, "RKO0010/CONTENTS/IT")
         zeimusho = _find(it, "ZEIMUSHO")
         assert zeimusho is not None
-        assert _find(zeimusho, "zeimusho_CD").text == "01234"
-        assert _find(zeimusho, "zeimusho_NM").text == "麹町"
+        assert _find_gen(zeimusho, "zeimusho_CD").text == "01234"
+        assert _find_gen(zeimusho, "zeimusho_NM").text == "麹町"
 
     def test_build_has_form_element(self) -> None:
         builder = self._minimal_builder()
@@ -312,8 +317,8 @@ class TestXtxBuilderBuild:
         nenbun = _find(it, "NENBUN")
         assert nenbun is not None
         # 2025年 = 令和7年
-        assert _find(nenbun, "era").text == "5"
-        assert _find(nenbun, "yy").text == "7"
+        assert _find_gen(nenbun, "era").text == "5"
+        assert _find_gen(nenbun, "yy").text == "7"
 
 
 class TestXtxBuilderSave:
@@ -504,7 +509,11 @@ class TestXtxBuilderNesting:
         assert abb00000 is not None
 
     def test_p1_revenue_in_abb00010(self) -> None:
-        """収入金額フィールドは ABB00000 > ABB00010 グループの下に配置される。"""
+        """収入金額フィールドは ABB00000 > ABB00010 以下に配置される。
+
+        XSD 準拠: ABB00030(営業等)は ABB00020(事業グループ)の子、
+        ABB00080(給与)は ABB00010 直下。
+        """
         builder = self._taxpayer_builder()
         builder.add_form(
             form_code="KOA020",
@@ -518,11 +527,17 @@ class TestXtxBuilderNesting:
 
         abb00010 = root.find(".//ns:ABB00000/ns:ABB00010", ns)
         assert abb00010 is not None
-        assert abb00010.find("ns:ABB00030", ns).text == "5000000"
+        # ABB00030 は ABB00020(事業グループ)の下
+        assert root.find(".//ns:ABB00010/ns:ABB00020/ns:ABB00030", ns).text == "5000000"
+        # ABB00080 は ABB00010 直下
         assert abb00010.find("ns:ABB00080", ns).text == "8000000"
 
     def test_p1_income_in_abb00270(self) -> None:
-        """所得金額フィールドは ABB00000 > ABB00270 グループの下に配置される。"""
+        """所得金額フィールドは ABB00000 > ABB00270 以下に配置される。
+
+        XSD 準拠: ABB00300(営業等所得)は ABB00280(事業グループ)の子、
+        ABB00370(給与所得)・ABB00410(合計)は ABB00270 直下。
+        """
         builder = self._taxpayer_builder()
         builder.add_form(
             form_code="KOA020",
@@ -536,7 +551,9 @@ class TestXtxBuilderNesting:
 
         abb00270 = root.find(".//ns:ABB00000/ns:ABB00270", ns)
         assert abb00270 is not None
-        assert abb00270.find("ns:ABB00300", ns).text == "3000000"
+        # ABB00300 は ABB00280(事業グループ)の下
+        assert root.find(".//ns:ABB00270/ns:ABB00280/ns:ABB00300", ns).text == "3000000"
+        # ABB00370, ABB00410 は ABB00270 直下
         assert abb00270.find("ns:ABB00370", ns).text == "6100000"
         assert abb00270.find("ns:ABB00410", ns).text == "9100000"
 
@@ -558,7 +575,10 @@ class TestXtxBuilderNesting:
         assert abb00420.find("ns:ABB00450", ns).text == "1200000"
 
     def test_p1_tax_calc_in_abb00570(self) -> None:
-        """税金計算フィールドは ABB00000 > ABB00570 グループの下に配置される。"""
+        """税金計算フィールドは ABB00000 > ABB00570 以下に配置される。
+
+        XSD 準拠: ABB00750(納める税金)は ABB00740(第3期分グループ)の子。
+        """
         builder = self._taxpayer_builder()
         builder.add_form(
             form_code="KOA020",
@@ -573,10 +593,11 @@ class TestXtxBuilderNesting:
         abb00570 = root.find(".//ns:ABB00000/ns:ABB00570", ns)
         assert abb00570 is not None
         assert abb00570.find("ns:ABB00580", ns).text == "7420000"
-        assert abb00570.find("ns:ABB00750", ns).text == "203100"
+        # ABB00750 は ABB00740(第3期分グループ)の下
+        assert root.find(".//ns:ABB00570/ns:ABB00740/ns:ABB00750", ns).text == "203100"
 
     def test_p1_other_direct_under_abb00000(self) -> None:
-        """その他フィールド（ABB00800等）は ABB00000 直下に配置される。"""
+        """その他フィールド（ABB00800等）は ABB00000 > ABB00770 グループの下に配置される。"""
         builder = self._taxpayer_builder()
         builder.add_form(
             form_code="KOA020",
@@ -590,7 +611,10 @@ class TestXtxBuilderNesting:
 
         abb00000 = root.find(".//ns:KOA020-1/ns:ABB00000", ns)
         assert abb00000 is not None
-        assert abb00000.find("ns:ABB00800", ns).text == "650000"
+        # ABB00800 は ABB00770(その他)グループの下
+        abb00770 = abb00000.find("ns:ABB00770", ns)
+        assert abb00770 is not None
+        assert abb00770.find("ns:ABB00800", ns).text == "650000"
         # ABB00570 グループは作成されないことを確認
         assert abb00000.find("ns:ABB00570", ns) is None
 
@@ -622,7 +646,12 @@ class TestXtxBuilderNesting:
         assert koa020.find("ns:KOA020-2", ns) is not None
 
     def test_pl_nesting_amf00000(self) -> None:
-        """青色申告決算書フィールドは AMF00000 グループの下に配置される。"""
+        """青色申告決算書フィールドは KOA210-1 > AMF00000 > AMF00010 > AMF00090 以下に配置。
+
+        XSD 準拠: AMF00100(売上)、AMF00530(所得)は AMF00090(損益計算書本体)の下、
+        経費(AMF00290)は AMF00090 > AMF00180(経費グループ)の下。
+        KOA210 の nesting_key はデフォルトで KOA210 → sub_section=KOA210-1。
+        """
         builder = self._taxpayer_builder()
         builder.add_form(
             form_code="KOA210",
@@ -635,16 +664,21 @@ class TestXtxBuilderNesting:
 
         koa210 = root.find(".//ns:KOA210", ns)
         assert koa210 is not None
-        amf00000 = koa210.find("ns:AMF00000", ns)
+        # KOA210-1 サブセクションラッパーの下に AMF00000
+        koa210_1 = koa210.find("ns:KOA210-1", ns)
+        assert koa210_1 is not None
+        amf00000 = koa210_1.find("ns:AMF00000", ns)
         assert amf00000 is not None
-        # 売上は AMF00000 直下
-        assert amf00000.find("ns:AMF00100", ns).text == "5000000"
-        # 経費は AMF00000 > AMF00180 の下
-        amf00180 = amf00000.find("ns:AMF00180", ns)
+        # 売上は AMF00000 > AMF00010 > AMF00090 の下
+        amf00090 = root.find(".//ns:AMF00000/ns:AMF00010/ns:AMF00090", ns)
+        assert amf00090 is not None
+        assert amf00090.find("ns:AMF00100", ns).text == "5000000"
+        # 経費は AMF00090 > AMF00180 の下
+        amf00180 = amf00090.find("ns:AMF00180", ns)
         assert amf00180 is not None
         assert amf00180.find("ns:AMF00290", ns).text == "300000"
-        # 所得は AMF00000 直下
-        assert amf00000.find("ns:AMF00530", ns).text == "3000000"
+        # 所得は AMF00090 の下
+        assert amf00090.find("ns:AMF00530", ns).text == "3000000"
 
     def test_consumption_tax_nesting(self) -> None:
         """消費税フィールドは AAJ00000/AAK00000 グループの下に配置される。"""
@@ -730,6 +764,7 @@ class TestXtxBuilderW2W5Fields:
         it = _find(root, "RKO0010/CONTENTS/IT")
         keisansho = _find(it, "KEISANSHO_KBN")
         assert keisansho is not None
+        # kubun_CD は shotoku 名前空間（デフォルト）で出力される
         kbn = _find(keisansho, "kubun_CD")
         assert kbn is not None
         assert kbn.text == "1"
@@ -743,21 +778,21 @@ class TestXtxBuilderW2W5Fields:
         kanpu = _find(it, "KANPU_KINYUKIKAN")
         assert kanpu is not None
 
-        kinyukikan_nm = _find(kanpu, "kinyukikan_NM")
+        kinyukikan_nm = _find_gen(kanpu, "kinyukikan_NM")
         assert kinyukikan_nm is not None
         assert kinyukikan_nm.text == "みずほ銀行"
         assert kinyukikan_nm.get("kinyukikan_KB") == "1"
 
-        shiten_nm = _find(kanpu, "shiten_NM")
+        shiten_nm = _find_gen(kanpu, "shiten_NM")
         assert shiten_nm is not None
         assert shiten_nm.text == "丸の内支店"
         assert shiten_nm.get("shiten_KB") == "2"
 
-        yokin = _find(kanpu, "yokin")
+        yokin = _find_gen(kanpu, "yokin")
         assert yokin is not None
         assert yokin.text == "1"
 
-        koza = _find(kanpu, "koza")
+        koza = _find_gen(kanpu, "koza")
         assert koza is not None
         assert koza.text == "1234567"
 

@@ -60,13 +60,11 @@ templates/
 TEMPLATE_NAMES = {
     "income_tax_p1": "r07/01.pdf",            # 01.pdf page 1
     "income_tax_p2": "r07/01_p2.pdf",          # 01.pdf page 2 extracted
-    "schedule_3": "r07/02.pdf",                # 02.pdf page 1
     "schedule_4": "r07/03.pdf",                # 03.pdf page 1
     "blue_return_pl_p1": "r07/10_p1.pdf",      # 10.pdf page 1 extracted
     "blue_return_pl_p2": "r07/10_p2.pdf",      # 10.pdf page 2 extracted
     "blue_return_pl_p3": "r07/10_p3.pdf",      # 10.pdf page 3 extracted
     "blue_return_bs": "r07/10_p4.pdf",          # 10.pdf page 4 extracted
-    "income_expense": "r07/05_ie.pdf",          # 05.pdf (renamed for clarity)
     "consumption_tax_p1": "consumption_tax_p1.pdf",  # 17.pdf page 1 extracted
     "consumption_tax_p2": "consumption_tax_p2.pdf",  # 17.pdf page 2 extracted
     "housing_loan_p1": "r07/14.pdf",

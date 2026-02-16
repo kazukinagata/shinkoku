@@ -914,54 +914,6 @@ class FXLossCarryforwardRecord(BaseModel):
     used_amount: int
 
 
-# --- 分離課税 (separate taxation) ---
-
-
-class SeparateTaxInput(BaseModel):
-    """分離課税計算の入力。"""
-
-    fiscal_year: int
-    # 株式
-    stock_gains: int = 0
-    stock_losses: int = 0
-    stock_dividend_separate: int = 0  # 分離課税選択の配当
-    stock_withheld_income_tax: int = 0
-    stock_withheld_residential_tax: int = 0
-    stock_loss_carryforward: int = 0  # 株式繰越損失額
-    # FX
-    fx_gains: int = 0  # realized_gains + swap_income
-    fx_expenses: int = 0
-    fx_loss_carryforward: int = 0  # FX繰越損失額
-
-
-class SeparateTaxResult(BaseModel):
-    """分離課税計算結果。"""
-
-    fiscal_year: int
-    # 株式
-    stock_net_gain: int = 0  # 譲渡益 - 譲渡損
-    stock_dividend_offset: int = 0  # 配当との損益通算額
-    stock_taxable_income: int = 0  # 課税所得（繰越損失適用後）
-    stock_loss_carryforward_used: int = 0
-    stock_income_tax: int = 0  # 所得税15%
-    stock_residential_tax: int = 0  # 住民税5%
-    stock_reconstruction_tax: int = 0  # 復興特別所得税0.315%
-    stock_total_tax: int = 0
-    stock_withheld_total: int = 0
-    stock_tax_due: int = 0
-    # FX
-    fx_net_income: int = 0
-    fx_taxable_income: int = 0
-    fx_loss_carryforward_used: int = 0
-    fx_income_tax: int = 0
-    fx_residential_tax: int = 0
-    fx_reconstruction_tax: int = 0
-    fx_total_tax: int = 0
-    fx_tax_due: int = 0
-    # 合計
-    total_separate_tax: int = 0
-
-
 # --- 社会保険料の種別別内訳 (social insurance items) ---
 
 

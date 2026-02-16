@@ -5,22 +5,26 @@
 
 ## 対象ペルソナ
 
-| ペルソナ | 対応状況 | 備考 |
-|---------|---------|------|
-| 給与所得のみ（会社員） | 対応 | 源泉徴収票取込、年末調整確認 |
-| 会社員＋副業（事業所得） | 対応 | 主要ターゲット |
-| フリーランス/個人事業主 | 対応 | 青色/白色申告対応 |
-| 株式投資家 | 対応 | 分離課税、損益通算、繰越損失 |
-| FXトレーダー | 対応 | 先物取引に係る雑所得等 |
-| 仮想通貨トレーダー | 対応 | 雑所得（総合課税） |
-| ふるさと納税利用者 | 対応 | CRUD + 控除計算 + 限度額推定 |
-| 不動産所得（家賃収入） | 部分対応 | 仕訳で追跡可能だが専用所得区分なし |
-| 退職所得 | 部分対応 | 1/2課税・退職所得控除の専用計算なし |
-| 譲渡所得（不動産売却） | 未対応 | 長期/短期税率、3000万控除なし |
-| 外国税額控除 | 未対応 | 外国税支払額の追跡・控除計算なし |
-| 農業所得 | 未対応 | 専用所得区分なし |
-| 山林所得 | 未対応 | 5分5乗方式なし |
-| 非居住者 | 対象外 | 日本居住者専用 |
+Full = 計算・帳票・xtx すべて対応、Partial = 計算は可能だが帳票/xtx の一部が未対応、Out = 対象外
+
+| ペルソナ | 対応レベル | 備考 |
+|---------|-----------|------|
+| 個人事業主（青色申告・一般用） | Full | メインターゲット。帳簿→決算書→申告書→xtx 全自動 |
+| 会社員＋副業（事業所得） | Full | 源泉徴収票＋事業所得の申告書→xtx |
+| 給与所得のみ（会社員） | Full | 還付申告・医療費控除等→xtx |
+| 消費税課税事業者 | Full | 2割特例・簡易課税・本則課税すべて対応 |
+| ふるさと納税利用者 | Full | CRUD + 控除計算 + 限度額推定 |
+| 住宅ローン控除（初年度） | Full | 控除額計算＋xtx KOB130 対応。初年度は添付書類が別途必要 |
+| 医療費控除 | Full | 明細書→xtx（KOB560 対応済み） |
+| 仮想通貨トレーダー | Full | 雑所得（総合課税）として申告書に自動反映 |
+| 株式投資家（分離課税） | Out | 株式譲渡所得・配当の分離課税には対応していません |
+| FXトレーダー | Out | 先物取引に係る雑所得等には対応していません |
+| 不動産所得 | Out | 不動産所得用の決算書・申告に対応していません |
+| 退職所得 | Out | 退職所得控除の計算に対応していません |
+| 譲渡所得（不動産売却） | Out | 長期/短期税率、3,000万円特別控除なし |
+| 外国税額控除 | Out | 外国税支払額の追跡・控除計算なし |
+| 農業所得・山林所得 | Out | 専用所得区分なし |
+| 非居住者 | Out | 日本居住者専用 |
 
 ## 対象外の機能
 
@@ -178,7 +182,6 @@ uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
 | `src/shinkoku/tools/document.py` | PDF帳票生成 |
 | `src/shinkoku/tools/furusato.py` | ふるさと納税 CRUD・集計 |
 | `src/shinkoku/tools/profile.py` | 納税者プロファイル取得 |
-| `src/shinkoku/tools/separate_tax.py` | 分離課税（株式・FX） |
 | `src/shinkoku/tools/pdf_utils.py` | PDF生成ユーティリティ |
 | `src/shinkoku/tools/pdf_coordinates.py` | PDF帳票の座標定義 |
 
@@ -202,7 +205,6 @@ uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
 | `src/shinkoku/xtx/income_tax.py` | 所得税申告書B 第一表・第二表 xtx ビルダー |
 | `src/shinkoku/xtx/blue_return.py` | 青色申告決算書 PL・BS xtx ビルダー |
 | `src/shinkoku/xtx/consumption_tax.py` | 消費税申告書 xtx ビルダー |
-| `src/shinkoku/xtx/schedules.py` | 第三表（分離課税）xtx ビルダー |
 | `src/shinkoku/xtx/attachments.py` | 医療費・住宅ローン控除明細書 xtx ビルダー |
 | `src/shinkoku/xtx/generate_xtx.py` | xtx 生成オーケストレーション（DB→計算→XML出力） |
 | `scripts/generate_xtx.py` | xtx 生成 CLI エントリーポイント |

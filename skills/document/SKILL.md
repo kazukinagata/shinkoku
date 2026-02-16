@@ -45,15 +45,9 @@ description: >
 | 青色申告決算書 損益計算書 (P1-P3) | `templates/r07/10.pdf` (p1-p3) | `filing.return_type == "blue"` |
 | 青色申告決算書 貸借対照表 | `templates/r07/10.pdf` (p4) | `filing.return_type == "blue"` |
 
-### 白色申告の場合
-| 帳票 | テンプレート | 条件 |
-|------|------------|------|
-| 収支内訳書 | `templates/r07/05.pdf` | `filing.return_type == "white"` |
-
 ### 該当者のみ
 | 帳票 | テンプレート | 条件 |
 |------|------------|------|
-| 第三表（分離課税） | `templates/r07/02.pdf` | 株式・FX の分離課税あり |
 | 第四表（損失申告） | `templates/r07/03.pdf` | 純損失の繰越あり |
 | 消費税申告書 | `templates/consumption_tax.pdf` | 課税事業者の場合 |
 | 医療費控除明細書 | `templates/medical_expense.pdf` | 医療費控除適用者 |

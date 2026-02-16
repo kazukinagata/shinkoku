@@ -7,8 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT = PROJECT_ROOT / "skills" / "document" / "scripts" / "doc_generate.py"
 
@@ -235,49 +233,6 @@ def test_housing_loan(tmp_path: Path) -> None:
 
 
 # ============================================================
-# schedule-3
-# ============================================================
-
-
-def test_schedule_3(tmp_path: Path) -> None:
-    output_pdf = str(tmp_path / "schedule_3.pdf")
-    input_file = _write_input(
-        tmp_path,
-        {
-            "fiscal_year": 2025,
-            "stock_net_gain": 800_000,
-            "stock_dividend_offset": 0,
-            "stock_taxable_income": 800_000,
-            "stock_loss_carryforward_used": 0,
-            "stock_income_tax": 120_000,
-            "stock_residential_tax": 40_000,
-            "stock_reconstruction_tax": 2_520,
-            "stock_total_tax": 162_520,
-            "stock_withheld_total": 0,
-            "stock_tax_due": 162_520,
-            "fx_net_income": 0,
-            "fx_taxable_income": 0,
-            "fx_loss_carryforward_used": 0,
-            "fx_income_tax": 0,
-            "fx_residential_tax": 0,
-            "fx_reconstruction_tax": 0,
-            "fx_total_tax": 0,
-            "fx_tax_due": 0,
-            "total_separate_tax": 162_520,
-        },
-    )
-    result = _run(
-        SCRIPT,
-        "schedule-3",
-        "--input",
-        str(input_file),
-        "--output-path",
-        output_pdf,
-    )
-    _assert_pdf_output(result, output_pdf)
-
-
-# ============================================================
 # schedule-4
 # ============================================================
 
@@ -301,39 +256,6 @@ def test_schedule_4(tmp_path: Path) -> None:
     result = _run(
         SCRIPT,
         "schedule-4",
-        "--input",
-        str(input_file),
-        "--output-path",
-        output_pdf,
-    )
-    _assert_pdf_output(result, output_pdf)
-
-
-# ============================================================
-# income-expense
-# ============================================================
-
-
-@pytest.mark.xfail(
-    reason="generate_income_expense_statement_pdf has pre-existing bug: "
-    "accesses 'x' key on digit_cells coordinates that use 'x_start'",
-    strict=True,
-)
-def test_income_expense(tmp_path: Path) -> None:
-    output_pdf = str(tmp_path / "income_expense.pdf")
-    input_file = _write_input(
-        tmp_path,
-        {
-            "fiscal_year": 2025,
-            "pl_revenues": [
-                {"account_code": "4100", "account_name": "売上高", "amount": 2_000_000}
-            ],
-            "pl_expenses": [{"account_code": "5100", "account_name": "通信費", "amount": 60_000}],
-        },
-    )
-    result = _run(
-        SCRIPT,
-        "income-expense",
         "--input",
         str(input_file),
         "--output-path",

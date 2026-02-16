@@ -16,14 +16,29 @@ from shinkoku.xtx.field_codes import (
     CONSUMPTION_TAX_PROCEDURE_VR,
     ERA_CODES,
     FORM_NESTING,
+    FORM_ORDER,
     INCOME_TAX_PROCEDURE,
     INCOME_TAX_PROCEDURE_VR,
     NS_GENERAL,
     NS_SHOHI,
     NS_SHOTOKU,
     REIWA_BASE_YEAR,
+    XSD_SEQUENCE_ORDER,
+    XSD_TOPLEVEL_ORDER,
     to_reiwa_year,
 )
+
+# gen 名前空間プレフィックスを登録（IT部の子要素で使用）
+ET.register_namespace("gen", NS_GENERAL)
+
+# gen: 名前空間のタグ名ヘルパー
+_GEN = f"{{{NS_GENERAL}}}"
+
+
+def _gen(tag: str) -> str:
+    """gen: 名前空間付きタグ名を返す。"""
+    return f"{_GEN}{tag}"
+
 
 # 機種依存文字変換テーブル
 _CIRCLED_NUMBERS: dict[str, str] = {
@@ -219,30 +234,50 @@ class XtxBuilder:
         # e-Tax スキーマバリデーションではデフォルト名前空間が必須
         default_ns = self._get_default_namespace()
 
-        root = ET.Element("DATA", id="data0")
+        root = ET.Element("DATA", id="DATA")
         root.set("xmlns", default_ns)
-        root.set("xmlns:gen", NS_GENERAL)
+        # xmlns:gen は ET.register_namespace("gen", NS_GENERAL) により
+        # gen名前空間の子要素が存在すると自動付与される。
+        # 明示的に set すると重複属性エラーになるため省略。
 
         procedure_code, procedure_vr = self._get_procedure_info()
         procedure_el = ET.SubElement(root, procedure_code, id=procedure_code, VR=procedure_vr)
 
-        ET.SubElement(procedure_el, "CATALOG", id="catalog0")
-        contents = ET.SubElement(procedure_el, "CONTENTS", id="contents0")
+        # CATALOG — e-Tax 確定申告書作成コーナーは CATALOG 内の FORM_SEC を読んで
+        # 帳票一覧を認識する。rdf:RDF > rdf:description > IT_SEC + FORM_SEC 構造が必要。
+        self._build_catalog(procedure_el)
+
+        contents = ET.SubElement(procedure_el, "CONTENTS", id="CONTENTS")
 
         # IT部（共通ヘッダ）
         self._build_it_section(contents, procedure_code)
 
+        # XSD の xsd:sequence に準拠した帳票出力順序でソート
+        sorted_forms = sorted(
+            self.forms,
+            key=lambda f: (
+                FORM_ORDER.index(f["form_code"])
+                if f["form_code"] in FORM_ORDER
+                else len(FORM_ORDER)
+            ),
+        )
+
         # 同じ form_code のフォームをマージして出力
         form_elements: dict[str, ET.Element] = {}
-        for form in self.forms:
+        for form in sorted_forms:
             form_code = form["form_code"]
             if form_code not in form_elements:
                 form_elements[form_code] = self._create_form_element(contents, form)
             self._populate_form_element(form_elements[form_code], form)
 
         # XML文字列化
+        # e-Tax 確定申告書作成コーナーは XML 宣言の直後に DATA 要素が来ることを要求する。
+        # newline 不可、standalone 不可、余分な空白不可。
         xml_str = ET.tostring(root, encoding="unicode", xml_declaration=False)
-        return f'<?xml version="1.0" encoding="UTF-8"?>\n{xml_str}'
+        # xmlns 属性の順序を e-Tax が期待する形式に修正:
+        # xmlns（デフォルト名前空間）を最初に配置する
+        xml_str = self._reorder_data_xmlns(xml_str)
+        return f'<?xml version="1.0" encoding="UTF-8"?>{xml_str}'
 
     def save(self, path: Path) -> Path:
         """xtx ファイルを書き出す。"""
@@ -252,6 +287,44 @@ class XtxBuilder:
         return path
 
     # ---- private ----
+
+    @staticmethod
+    def _reorder_data_xmlns(xml_str: str) -> str:
+        """DATA 要素の xmlns 属性順序を e-Tax が期待する形式に修正する。
+
+        ElementTree は属性を辞書順に出力するため、xmlns:gen, xmlns:rdf が
+        xmlns（デフォルト名前空間）より先に来てしまう。
+        e-Tax パーサーはこの順序に敏感な可能性があるため、
+        xmlns を先頭に移動する。
+        """
+        import re
+
+        # DATA タグの属性を抽出して並び替え
+        data_pattern = re.compile(r"<DATA\s+(.*?)>", re.DOTALL)
+        match = data_pattern.search(xml_str)
+        if not match:
+            return xml_str
+
+        attrs_str = match.group(1)
+        # 属性を分割: key="value" のペアを抽出
+        attr_pattern = re.compile(r'(\S+?)="([^"]*?)"')
+        attrs = attr_pattern.findall(attrs_str)
+
+        # xmlns（デフォルト）を先頭、idを次に、その後は残りの属性
+        xmlns_default = []
+        id_attr = []
+        others = []
+        for key, val in attrs:
+            if key == "xmlns":
+                xmlns_default.append((key, val))
+            elif key == "id":
+                id_attr.append((key, val))
+            else:
+                others.append((key, val))
+
+        reordered = xmlns_default + others + id_attr
+        new_attrs = " ".join(f'{k}="{v}"' for k, v in reordered)
+        return xml_str[: match.start()] + f"<DATA {new_attrs}>" + xml_str[match.end() :]
 
     def _get_default_namespace(self) -> str:
         """税区分に対応するデフォルト名前空間 URI を返す。"""
@@ -269,35 +342,81 @@ class XtxBuilder:
             # consumption_simplified
             return "RSH0030", CONSUMPTION_TAX_PROCEDURE_VR
 
+    def _build_catalog(self, procedure_el: ET.Element) -> None:
+        """CATALOG セクションを構築する。
+
+        e-Tax 確定申告書作成コーナーは CATALOG > rdf:RDF > rdf:description 内の
+        FORM_SEC を読んで帳票一覧を認識する。
+        構造: CATALOG > rdf:RDF > rdf:description(id=REPORT) >
+              SEND_DATA + IT_SEC + FORM_SEC(> rdf:Seq > rdf:li...)
+        """
+        ns_rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+        ET.register_namespace("rdf", ns_rdf)
+
+        catalog = ET.SubElement(procedure_el, "CATALOG", id="CATALOG")
+        rdf_rdf = ET.SubElement(catalog, f"{{{ns_rdf}}}RDF")
+        rdf_desc = ET.SubElement(rdf_rdf, f"{{{ns_rdf}}}Description", id="REPORT")
+
+        # SEND_DATA（空要素）
+        ET.SubElement(rdf_desc, "SEND_DATA")
+
+        # IT_SEC: IT部への参照
+        it_sec = ET.SubElement(rdf_desc, "IT_SEC")
+        ET.SubElement(it_sec, f"{{{ns_rdf}}}Description", about="#IT")
+
+        # FORM_SEC: 帳票セクション一覧
+        # 同じ form_code のエントリは nesting_key で区別される
+        form_sec = ET.SubElement(rdf_desc, "FORM_SEC")
+        rdf_seq = ET.SubElement(form_sec, f"{{{ns_rdf}}}Seq")
+
+        # フォームを出力順にソート
+        sorted_forms = sorted(
+            self.forms,
+            key=lambda f: (
+                FORM_ORDER.index(f["form_code"])
+                if f["form_code"] in FORM_ORDER
+                else len(FORM_ORDER)
+            ),
+        )
+        for form in sorted_forms:
+            nesting_key = form.get("nesting_key", form["form_code"])
+            rdf_li = ET.SubElement(rdf_seq, f"{{{ns_rdf}}}li")
+            ET.SubElement(rdf_li, f"{{{ns_rdf}}}Description", about=nesting_key)
+
     def _build_it_section(self, parent: ET.Element, procedure_code: str) -> None:
-        """IT部（共通ヘッダ）を構築する。"""
-        it = ET.SubElement(parent, "IT")
+        """IT部（共通ヘッダ）を構築する。
+
+        IT部の子要素のうち、汎用データ型（zeimusho_CD, era, yy, mm, dd,
+        kubun_CD, zip1, zip2, tel1-3, kojinbango, procedure_CD,
+        kinyukikan_NM, shiten_NM, yokin, koza）は general 名前空間で出力する。
+        """
+        # IT VR は 1.5（最新版）
+        it = ET.SubElement(parent, "IT", id="IT", VR="1.5")
         info = self.taxpayer_info
 
         # 税務署
         zeimusho = ET.SubElement(it, "ZEIMUSHO", ID="ZEIMUSHO")
-        _set_text(ET.SubElement(zeimusho, "zeimusho_CD"), info.get("tax_office_code", ""))
-        _set_text(ET.SubElement(zeimusho, "zeimusho_NM"), info.get("tax_office_name", ""))
+        _set_gen_text(ET.SubElement(zeimusho, _gen("zeimusho_CD")), info.get("tax_office_code", ""))
+        _set_gen_text(ET.SubElement(zeimusho, _gen("zeimusho_NM")), info.get("tax_office_name", ""))
 
         # 提出年月日
         teisyutsu = ET.SubElement(it, "TEISYUTSU_DAY", ID="TEISYUTSU_DAY")
-        _set_text(ET.SubElement(teisyutsu, "era"), str(ERA_CODES["reiwa"]))
+        _set_gen_text(ET.SubElement(teisyutsu, _gen("era")), str(ERA_CODES["reiwa"]))
         reiwa_year = self.creation_date.year - REIWA_BASE_YEAR + 1
-        _set_text(ET.SubElement(teisyutsu, "yy"), str(reiwa_year))
-        _set_text(ET.SubElement(teisyutsu, "mm"), str(self.creation_date.month))
-        _set_text(ET.SubElement(teisyutsu, "dd"), str(self.creation_date.day))
+        _set_gen_text(ET.SubElement(teisyutsu, _gen("yy")), str(reiwa_year))
+        _set_gen_text(ET.SubElement(teisyutsu, _gen("mm")), str(self.creation_date.month))
+        _set_gen_text(ET.SubElement(teisyutsu, _gen("dd")), str(self.creation_date.day))
 
-        # 利用者識別番号
-        if info.get("taxpayer_id"):
-            _set_text(
-                ET.SubElement(it, "NOZEISHA_ID", ID="NOZEISHA_ID"),
-                info["taxpayer_id"],
-            )
+        # 利用者識別番号（XSD必須）
+        _set_text(
+            ET.SubElement(it, "NOZEISHA_ID", ID="NOZEISHA_ID"),
+            info.get("taxpayer_id", ""),
+        )
 
         # 個人番号
         if info.get("my_number"):
             bango = ET.SubElement(it, "NOZEISHA_BANGO", ID="NOZEISHA_BANGO")
-            _set_text(ET.SubElement(bango, "kojinbango"), info["my_number"])
+            _set_gen_text(ET.SubElement(bango, _gen("kojinbango")), info["my_number"])
 
         # W4: 整理番号
         if info.get("seiribango"):
@@ -322,8 +441,8 @@ class XtxBuilder:
         zip_code = info.get("zip_code", "")
         if zip_code and len(zip_code) >= 7:
             zip_el = ET.SubElement(it, "NOZEISHA_ZIP", ID="NOZEISHA_ZIP")
-            _set_text(ET.SubElement(zip_el, "zip1"), zip_code[:3])
-            _set_text(ET.SubElement(zip_el, "zip2"), zip_code[3:7])
+            _set_gen_text(ET.SubElement(zip_el, _gen("zip1")), zip_code[:3])
+            _set_gen_text(ET.SubElement(zip_el, _gen("zip2")), zip_code[3:7])
 
         # W5: 住所フリガナ
         if info.get("address_kana"):
@@ -368,13 +487,13 @@ class XtxBuilder:
         if info.get("phone"):
             tel = info["phone"].replace("-", "")
             tel_el = ET.SubElement(it, "NOZEISHA_TEL", ID="NOZEISHA_TEL")
-            # 簡易的に3分割（市外局番-市内局番-加入者番号）
             if len(tel) >= 10:
-                _set_text(ET.SubElement(tel_el, "tel1"), tel[:3])
-                _set_text(ET.SubElement(tel_el, "tel2"), tel[3:7])
-                _set_text(ET.SubElement(tel_el, "tel3"), tel[7:])
+                _set_gen_text(ET.SubElement(tel_el, _gen("tel1")), tel[:3])
+                _set_gen_text(ET.SubElement(tel_el, _gen("tel2")), tel[3:7])
+                _set_gen_text(ET.SubElement(tel_el, _gen("tel3")), tel[7:])
 
         # 性別
+        # kubun_CD は shotoku 名前空間（デフォルト）で出力
         if info.get("gender"):
             seibetsu = ET.SubElement(it, "SEIBETSU", ID="SEIBETSU")
             _set_text(ET.SubElement(seibetsu, "kubun_CD"), info["gender"])
@@ -395,6 +514,13 @@ class XtxBuilder:
                 info["household_relation"],
             )
 
+        # 事業内容（XSD: JIGYO_NAIYO は SHOKUGYO より前）
+        if info.get("business_description"):
+            _set_text(
+                ET.SubElement(it, "JIGYO_NAIYO", ID="JIGYO_NAIYO"),
+                info["business_description"],
+            )
+
         # 職業
         if info.get("occupation"):
             _set_text(
@@ -402,37 +528,38 @@ class XtxBuilder:
                 info["occupation"],
             )
 
-        # 事業内容
-        if info.get("business_description"):
-            _set_text(
-                ET.SubElement(it, "JIGYO_NAIYO", ID="JIGYO_NAIYO"),
-                info["business_description"],
-            )
-
         # W2: 還付金融機関
         if info.get("refund_bank_name"):
             kanpu = ET.SubElement(it, "KANPU_KINYUKIKAN", ID="KANPU_KINYUKIKAN")
             kinyukikan_nm = ET.SubElement(
-                kanpu, "kinyukikan_NM", kinyukikan_KB=info.get("refund_bank_type", "1")
+                kanpu,
+                _gen("kinyukikan_NM"),
+                kinyukikan_KB=info.get("refund_bank_type", "1"),
             )
-            _set_text(kinyukikan_nm, info["refund_bank_name"])
+            _set_gen_text(kinyukikan_nm, info["refund_bank_name"])
             shiten_nm = ET.SubElement(
-                kanpu, "shiten_NM", shiten_KB=info.get("refund_branch_type", "2")
+                kanpu,
+                _gen("shiten_NM"),
+                shiten_KB=info.get("refund_branch_type", "2"),
             )
-            _set_text(shiten_nm, info.get("refund_branch_name", ""))
-            _set_text(ET.SubElement(kanpu, "yokin"), info.get("refund_deposit_type", ""))
-            _set_text(ET.SubElement(kanpu, "koza"), info.get("refund_account_number", ""))
+            _set_gen_text(shiten_nm, info.get("refund_branch_name", ""))
+            _set_gen_text(ET.SubElement(kanpu, _gen("yokin")), info.get("refund_deposit_type", ""))
+            _set_gen_text(ET.SubElement(kanpu, _gen("koza")), info.get("refund_account_number", ""))
 
         # 手続き
+        # procedure_CD は RKO0010 XSD でローカル要素として再定義されており、
+        # shotoku 名前空間（デフォルト）で出力する
         tetsuzuki = ET.SubElement(it, "TETSUZUKI", ID="TETSUZUKI")
         _set_text(ET.SubElement(tetsuzuki, "procedure_CD"), procedure_code)
 
         # 年分（NENBUN）
         nenbun = ET.SubElement(it, "NENBUN", ID="NENBUN")
-        _set_text(ET.SubElement(nenbun, "era"), str(ERA_CODES["reiwa"]))
-        _set_text(ET.SubElement(nenbun, "yy"), str(to_reiwa_year(self.fiscal_year)))
+        _set_gen_text(ET.SubElement(nenbun, _gen("era")), str(ERA_CODES["reiwa"]))
+        _set_gen_text(ET.SubElement(nenbun, _gen("yy")), str(to_reiwa_year(self.fiscal_year)))
 
         # 申告区分
+        # kubun_CD は RKO0010 XSD でローカル要素として再定義されており、
+        # shotoku 名前空間（デフォルト）で出力する必要がある（gen: ではない）
         shinkoku_kbn = ET.SubElement(it, "SHINKOKU_KBN", ID="SHINKOKU_KBN")
         _set_text(ET.SubElement(shinkoku_kbn, "kubun_CD"), "1")
 
@@ -460,15 +587,21 @@ class XtxBuilder:
             era, yy = ERA_CODES["taisho"], year - 1911
 
         birthday = ET.SubElement(parent, "BIRTHDAY", ID="BIRTHDAY")
-        _set_text(ET.SubElement(birthday, "era"), str(era))
-        _set_text(ET.SubElement(birthday, "yy"), str(yy))
-        _set_text(ET.SubElement(birthday, "mm"), str(month))
-        _set_text(ET.SubElement(birthday, "dd"), str(day))
+        _set_gen_text(ET.SubElement(birthday, _gen("era")), str(era))
+        _set_gen_text(ET.SubElement(birthday, _gen("yy")), str(yy))
+        _set_gen_text(ET.SubElement(birthday, _gen("mm")), str(month))
+        _set_gen_text(ET.SubElement(birthday, _gen("dd")), str(day))
 
     def _create_form_element(self, parent: ET.Element, form: dict[str, Any]) -> ET.Element:
-        """帳票要素を作成する（属性のみ、中身なし）。"""
+        """帳票要素を作成する（属性のみ、中身なし）。
+
+        id属性は最初のページの nesting_key（例: "KOA020-1"）を使用。
+        e-Tax 確定申告書作成コーナーはこの id を CATALOG の about 属性と照合する。
+        """
+        nesting_key = form.get("nesting_key", form["form_code"])
         attrs = {
             "VR": form["version"],
+            "id": nesting_key,
             "page": str(form.get("page", 1)),
             "softNM": self.software_name,
             "sakuseiNM": self.creator_name or self.taxpayer_info.get("name", ""),
@@ -492,7 +625,9 @@ class XtxBuilder:
                 target = ET.SubElement(form_el, sub_section_name)
             else:
                 target = form_el
-            self._build_nested_fields(target, form, field_groups)
+            self._build_nested_fields(
+                target, form, field_groups, section_name=sub_section_name or nesting_key
+            )
         else:
             self._build_flat_fields(form_el, form)
 
@@ -501,43 +636,101 @@ class XtxBuilder:
         target: ET.Element,
         form: dict[str, Any],
         field_groups: dict[str, list[str]],
+        *,
+        section_name: str = "",
     ) -> None:
-        """フィールドをグループ要素の階層構造に配置する。"""
-        # IDREF 参照
-        idrefs = form.get("idrefs", {})
-        for code, ref_id in idrefs.items():
-            ET.SubElement(target, code, IDREF=ref_id)
+        """フィールドをグループ要素の階層構造に配置する。
 
+        XSD の xsd:sequence に準拠するため、全要素をコード順にソートして出力する。
+        IDREF参照・フィールド値・繰り返しグループを統合的にソートし、
+        ABBコードの昇順（= XSD定義順）で配置する。
+        """
         # グループ要素のキャッシュ（同じパスを複数フィールドで共有）
         group_cache: dict[str, ET.Element] = {}
 
-        # フィールド値をグループ構造に配置
+        # 全要素を (code, type, data) のタプルとして収集
+        all_items: list[tuple[str, str, Any]] = []
+
+        # IDREF 参照
+        idrefs = form.get("idrefs", {})
+        for code, ref_id in idrefs.items():
+            all_items.append((code, "idref", ref_id))
+
+        # フィールド値
         for code, value in form["fields"].items():
+            all_items.append((code, "field", value))
+
+        # 繰り返しグループ
+        repeating = form.get("repeating_groups", {})
+        for group_code, items in repeating.items():
+            all_items.append((group_code, "repeating", items))
+
+        # XSD sequence 順にソート
+        # 1. トップレベルグループの XSD 定義順 (XSD_TOPLEVEL_ORDER)
+        # 2. 同じ親グループ内で XSD_SEQUENCE_ORDER に定義がある場合はその順序
+        # 3. それ以外はコード昇順（ABBコードの昇順 ≒ XSD定義順）
+        toplevel_seq = XSD_TOPLEVEL_ORDER.get(section_name, [])
+
+        def _sort_key(item: tuple[str, str, Any]) -> tuple[int, str, int, str]:
+            code = item[0]
+            group_path = field_groups.get(code, [])
+            # トップレベルグループの順序（グループパスの先頭要素）
+            top_group = group_path[0] if group_path else code
+            if toplevel_seq and top_group in toplevel_seq:
+                top_order = toplevel_seq.index(top_group)
+            else:
+                top_order = len(toplevel_seq)
+            # 親グループ内の順序
+            # グループパスの各レベルで XSD_SEQUENCE_ORDER を探索し、
+            # 最も近い祖先グループの順序を使う。
+            # 例: ABB00760 の group_path = [ABB00000, ABB00570, ABB00740]
+            #   → ABB00740 は XSD_SEQUENCE_ORDER に定義なし
+            #   → ABB00570 に ABB00740 がある → ABB00740 の位置を使う
+            parent_group = group_path[-1] if group_path else ""
+            seq = XSD_SEQUENCE_ORDER.get(parent_group)
+            if seq and code in seq:
+                return (top_order, top_group, seq.index(code), code)
+            # 親グループに定義がない場合、祖先グループの順序で位置を決定
+            # （子要素のコードは親グループ要素と同じ位置に配置される）
+            for i in range(len(group_path) - 1, 0, -1):
+                ancestor_group = group_path[i - 1]
+                ancestor_seq = XSD_SEQUENCE_ORDER.get(ancestor_group)
+                if ancestor_seq and group_path[i] in ancestor_seq:
+                    return (top_order, top_group, ancestor_seq.index(group_path[i]), code)
+            return (top_order, top_group, len(XSD_SEQUENCE_ORDER.get(parent_group, [])), code)
+
+        all_items.sort(key=_sort_key)
+
+        for code, item_type, data in all_items:
             group_path = field_groups.get(code)
             if group_path:
                 parent_el = _ensure_group_path(target, group_path, group_cache)
             else:
-                # グループ定義がないフィールドは target 直下
                 parent_el = target
-            _set_text(ET.SubElement(parent_el, code), _format_value(value))
 
-        # 繰り返しグループもグループ構造内に配置
-        repeating = form.get("repeating_groups", {})
-        for group_code, items in repeating.items():
-            # 繰り返しグループの親グループを探す
-            # ABD00010 → ABD00000 の下に配置（field_groups に登録があれば）
-            rp_parent_path = field_groups.get(group_code)
-            if rp_parent_path:
-                rp_parent = _ensure_group_path(target, rp_parent_path, group_cache)
-            else:
-                rp_parent = target
-            for item in items:
-                group_el = ET.SubElement(rp_parent, group_code)
-                for child_code, child_value in item.items():
-                    _set_text(
-                        ET.SubElement(group_el, child_code),
-                        _format_value(child_value),
-                    )
+            if item_type == "idref":
+                ET.SubElement(parent_el, code, IDREF=data)
+            elif item_type == "field":
+                if isinstance(data, dict):
+                    _build_structured_field(parent_el, code, data)
+                else:
+                    _set_text(ET.SubElement(parent_el, code), _format_value(data))
+            elif item_type == "repeating":
+                for item in data:
+                    group_el = ET.SubElement(parent_el, code)
+                    item_cache: dict[str, ET.Element] = {}
+                    for child_code, child_value in item.items():
+                        child_group_path = field_groups.get(child_code)
+                        if child_group_path:
+                            child_parent = _ensure_group_path(
+                                group_el, child_group_path, item_cache
+                            )
+                        else:
+                            child_parent = group_el
+                        _set_text(
+                            ET.SubElement(child_parent, child_code),
+                            _format_value(child_value),
+                        )
 
         # サブセクション（手動指定、ネスト構造に加えて追加可能）
         sub_sections = form.get("sub_sections", {})
@@ -556,7 +749,10 @@ class XtxBuilder:
 
         # フィールド値
         for code, value in form["fields"].items():
-            _set_text(ET.SubElement(form_el, code), _format_value(value))
+            if isinstance(value, dict):
+                _build_structured_field(form_el, code, value)
+            else:
+                _set_text(ET.SubElement(form_el, code), _format_value(value))
 
         # 繰り返しグループ
         repeating = form.get("repeating_groups", {})
@@ -608,6 +804,40 @@ def _ensure_group_path(
 def _set_text(element: ET.Element, text: str) -> None:
     """要素にテキストを設定する。サニタイズ済み。"""
     element.text = sanitize_text(text)
+
+
+def _set_gen_text(element: ET.Element, text: str) -> None:
+    """gen: 名前空間要素にテキストを設定する。サニタイズ済み。"""
+    element.text = sanitize_text(text)
+
+
+_GEN_NAMESPACE_TAGS = frozenset(
+    {
+        "era",
+        "yy",
+        "mm",
+        "dd",  # gen:yymmdd, gen:yy 型
+    }
+)
+
+
+def _build_structured_field(parent: ET.Element, code: str, value: dict[str, str]) -> None:
+    """構造化フィールドを適切な名前空間の子要素として出力する。
+
+    gen:yymmdd (era/yy/mm/dd) の子要素は general 名前空間で出力。
+    gen:kubun/procedure の子要素 (kubun_CD/procedure_CD) は
+    帳票スキーマ内でローカル再定義されるため、デフォルト名前空間で出力。
+    """
+    el = ET.SubElement(parent, code)
+    for child_tag, child_text in value.items():
+        # era/yy/mm/dd は gen:yymmdd 型から来るため gen 名前空間
+        if child_tag in _GEN_NAMESPACE_TAGS:
+            tag = _gen(child_tag)
+        else:
+            # kubun_CD 等は帳票 XSD でローカル再定義されるためデフォルト名前空間
+            tag = child_tag
+        child = ET.SubElement(el, tag)
+        child.text = sanitize_text(str(child_text))
 
 
 def _format_value(value: int | str) -> str:

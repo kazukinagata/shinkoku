@@ -1,4 +1,4 @@
-"""Test script to generate overlay PDFs for Schedule 3, Schedule 4, and Income/Expense Statement.
+"""Test script to generate overlay PDFs for Schedule 4.
 
 Generates merged PDFs with dummy data to visually verify coordinate alignment.
 """
@@ -15,8 +15,6 @@ from pypdf import PdfReader, PdfWriter
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from shinkoku.tools.pdf_coordinates import (  # noqa: E402
-    INCOME_EXPENSE_STATEMENT,
-    SCHEDULE_3_FORM,
     SCHEDULE_4_FORM,
 )
 from shinkoku.tools.pdf_utils import (  # noqa: E402
@@ -31,7 +29,6 @@ TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates" / "r07"
 
 # Page sizes from the actual PDFs
 SCHEDULE_PAGE_SIZE = (579.672, 814.791)  # 03.pdf / 04.pdf
-INCOME_EXPENSE_PAGE_SIZE = (842.0, 595.0)  # 05_ie.pdf (portrait+rotate90 = landscape visual)
 
 
 def extract_page(src_pdf: str, page_idx: int, out_pdf: str) -> str:
@@ -132,23 +129,9 @@ def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Extract single pages from multi-page NTA PDFs
-    # 02.pdf = 第三表（分離課税用）, 03.pdf = 第四表（損失申告用）
-    sched3_template = extract_page(
-        str(TEMPLATE_DIR / "02.pdf"), 0, str(OUTPUT_DIR / "02_page1.pdf")
-    )
+    # 03.pdf = 第四表（損失申告用）
     sched4_template = extract_page(
         str(TEMPLATE_DIR / "03.pdf"), 0, str(OUTPUT_DIR / "03_page1.pdf")
-    )
-    # 05_ie.pdf = 収支内訳書（一般用） — FA7001
-    ie_template = extract_page(
-        str(TEMPLATE_DIR / "05_ie.pdf"), 0, str(OUTPUT_DIR / "05_ie_page1.pdf")
-    )
-
-    test_form(
-        "schedule_3",
-        SCHEDULE_3_FORM,
-        sched3_template,
-        SCHEDULE_PAGE_SIZE,
     )
 
     test_form(
@@ -156,13 +139,6 @@ def main() -> None:
         SCHEDULE_4_FORM,
         sched4_template,
         SCHEDULE_PAGE_SIZE,
-    )
-
-    test_form(
-        "income_expense",
-        INCOME_EXPENSE_STATEMENT,
-        ie_template,
-        INCOME_EXPENSE_PAGE_SIZE,
     )
 
     print("\nDone! Check output/fit_test_other/")

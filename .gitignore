@@ -13,3 +13,4 @@ playground/
 .shinkoku/
 templates/
 specs/
+.playwright-cli/

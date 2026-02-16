@@ -39,9 +39,7 @@ spawn 元から渡された以下のデータを確認する:
 | 確定申告書 第二表 | `references/form-b-p2-fields.md` |
 | 青色申告決算書 損益計算書 | `references/blue-return-pl-fields.md` |
 | 青色申告決算書 貸借対照表 | `references/blue-return-bs-fields.md` |
-| 第三表（分離課税） | `references/schedule-3-fields.md` |
 | 第四表（損失申告） | `references/schedule-4-fields.md` |
-| 収支内訳書 | `references/income-expense-fields.md` |
 | 消費税申告書 | `references/consumption-tax-fields.md` |
 | 医療費控除の明細書 | （reference ファイルなし — 座標定義を直接参照） |
 | 住宅ローン控除計算明細書 | （reference ファイルなし — 座標定義を直接参照） |
@@ -59,11 +57,9 @@ spawn 元から渡された以下のデータを確認する:
 | 青色申告決算書 損益計算書 P2 | `BLUE_RETURN_PL_P2` |
 | 青色申告決算書 損益計算書 P3 | `BLUE_RETURN_PL_P3` |
 | 青色申告決算書 貸借対照表 | `BLUE_RETURN_BS` |
-| 第三表（分離課税） | `SCHEDULE_3_FORM` |
 | 第四表（損失申告） | `SCHEDULE_4_FORM` |
 | 消費税申告書 P1 | `CONSUMPTION_TAX_P1` |
 | 消費税申告書 P2 | `CONSUMPTION_TAX_P2` |
-| 収支内訳書 | `INCOME_EXPENSE_STATEMENT` |
 | 医療費控除の明細書 | `MEDICAL_EXPENSE_DETAIL_FORM` |
 | 住宅ローン控除計算明細書 | `HOUSING_LOAN_DETAIL_FORM` |
 
@@ -78,10 +74,8 @@ spawn 元から渡された以下のデータを確認する:
 | 確定申告書 第二表 | `doc_generate.py income-tax-p2` |
 | 青色申告決算書 PL/BS | `doc_generate.py bs-pl` |
 | 消費税申告書 | `doc_generate.py consumption-tax` |
-| 収支内訳書 | `doc_generate.py income-expense` |
 | 医療費控除明細書 | `doc_generate.py medical-expense` |
 | 住宅ローン控除明細書 | `doc_generate.py housing-loan` |
-| 第三表 | `doc_generate.py schedule-3` |
 | 第四表 | `doc_generate.py schedule-4` |
 | 全帳票セット | `doc_generate.py full-set` |
 

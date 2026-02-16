@@ -19,7 +19,6 @@ from shinkoku.models import (  # noqa: E402
     IncomeTaxResult,
     PLItem,
     PLResult,
-    SeparateTaxResult,
 )
 from shinkoku.tools.document import (  # noqa: E402
     _resolve_config,
@@ -28,11 +27,9 @@ from shinkoku.tools.document import (  # noqa: E402
     generate_consumption_tax_pdf,
     generate_full_tax_document_set,
     generate_housing_loan_detail_pdf,
-    generate_income_expense_statement_pdf,
     generate_income_tax_page2_pdf,
     generate_income_tax_pdf,
     generate_medical_expense_detail_pdf,
-    generate_schedule_3_pdf,
     generate_schedule_4_pdf,
 )
 from shinkoku.tools.pdf_utils import pdf_to_images  # noqa: E402
@@ -183,21 +180,6 @@ def _handle_housing_loan(args: argparse.Namespace) -> None:
     _output_json({"output_path": path})
 
 
-def _handle_schedule_3(args: argparse.Namespace) -> None:
-    """schedule-3: 第三表（分離課税）PDF 生成。"""
-    params = _load_json(args.input)
-    taxpayer_name = _resolve_taxpayer_name(params.pop("taxpayer_name", ""), args.config_path)
-
-    tax_result = SeparateTaxResult(**params)
-    _ensure_output_dir(args.output_path)
-    path = generate_schedule_3_pdf(
-        tax_result=tax_result,
-        output_path=args.output_path,
-        taxpayer_name=taxpayer_name,
-    )
-    _output_json({"output_path": path})
-
-
 def _handle_schedule_4(args: argparse.Namespace) -> None:
     """schedule-4: 第四表（損失申告）PDF 生成。"""
     params = _load_json(args.input)
@@ -207,23 +189,6 @@ def _handle_schedule_4(args: argparse.Namespace) -> None:
     path = generate_schedule_4_pdf(
         losses=params.get("losses", []),
         fiscal_year=params["fiscal_year"],
-        output_path=args.output_path,
-        taxpayer_name=taxpayer_name,
-    )
-    _output_json({"output_path": path})
-
-
-def _handle_income_expense(args: argparse.Namespace) -> None:
-    """income-expense: 収支内訳書（白色申告用）PDF 生成。"""
-    params = _load_json(args.input)
-    fiscal_year = params["fiscal_year"]
-    taxpayer_name = _resolve_taxpayer_name(params.get("taxpayer_name", ""), args.config_path)
-
-    pl_data = _build_pl_data(params, fiscal_year)
-
-    _ensure_output_dir(args.output_path)
-    path = generate_income_expense_statement_pdf(
-        pl_data=pl_data,
         output_path=args.output_path,
         taxpayer_name=taxpayer_name,
     )
@@ -346,9 +311,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "consumption-tax",
         "medical-expense",
         "housing-loan",
-        "schedule-3",
         "schedule-4",
-        "income-expense",
         "income-tax-p2",
         "full-set",
     ]:
@@ -372,9 +335,7 @@ _HANDLERS: dict[str, callable] = {
     "consumption-tax": _handle_consumption_tax,
     "medical-expense": _handle_medical_expense,
     "housing-loan": _handle_housing_loan,
-    "schedule-3": _handle_schedule_3,
     "schedule-4": _handle_schedule_4,
-    "income-expense": _handle_income_expense,
     "income-tax-p2": _handle_income_tax_p2,
     "full-set": _handle_full_set,
     "preview": _handle_preview,

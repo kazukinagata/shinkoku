@@ -308,18 +308,6 @@ python skills/document/scripts/doc_generate.py bs-pl --input bs_pl_input.json --
 - 青色申告決算書の様式に準拠した形式で生成する
 - 出力後、ファイルパスをユーザーに案内する
 
-#### 収支内訳書（白色申告の場合）: `doc_generate.py income-expense`
-
-白色申告（`filing.return_type == "white"`）の場合、青色申告決算書の代わりに収支内訳書を生成する。
-
-```bash
-python skills/document/scripts/doc_generate.py income-expense --input income_expense_input.json --output-path output/income_expense_2025.pdf
-```
-入力 JSON には `fiscal_year`, `pl_revenues`, `pl_expenses` を含める（`ledger.py pl` の結果を使用）。
-
-- 収支内訳書は青色申告決算書（BS/PL）の簡易版で、損益計算書のみ
-- 貸借対照表は不要
-
 
 ## ステップ4: 決算結果サマリーの提示
 
@@ -347,7 +335,6 @@ python skills/document/scripts/doc_generate.py income-expense --input income_exp
 
 ■ 出力ファイル:
   → [出力パス]/bs_pl_2025.pdf
-  → [出力パス]/income_expense_statement_2025.pdf（白色申告の場合）
   → [出力パス]/rent_detail_2025.pdf（該当者のみ）
 
 ■ 次のステップ:

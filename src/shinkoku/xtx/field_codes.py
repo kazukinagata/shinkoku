@@ -40,35 +40,27 @@ NS_KYOTSU = "http://xml.e-tax.nta.go.jp/XSD/kyotsu"
 FORM_VERSIONS: dict[str, str] = {
     # 所得税申告書（第一表〜第四表）
     "KOA020": "23.0",
-    # 先物取引繰越損失付表
-    "KOA050": "17.0",
-    # 上場株式等繰越損失付表
-    "KOA090": "16.0",
-    # 収支内訳書（一般用）
-    "KOA110": "12.0",
-    # 収支内訳書（不動産所得用）
-    "KOA130": "9.0",
     # 青色申告決算書（一般用）
     "KOA210": "11.0",
-    # 青色申告決算書（不動産所得用）
-    "KOA220": "8.0",
     # 所得の内訳書
     "KOB060": "6.0",
     # 住宅借入金等特別控除額の計算明細書
     "KOB130": "21.0",
-    # 政党等寄附金特別控除額の計算明細書
-    "KOB200": "17.0",
-    # 外国税額控除に関する明細書
-    "KOB240": "16.0",
-    # 先物取引に係る雑所得等の計算明細書
-    "KOB550": "14.0",
     # 医療費控除の明細書
     "KOB560": "18.0",
-    # 株式等に係る譲渡所得等の計算明細書
-    "KOC080": "19.0",
     # 消費税申告書（一般・個人）
     "SHA010": "10.0",
 }
+
+# CONTENTS 内の帳票出力順序（XSD の xsd:sequence 定義に準拠）
+# 所得税手続 RKO0010 で使う帳票を XSD 定義順に並べる
+FORM_ORDER: list[str] = [
+    "KOA020",  # 申告書B
+    "KOA210",  # 青色申告決算書（一般用）
+    "KOB060",  # 所得の内訳書
+    "KOB130",  # 住宅借入金等特別控除額の計算明細書
+    "KOB560",  # 医療費控除の明細書
+]
 
 # ============================================================
 # 和暦コード
@@ -222,63 +214,6 @@ RESIDENT_TAX_CODES: dict[str, str] = {
 }
 
 # ============================================================
-# 第三表 (KOA020-3) ABL コード — 分離課税用
-# ============================================================
-
-# 分離課税 収入金額
-SEPARATE_REVENUE_CODES: dict[str, str] = {
-    "short_term_general": "ABL00040",  # (67): 短期譲渡 一般分
-    "short_term_reduced": "ABL00050",  # (68): 短期譲渡 軽減分
-    "long_term_general": "ABL00070",  # (69): 長期譲渡 一般分
-    "long_term_specified": "ABL00080",  # (70): 長期譲渡 特定分
-    "long_term_reduced": "ABL00090",  # (71): 長期譲渡 軽課分
-    "general_stock": "ABL00125",  # (72): 一般株式等の譲渡
-    "listed_stock": "ABL00130",  # (73): 上場株式等の譲渡
-    "listed_dividend": "ABL00134",  # (74): 上場株式等の配当等
-    "futures": "ABL00140",  # (75): 先物取引
-    "timber": "ABL00170",  # (76): 山林
-    "retirement": "ABL00180",  # (77): 退職
-}
-
-# 分離課税 所得金額
-SEPARATE_INCOME_CODES: dict[str, str] = {
-    "short_term_general": "ABL00220",  # (67)
-    "short_term_reduced": "ABL00230",  # (68)
-    "long_term_general": "ABL00250",  # (69)
-    "long_term_specified": "ABL00260",  # (70)
-    "long_term_reduced": "ABL00270",  # (71)
-    "general_stock": "ABL00305",  # (72)
-    "listed_stock": "ABL00310",  # (73)
-    "listed_dividend": "ABL00320",  # (74)
-    "futures": "ABL00330",  # (75)
-    "timber": "ABL00360",  # (76)
-    "retirement": "ABL00410",  # (77)
-}
-
-# 分離課税 税金の計算
-SEPARATE_TAX_CODES: dict[str, str] = {
-    "comprehensive_total": "ABL00440",  # (78): 総合課税の合計額
-    "deductions": "ABL00450",  # (79): 所得から差し引かれる金額
-    "taxable_comprehensive": "ABL00470",  # (80): 課税所得 (12)対応分
-    "taxable_short_term": "ABL00480",  # (81): 課税所得 (67)(68)対応分
-    "taxable_long_term": "ABL00490",  # (82): 課税所得 (69)(70)(71)対応分
-    "taxable_stock": "ABL00500",  # (83): 課税所得 (72)(73)対応分
-    "taxable_listed_dividend": "ABL00505",  # (84): 課税所得 (74)対応分
-    "taxable_futures": "ABL00510",  # (85): 課税所得 (75)対応分
-    "taxable_timber": "ABL00520",  # (86): 課税所得 (76)対応分
-    "taxable_retirement": "ABL00530",  # (87): 課税所得 (77)対応分
-    "tax_comprehensive": "ABL00550",  # (88): 税額 (78)対応分
-    "tax_deductions": "ABL00560",  # (89): 税額 (79)対応分
-    "tax_short_term": "ABL00570",  # (90): 税額 (80)対応分
-    "tax_long_term": "ABL00580",  # (91): 税額 (81)対応分
-    "tax_stock": "ABL00585",  # (92): 税額 (82)対応分
-    "tax_listed_dividend": "ABL00590",  # (93): 税額 (83)対応分
-    "tax_futures": "ABL00600",  # (84)対応分
-    "tax_timber": "ABL00610",  # (85)対応分
-    "tax_total": "ABL00620",  # (94): (86)〜(93)の合計
-}
-
-# ============================================================
 # 青色申告決算書 (KOA210) AMF/AMG コード — 一般用
 # ============================================================
 
@@ -287,6 +222,7 @@ PL_CODES: dict[str, str] = {
     "revenue": "AMF00100",  # (1): 売上（収入）金額
     "beginning_inventory": "AMF00120",  # 期首商品棚卸高
     "purchases": "AMF00130",  # 仕入金額
+    "cogs_subtotal": "AMF00140",  # 小計（期首＋仕入）
     "ending_inventory": "AMF00150",  # 期末商品棚卸高
     "cost_of_goods": "AMF00160",  # 差引原価
     "gross_profit": "AMF00170",  # 差引金額
@@ -384,6 +320,20 @@ BS_LIABILITIES_ENDING: dict[str, str] = {
     "total_liabilities": "AMG00760",
 }
 
+# --- KOA210-4: 貸借対照表（BS）フィールドグループ ---
+# XSD: KOA210-4 > AMG00000 > AMG00020(資産) > AMG00240(期末) > AMG002xx
+#                           > AMG00450(負債) > AMG00620(期末) > AMG006xx
+_BS_ASSET_ENDING_PATH = ["AMG00000", "AMG00020", "AMG00240"]
+_BS_LIABILITY_ENDING_PATH = ["AMG00000", "AMG00450", "AMG00620"]
+
+BS_FIELD_GROUPS: dict[str, list[str]] = {}
+# 資産の部（期末）: AMG00260〜AMG00440
+for _code in BS_CODES_ENDING.values():
+    BS_FIELD_GROUPS[_code] = _BS_ASSET_ENDING_PATH
+# 負債の部（期末）: AMG00640〜AMG00760
+for _code in BS_LIABILITIES_ENDING.values():
+    BS_FIELD_GROUPS[_code] = _BS_LIABILITY_ENDING_PATH
+
 # ============================================================
 # 消費税申告書 (SHA010) AAJ/AAK コード
 # ============================================================
@@ -449,38 +399,6 @@ HOUSING_LOAN_CODES: dict[str, str] = {
 }
 
 # ============================================================
-# 先物取引 (KOB550) DGD コード
-# ============================================================
-
-FUTURES_DETAIL_CODES: dict[str, str] = {
-    "type": "DGD00090",
-    "settlement_date": "DGD00100",
-    "quantity": "DGD00110",
-    "settlement_method": "DGD00120",
-    "profit_loss": "DGD00140",
-    "total_revenue": "DGD00160",
-    "fees": "DGD00180",
-    "total_expenses": "DGD00260",
-    "net_income": "DGD00270",
-}
-
-# ============================================================
-# 株式等譲渡 (KOC080) EHD コード
-# ============================================================
-
-STOCK_TRANSFER_CODES: dict[str, str] = {
-    "general_stock_section": "EHD00030",
-    "general_revenue": "EHD00050",
-    "general_cost": "EHD00090",
-    "general_fees": "EHD00100",
-    "general_net": "EHD00140",
-    "general_income": "EHD00160",
-    "listed_stock_section": "EHD00190",
-    "listed_revenue": "EHD00210",
-    "listed_cost": "EHD00250",
-}
-
-# ============================================================
 # 第一表 見出し部 (ABA) コード — IDREF 参照用
 # ============================================================
 
@@ -500,6 +418,25 @@ P1_HEADER_IDREFS: dict[str, str] = {
     "ABA00220": "NOZEISHA_TEL",
 }
 
+# 第一表 見出し部 IDREF グループネスト
+# XSD: KOA020-1 > ABA00000 > ABA00010/20/30/40 + ABA00050 > ABA00060 > ABA00080/90
+#                                                            + ABA00125〜ABA00220
+P1_HEADER_IDREF_GROUPS: dict[str, list[str]] = {
+    "ABA00010": ["ABA00000"],
+    "ABA00020": ["ABA00000"],
+    "ABA00030": ["ABA00000"],
+    "ABA00040": ["ABA00000"],
+    "ABA00080": ["ABA00000", "ABA00050", "ABA00060"],
+    "ABA00090": ["ABA00000", "ABA00050", "ABA00060"],
+    "ABA00125": ["ABA00000", "ABA00050"],
+    "ABA00130": ["ABA00000", "ABA00050"],
+    "ABA00140": ["ABA00000", "ABA00050"],
+    "ABA00160": ["ABA00000", "ABA00050"],
+    "ABA00170": ["ABA00000", "ABA00050"],
+    "ABA00200": ["ABA00000", "ABA00050"],
+    "ABA00220": ["ABA00000", "ABA00050"],
+}
+
 # 第二表 見出し部 IDREF
 P2_HEADER_IDREFS: dict[str, str] = {
     "ABC00010": "NENBUN",
@@ -508,12 +445,13 @@ P2_HEADER_IDREFS: dict[str, str] = {
     "ABC00070": "NOZEISHA_NM",
 }
 
-# 第三表 見出し部 IDREF
-P3_HEADER_IDREFS: dict[str, str] = {
-    "ABK00010": "NENBUN",
-    "ABK00060": "NOZEISHA_ADR",
-    "ABK00070": "NOZEISHA_NM_KN",
-    "ABK00080": "NOZEISHA_NM",
+# 第二表 見出し部 IDREF グループネスト
+# XSD: KOA020-2 > ABC00000 > ABC00010 + ABC00020 > ABC00040/60/70
+P2_HEADER_IDREF_GROUPS: dict[str, list[str]] = {
+    "ABC00010": ["ABC00000"],
+    "ABC00040": ["ABC00000", "ABC00020"],
+    "ABC00060": ["ABC00000", "ABC00020"],
+    "ABC00070": ["ABC00000", "ABC00020"],
 }
 
 # ============================================================
@@ -588,6 +526,7 @@ P1_DEDUCTION_GROUP_CODES = frozenset(
 )
 
 # ABB00570: 税金の計算グループ（(31)〜(53)）
+# 注: ABB00740 はグループ要素（第3期分の税額）。ABB00750/ABB00760 がその子要素。
 P1_TAX_CALC_GROUP_CODES = frozenset(
     {
         "ABB00580",
@@ -605,7 +544,6 @@ P1_TAX_CALC_GROUP_CODES = frozenset(
         "ABB00710",
         "ABB00720",
         "ABB00730",
-        "ABB00740",
         "ABB00750",
         "ABB00760",
     }
@@ -627,31 +565,97 @@ P1_OTHER_DIRECT_CODES = frozenset(
 # 第一表の ABB フィールドからグループへのマッピング
 # キー: ABB コード、値: (グループ要素のパス)
 # パス例: ["ABB00000", "ABB00010"] は ABB00000 > ABB00010 の下に配置
+# XSD 準拠: 中間グループ要素（ABB00020, ABB00090 等）を正しく含める
 P1_FIELD_GROUPS: dict[str, list[str]] = {}
-for _code in P1_REVENUE_GROUP_CODES:
+
+# 収入金額等 (ABB00010) — XSD に準拠した中間グループ
+# ABB00020: 事業グループ（営業等・農業）
+for _code in ("ABB00030", "ABB00040"):
+    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00010", "ABB00020"]
+# ABB00010 直下: 不動産・配当・給与
+for _code in ("ABB00050", "ABB00070", "ABB00080"):
     P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00010"]
-for _code in P1_INCOME_GROUP_CODES:
+# ABB00090: 雑グループ（公的年金等・業務・その他）
+for _code in ("ABB00100", "ABB00105", "ABB00110"):
+    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00010", "ABB00090"]
+# ABB00120: 総合譲渡グループ（短期・長期）
+for _code in ("ABB00130", "ABB00180"):
+    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00010", "ABB00120"]
+# ABB00010 直下: 一時
+P1_FIELD_GROUPS["ABB00230"] = ["ABB00000", "ABB00010"]
+
+# 所得金額等 (ABB00270) — XSD に準拠した中間グループ
+# ABB00280: 事業グループ（営業等・農業）
+for _code in ("ABB00300", "ABB00320"):
+    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00270", "ABB00280"]
+# ABB00270 直下: 不動産・利子・配当・給与
+for _code in ("ABB00340", "ABB00350", "ABB00360", "ABB00370"):
     P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00270"]
+# ABB01050: 雑グループ
+P1_FIELD_GROUPS["ABB01060"] = ["ABB00000", "ABB00270", "ABB01050"]  # 公的年金等
+# ABB01070: 業務（ABB01050 > ABB01070 > ABB01090）
+P1_FIELD_GROUPS["ABB01090"] = ["ABB00000", "ABB00270", "ABB01050", "ABB01070"]
+# ABB01100: その他（ABB01050 > ABB01100 > ABB01120）
+P1_FIELD_GROUPS["ABB01120"] = ["ABB00000", "ABB00270", "ABB01050", "ABB01100"]
+# ABB01050 直下: (7)〜(9)の計
+P1_FIELD_GROUPS["ABB01130"] = ["ABB00000", "ABB00270", "ABB01050"]
+# ABB00270 直下: 総合譲渡・一時、合計
+for _code in ("ABB00400", "ABB00410"):
+    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00270"]
+
+# 所得控除 (ABB00420) — XSD に準拠
 for _code in P1_DEDUCTION_GROUP_CODES:
-    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00420"]
+    if _code == "ABB00548":
+        # ABB00542: 特定親族特別控除グループ
+        P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00420", "ABB00542"]
+    else:
+        P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00420"]
+
+# 税金の計算 (ABB00570) — XSD に準拠
 for _code in P1_TAX_CALC_GROUP_CODES:
-    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00570"]
-for _code in P1_OTHER_DIRECT_CODES:
-    P1_FIELD_GROUPS[_code] = ["ABB00000"]
+    if _code in ("ABB00750", "ABB00760"):
+        # ABB00740: 第3期分の税額グループ
+        P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00570", "ABB00740"]
+    elif _code == "ABB00740":
+        # ABB00740 自体はグループ要素（値ノードではない）なのでスキップ
+        continue
+    else:
+        P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00570"]
+
+# その他 (ABB00770) — XSD に準拠
+# ABB00775〜ABB00830 は ABB00770（その他）グループの下
+for _code in ("ABB00775", "ABB00780", "ABB00790", "ABB00800", "ABB00810", "ABB00830"):
+    P1_FIELD_GROUPS[_code] = ["ABB00000", "ABB00770"]
+# ABB00950 は ABB00940（還付金受取場所）グループの下
+P1_FIELD_GROUPS["ABB00950"] = ["ABB00000", "ABB00940"]
+
+# 第一表 見出し部 IDREF のグループパスも P1_FIELD_GROUPS に統合
+# XSD: KOA020-1 > ABA00000 > ABA00010/20/30/40
+#                           > ABA00050 > ABA00060 > ABA00080/90
+#                                      > ABA00125〜ABA00220
+P1_FIELD_GROUPS.update(P1_HEADER_IDREF_GROUPS)
 
 # --- KOA020-2: 第二表 ---
 # ABD00000 > ABD00010(繰り返し) + ABD00070
 P2_FIELD_GROUPS: dict[str, list[str]] = {
     "ABD00070": ["ABD00000"],
+    # 繰り返しグループの親パス
+    "ABD00010": ["ABD00000"],  # 所得の内訳 繰り返し
+    "ABH00120": [
+        "ABH00000",
+        "ABH00110",
+    ],  # 社会保険料等の明細 繰り返し（XSD: ABH00000>ABH00110>ABH00120）
 }
 # ABD00010 繰り返しグループは ABD00000 の下
 P2_REPEATING_PARENT = "ABD00000"
 
-# --- KOA020-3: 第三表 ---
-# ABL コードはすべてフラット（グループ分け不要）
+# 第二表 見出し部 IDREF のグループパスも P2_FIELD_GROUPS に統合
+# XSD: KOA020-2 > ABC00000 > ABC00010 + ABC00020 > ABC00040/60/70
+P2_FIELD_GROUPS.update(P2_HEADER_IDREF_GROUPS)
 
 # --- KOA210: 青色申告決算書 PL ---
-# AMF00000 > AMF00100(売上), AMF00180(経費グループ), AMF00510(青色控除), AMF00530(所得)
+# XSD 準拠: AMF00000 > AMF00010 > AMF00090 > 各フィールド
+# AMF00090(金額) の下に売上・原価・経費・控除・所得が並ぶ
 PL_EXPENSE_GROUP_CODES = frozenset(
     {
         "AMF00190",
@@ -676,32 +680,66 @@ PL_EXPENSE_GROUP_CODES = frozenset(
     }
 )
 
+# 売上原価（AMF00110 グループの子要素）
+PL_COGS_GROUP_CODES = frozenset(
+    {
+        "AMF00120",  # 期首商品棚卸高
+        "AMF00130",  # 仕入金額
+        "AMF00140",  # 小計
+        "AMF00150",  # 期末商品棚卸高
+        "AMF00160",  # 差引原価
+    }
+)
+
+# AMF00090 直下のフィールド（売上、差引金額、青色控除前所得、青色控除額、所得金額）
+_PL_AMF90_PATH = ["AMF00000", "AMF00010", "AMF00090"]
+
 PL_FIELD_GROUPS: dict[str, list[str]] = {
-    "AMF00100": ["AMF00000"],  # 売上
-    "AMF00510": ["AMF00000"],  # 青色申告特別控除額
-    "AMF00530": ["AMF00000"],  # 所得金額
+    "AMF00100": _PL_AMF90_PATH,  # 売上（収入）金額
+    "AMF00170": _PL_AMF90_PATH,  # 差引金額（売上−原価）
+    "AMF00390": _PL_AMF90_PATH,  # 差引金額（粗利−経費）
+    "AMF00460": [*_PL_AMF90_PATH, "AMF00400", "AMF00450"],  # 専従者給与
+    "AMF00500": _PL_AMF90_PATH,  # 青色申告特別控除前の所得金額(上段)
+    "AMF00505": _PL_AMF90_PATH,  # 青色申告特別控除前の所得金額(下段)
+    "AMF00510": _PL_AMF90_PATH,  # 青色申告特別控除額
+    "AMF00530": _PL_AMF90_PATH,  # 所得金額
 }
+# 売上原価
+for _code in PL_COGS_GROUP_CODES:
+    PL_FIELD_GROUPS[_code] = [*_PL_AMF90_PATH, "AMF00110"]
+# 経費
 for _code in PL_EXPENSE_GROUP_CODES:
-    PL_FIELD_GROUPS[_code] = ["AMF00000", "AMF00180"]
+    PL_FIELD_GROUPS[_code] = [*_PL_AMF90_PATH, "AMF00180"]
 
 # --- SHA010: 消費税 ---
-# AAJ00000 > AAJ フィールド, AAK00000 > AAK フィールド
-CT_AAJ_CODES = frozenset(
+# XSD 準拠: AAJ00000 > フィールド + AAJ00040(控除税額) + AAJ00170(課税売上割合)
+# AAJ00000 直下
+CT_AAJ_DIRECT_CODES = frozenset(
     {
-        "AAJ00010",
-        "AAJ00020",
-        "AAJ00030",
-        "AAJ00050",
-        "AAJ00060",
-        "AAJ00070",
-        "AAJ00080",
-        "AAJ00090",
-        "AAJ00100",
-        "AAJ00110",
-        "AAJ00120",
-        "AAJ00130",
-        "AAJ00180",
-        "AAJ00190",
+        "AAJ00010",  # 課税標準額
+        "AAJ00020",  # 消費税額
+        "AAJ00030",  # 控除過大調整税額
+        "AAJ00090",  # 控除不足還付税額
+        "AAJ00100",  # 差引税額
+        "AAJ00110",  # 中間納付税額
+        "AAJ00120",  # 納付税額
+        "AAJ00130",  # 中間納付還付税額
+    }
+)
+# AAJ00040: 控除税額グループ
+CT_AAJ_DEDUCTION_CODES = frozenset(
+    {
+        "AAJ00050",  # 控除対象仕入税額
+        "AAJ00060",  # 返還等対価に係る税額
+        "AAJ00070",  # 貸倒れに係る税額
+        "AAJ00080",  # 控除税額小計
+    }
+)
+# AAJ00170: 課税売上割合グループ
+CT_AAJ_RATIO_CODES = frozenset(
+    {
+        "AAJ00180",  # 課税資産の譲渡等の対価の額
+        "AAJ00190",  # 資産の譲渡等の対価の額
     }
 )
 CT_AAK_CODES = frozenset(
@@ -715,10 +753,257 @@ CT_AAK_CODES = frozenset(
 )
 
 CT_FIELD_GROUPS: dict[str, list[str]] = {}
-for _code in CT_AAJ_CODES:
+for _code in CT_AAJ_DIRECT_CODES:
     CT_FIELD_GROUPS[_code] = ["AAJ00000"]
+for _code in CT_AAJ_DEDUCTION_CODES:
+    CT_FIELD_GROUPS[_code] = ["AAJ00000", "AAJ00040"]
+for _code in CT_AAJ_RATIO_CODES:
+    CT_FIELD_GROUPS[_code] = ["AAJ00000", "AAJ00170"]
 for _code in CT_AAK_CODES:
     CT_FIELD_GROUPS[_code] = ["AAK00000"]
+
+# ============================================================
+# KOB060: 所得の内訳書 ネスト構造
+# ============================================================
+# KOB060 > BFA00000(納税者等部) + BFB00000(年分) + BFC00000(繰り返し)
+# BFA00000 は IDREF のみ → idrefs で処理
+# BFC00000 は繰り返しグループ → repeating_groups で処理
+# BFC00030(支払者) > BFC00050(名称), BFC00055(住所・法人番号), BFC00060(電話)
+# BFC00090(源泉徴収税額欄) > BFC00100(源泉徴収税額), BFC00110(内書き)
+
+KOB060_FIELD_GROUPS: dict[str, list[str]] = {
+    # BFA00000 納税者等部（IDREF を BFA00000 の中に配置）
+    "BFA00010": ["BFA00000"],  # 住所 IDREF
+    "BFA00020": ["BFA00000"],  # 氏名 IDREF
+    # BFB00000 は KOB060 直下（グループ定義なし）
+    # BFC00000 は繰り返しグループとして処理される
+    # BFC00030 内の子要素のグループパス
+    "BFC00050": ["BFC00030"],  # 支払者の氏名・名称
+    "BFC00055": ["BFC00030"],  # 支払者の住所・法人番号
+    "BFC00060": ["BFC00030"],  # 電話番号
+    # BFC00090 内の子要素のグループパス
+    "BFC00100": ["BFC00090"],  # 源泉徴収税額
+    "BFC00110": ["BFC00090"],  # 源泉徴収税額（内書き）
+}
+
+# ============================================================
+# KOB130: 住宅借入金等特別控除 ネスト構造
+# ============================================================
+# KOB130 > KOB130-1(一面) > 深い階層構造
+# HAB00000(住所・氏名) > HAB00010(住所) > HAB00020/30/40 + HAB00050 + HAB00060
+# HAD00000(家屋等) > HAD00010(家屋) > HAD00020/30/40/50 + HAD00060(土地) > HAD00070/80/90/100
+# HAE30000(不動産番号) > HAE30010/20
+# HAE20000(消費税) > HAE20010(税率区分) > HAE20013/16/19 + HAE20020
+# HAF00000(取得対価) > HAF00010(家屋) > HAF00020(持分) > HAF00030/40 + HAF00043/47/50
+#                    + HAF00060(土地) > HAF00070(持分) > HAF00080/90 + HAF00093/97/100
+#                    + HAF00110(合計) > HAF00113/117/120
+#                    + HAF00130(増改築) > HAF00140(持分) > HAF00150/160 + HAF00163/167/170
+# HAG00000(年末残高) > HAG00005 + HAG00010(住宅のみ) > HAG00020/30/40/50/60/70
+#                    + HAG00080(土地のみ) > HAG00090/100/110/120/130/140
+#                    + HAG00150(住宅+土地) > HAG00160/170/180/190/200/210
+#                    + HAG00220(増改築) > HAG00230/250/270/290/310/330
+#                    + HAG00355
+# HAM00000(控除額) > HAM00015/020/042/044/046/048/050
+
+KOB130_P1_FIELD_GROUPS: dict[str, list[str]] = {
+    # HAB00000 住所・氏名
+    "HAB00020": ["HAB00000", "HAB00010"],  # 郵便番号 IDREF
+    "HAB00030": ["HAB00000", "HAB00010"],  # 住所 IDREF
+    "HAB00040": ["HAB00000", "HAB00010"],  # 電話番号 IDREF
+    "HAB00050": ["HAB00000"],  # フリガナ IDREF
+    "HAB00060": ["HAB00000"],  # 氏名 IDREF
+    # HAD00000 家屋等に係る事項
+    "HAD00020": ["HAD00000", "HAD00010"],  # 居住開始年月日
+    "HAD00110": ["HAD00000", "HAD00010"],  # 契約日契約区分（グループ）
+    "HAD00115": ["HAD00000", "HAD00010", "HAD00110"],  # 契約区分
+    "HAD00130": ["HAD00000", "HAD00010", "HAD00110"],  # 契約日
+    "HAD00023": ["HAD00000", "HAD00010"],  # 補助金等控除前の取得対価
+    "HAD00027": ["HAD00000", "HAD00010"],  # 補助金等の額
+    "HAD00030": ["HAD00000", "HAD00010"],  # 取得対価の額
+    "HAD00040": ["HAD00000", "HAD00010"],  # 総面積
+    "HAD00050": ["HAD00000", "HAD00010"],  # 居住用部分面積
+    # 土地等に関する事項
+    "HAD00070": ["HAD00000", "HAD00060"],  # 居住開始年月日
+    "HAD00073": ["HAD00000", "HAD00060"],  # 補助金等控除前
+    "HAD00077": ["HAD00000", "HAD00060"],  # 補助金等の額
+    "HAD00080": ["HAD00000", "HAD00060"],  # 取得対価の額
+    "HAD00090": ["HAD00000", "HAD00060"],  # 総面積
+    "HAD00100": ["HAD00000", "HAD00060"],  # 居住用部分面積
+    # HAE30000 不動産番号
+    "HAE30010": ["HAE30000"],  # 家屋
+    "HAE30020": ["HAE30000"],  # 土地
+    # HAE20000 消費税
+    "HAE20013": ["HAE20000", "HAE20010"],  # なし又は5%
+    "HAE20016": ["HAE20000", "HAE20010"],  # 8%
+    "HAE20019": ["HAE20000", "HAE20010"],  # 10%
+    "HAE20020": ["HAE20000"],  # 消費税額合計
+    # HAF00000 取得対価の額
+    # (A) 家屋
+    "HAF00030": ["HAF00000", "HAF00010", "HAF00020"],  # 共有持分 分子
+    "HAF00040": ["HAF00000", "HAF00010", "HAF00020"],  # 共有持分 分母
+    "HAF00043": ["HAF00000", "HAF00010"],  # 取得対価*持分
+    "HAF00047": ["HAF00000", "HAF00010"],  # 贈与特例
+    "HAF00050": ["HAF00000", "HAF00010"],  # あなたの取得対価
+    # (B) 土地等
+    "HAF00080": ["HAF00000", "HAF00060", "HAF00070"],  # 共有持分 分子
+    "HAF00090": ["HAF00000", "HAF00060", "HAF00070"],  # 共有持分 分母
+    "HAF00093": ["HAF00000", "HAF00060"],  # 取得対価*持分
+    "HAF00097": ["HAF00000", "HAF00060"],  # 贈与特例
+    "HAF00100": ["HAF00000", "HAF00060"],  # あなたの取得対価
+    # (C) 合計
+    "HAF00113": ["HAF00000", "HAF00110"],  # 取得対価*持分
+    "HAF00117": ["HAF00000", "HAF00110"],  # 贈与特例
+    "HAF00120": ["HAF00000", "HAF00110"],  # あなたの取得対価
+    # (D) 増改築等
+    "HAF00150": ["HAF00000", "HAF00130", "HAF00140"],  # 共有持分 分子
+    "HAF00160": ["HAF00000", "HAF00130", "HAF00140"],  # 共有持分 分母
+    "HAF00163": ["HAF00000", "HAF00130"],  # 取得対価*持分
+    "HAF00167": ["HAF00000", "HAF00130"],  # 贈与特例
+    "HAF00170": ["HAF00000", "HAF00130"],  # あなたの取得対価
+    # HAG00000 住宅借入金等の年末残高
+    "HAG00005": ["HAG00000"],  # 区分
+    # (E) 住宅のみ
+    "HAG00020": ["HAG00000", "HAG00010"],  # 年末残高
+    "HAG00030": ["HAG00000", "HAG00010"],  # 連帯債務割合
+    "HAG00040": ["HAG00000", "HAG00010"],  # 年末残高（負担後）
+    "HAG00050": ["HAG00000", "HAG00010"],  # min(取得対価, 年末残高)
+    "HAG00060": ["HAG00000", "HAG00010"],  # 居住用割合
+    "HAG00070": ["HAG00000", "HAG00010"],  # 居住用部分の年末残高
+    # (F) 土地等のみ
+    "HAG00090": ["HAG00000", "HAG00080"],
+    "HAG00100": ["HAG00000", "HAG00080"],
+    "HAG00110": ["HAG00000", "HAG00080"],
+    "HAG00120": ["HAG00000", "HAG00080"],
+    "HAG00130": ["HAG00000", "HAG00080"],
+    "HAG00140": ["HAG00000", "HAG00080"],
+    # (G) 住宅及び土地等
+    "HAG00160": ["HAG00000", "HAG00150"],
+    "HAG00170": ["HAG00000", "HAG00150"],
+    "HAG00180": ["HAG00000", "HAG00150"],
+    "HAG00190": ["HAG00000", "HAG00150"],
+    "HAG00200": ["HAG00000", "HAG00150"],
+    "HAG00210": ["HAG00000", "HAG00150"],
+    # (H) 増改築等
+    "HAG00230": ["HAG00000", "HAG00220"],
+    "HAG00250": ["HAG00000", "HAG00220"],
+    "HAG00270": ["HAG00000", "HAG00220"],
+    "HAG00290": ["HAG00000", "HAG00220"],
+    "HAG00310": ["HAG00000", "HAG00220"],
+    "HAG00330": ["HAG00000", "HAG00220"],
+    # 合計額
+    "HAG00355": ["HAG00000"],
+    # HAM00000 控除額
+    "HAM00015": ["HAM00000"],  # 番号
+    "HAM00020": ["HAM00000"],  # 控除額
+    "HAM00042": ["HAM00000"],  # 8%・10%同一年中取得
+    "HAM00044": ["HAM00000"],  # 家屋・増改築等
+    "HAM00046": ["HAM00000"],  # (ウ)又は(ソ)の金額
+    "HAM00048": ["HAM00000"],  # (A)(4)又は(D)(4)
+    "HAM00050": ["HAM00000"],  # 重複適用
+    # HAA60000, HAA70000 は KOB130-1 直下
+}
+
+# ============================================================
+# 所得の内訳書 (KOB060) BFA/BFC コード
+# ============================================================
+
+INCOME_BREAKDOWN_CODES: dict[str, str] = {
+    # BFA00000 納税者等部（IDREF）
+    "address_ref": "BFA00010",  # 住所 IDREF
+    "name_ref": "BFA00020",  # 氏名 IDREF
+    # BFB00000 年分（IDREF）
+    "fiscal_year_ref": "BFB00000",  # 年分 IDREF
+    # BFC00000 繰り返し
+    "income_type": "BFC00010",  # 所得の種類
+    "category": "BFC00020",  # 種目
+    "payer_name": "BFC00050",  # 支払者の氏名・名称
+    "payer_address": "BFC00055",  # 支払者の住所・法人番号
+    "payer_phone": "BFC00060",  # 電話番号
+    "asset_quantity": "BFC00075",  # 資産の数量
+    "revenue": "BFC00080",  # 収入金額
+    "withheld_tax": "BFC00100",  # 源泉徴収税額
+    "withheld_tax_inner": "BFC00110",  # 源泉徴収税額（内書き）
+    "payment_date": "BFC00120",  # 支払確定年月
+}
+
+# KOB060 IDREF 参照マッピング
+KOB060_HEADER_IDREFS: dict[str, str] = {
+    "BFA00010": "NOZEISHA_ADR",
+    "BFA00020": "NOZEISHA_NM",
+    "BFB00000": "NENBUN",
+}
+
+# KOB130 IDREF 参照マッピング
+KOB130_HEADER_IDREFS: dict[str, str] = {
+    "HAA00000": "NENBUN",
+    "HAB00020": "NOZEISHA_ZIP",
+    "HAB00030": "NOZEISHA_ADR",
+    "HAB00040": "NOZEISHA_TEL",
+    "HAB00050": "NOZEISHA_NM_KN",
+    "HAB00060": "NOZEISHA_NM",
+}
+
+# ============================================================
+# XSD sequence 順序オーバーライド
+# ============================================================
+# ABBコードの昇順と XSD の xsd:sequence 順序が一致しない場合のオーバーライド。
+# キー: 親グループ要素のパス末尾、値: コードのリスト（XSD 定義順）。
+# ABB00570 グループは ABB01010-01040 が ABB00680 と ABB00710 の間に挿入される。
+XSD_SEQUENCE_ORDER: dict[str, list[str]] = {
+    # KOA020-1 ABB00570 グループ: ABB01010-01040 が ABB00680 と ABB00710 の間
+    "ABB00570": [
+        "ABB00580",
+        "ABB00590",
+        "ABB00600",
+        "ABB00610",
+        "ABB00620",
+        "ABB00630",
+        "ABB00640",
+        "ABB00645",
+        "ABB00647",
+        "ABB00650",
+        "ABB00660",
+        "ABB00960",
+        "ABB01000",
+        "ABB00663",
+        "ABB00670",
+        "ABB00676",
+        "ABB00680",
+        "ABB01010",
+        "ABB01020",
+        "ABB01030",
+        "ABB01040",
+        "ABB00710",
+        "ABB00720",
+        "ABB00730",
+        "ABB00740",
+        "ABB00750",
+        "ABB00760",
+        "ABB00763",
+        "ABB00765",
+        "ABB00767",
+        "ABB00770",
+    ],
+}
+
+# トップレベルグループの XSD 順序（グループパスの先頭要素でソートする際に使用）
+# field_code のグループパス先頭要素を XSD 定義順に並べる
+XSD_TOPLEVEL_ORDER: dict[str, list[str]] = {
+    # KOB130-1: HAE30000(不動産番号) は HAE20000(消費税率) の前
+    "KOB130-1": [
+        "HAA00000",
+        "HAB00000",
+        "HAC00000",
+        "HAD00000",
+        "HAE00000",
+        "HAE30000",
+        "HAE20000",
+        "HAF00000",
+        "HAG00000",
+        "HAL00000",
+        "HAM00000",
+    ],
+}
 
 # フォームコード → (サブセクション名, フィールドグループマッピング) の辞書
 # ビルダーがフォーム追加時にネスト構造を自動適用するために使用
@@ -726,6 +1011,12 @@ FORM_NESTING: dict[str, tuple[str | None, dict[str, list[str]]]] = {
     # KOA020 は呼び出し元が KOA020-1/KOA020-2 を指定して add_form する想定
     "KOA020-1": ("KOA020-1", P1_FIELD_GROUPS),
     "KOA020-2": ("KOA020-2", P2_FIELD_GROUPS),
-    "KOA210": (None, PL_FIELD_GROUPS),
+    # KOA210 は KOA210-1(PL一面), KOA210-4(BS) をサブセクションとして持つ
+    "KOA210": ("KOA210-1", PL_FIELD_GROUPS),
+    "KOA210-4": ("KOA210-4", BS_FIELD_GROUPS),
     "SHA010": (None, CT_FIELD_GROUPS),
+    # KOB060: 所得の内訳書（フラット + 繰り返しグループ）
+    "KOB060": (None, KOB060_FIELD_GROUPS),
+    # KOB130: 住宅借入金等特別控除（一面: 深い階層構造）
+    "KOB130-1": ("KOB130-1", KOB130_P1_FIELD_GROUPS),
 }

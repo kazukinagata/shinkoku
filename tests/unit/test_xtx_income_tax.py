@@ -14,7 +14,6 @@ from shinkoku.models import (
     IncomeTaxResult,
     PLItem,
     PLResult,
-    SeparateTaxResult,
 )
 from shinkoku.xtx.field_codes import NS_SHOTOKU
 from shinkoku.xtx.generator import XtxBuilder
@@ -25,9 +24,6 @@ from shinkoku.xtx.income_tax import (
 from shinkoku.xtx.blue_return import (
     build_pl_fields,
     build_bs_fields,
-)
-from shinkoku.xtx.schedules import (
-    build_schedule3_fields,
 )
 
 # ET.fromstring() で名前空間付きタグを検索するためのヘルパー
@@ -135,32 +131,6 @@ def sample_bs() -> BSResult:
         total_assets=3_700_000,
         total_liabilities=300_000,
         total_equity=3_400_000,
-    )
-
-
-@pytest.fixture()
-def sample_separate_tax() -> SeparateTaxResult:
-    return SeparateTaxResult(
-        fiscal_year=2025,
-        stock_net_gain=1_000_000,
-        stock_dividend_offset=0,
-        stock_taxable_income=1_000_000,
-        stock_loss_carryforward_used=0,
-        stock_income_tax=150_000,
-        stock_residential_tax=50_000,
-        stock_reconstruction_tax=3_150,
-        stock_total_tax=203_150,
-        stock_withheld_total=200_000,
-        stock_tax_due=3_150,
-        fx_net_income=500_000,
-        fx_taxable_income=500_000,
-        fx_loss_carryforward_used=0,
-        fx_income_tax=75_000,
-        fx_residential_tax=25_000,
-        fx_reconstruction_tax=1_575,
-        fx_total_tax=101_575,
-        fx_tax_due=101_575,
-        total_separate_tax=304_725,
     )
 
 
@@ -428,37 +398,6 @@ class TestBuildBSFields:
 
 
 # ============================================================
-# 第三表 xtx フィールド生成テスト
-# ============================================================
-
-
-class TestBuildSchedule3Fields:
-    """build_schedule3_fields() テスト。"""
-
-    def test_returns_dict(self, sample_separate_tax: SeparateTaxResult) -> None:
-        fields = build_schedule3_fields(sample_separate_tax)
-        assert isinstance(fields, dict)
-
-    def test_has_stock_income(self, sample_separate_tax: SeparateTaxResult) -> None:
-        fields = build_schedule3_fields(sample_separate_tax)
-        # 上場株式等の譲渡所得
-        assert fields.get("ABL00310") == 1_000_000
-
-    def test_has_futures_income(self, sample_separate_tax: SeparateTaxResult) -> None:
-        fields = build_schedule3_fields(sample_separate_tax)
-        # 先物取引
-        assert fields.get("ABL00330") == 500_000
-
-    def test_has_stock_tax(self, sample_separate_tax: SeparateTaxResult) -> None:
-        fields = build_schedule3_fields(sample_separate_tax)
-        assert fields.get("ABL00500") == 1_000_000  # 課税所得 (72)(73)対応分
-
-    def test_has_futures_tax(self, sample_separate_tax: SeparateTaxResult) -> None:
-        fields = build_schedule3_fields(sample_separate_tax)
-        assert fields.get("ABL00510") == 500_000  # 課税所得 (75)対応分
-
-
-# ============================================================
 # 統合テスト: xtx ファイル全体の生成
 # ============================================================
 
@@ -512,47 +451,18 @@ class TestFullXtxGeneration:
         assert koa020_1 is not None
         abb00000 = koa020_1.find("ns:ABB00000", _NS)
         assert abb00000 is not None
-        # 収入金額は ABB00010 グループの下
+        # 収入金額は ABB00010 グループの下（XSD 準拠の中間グループ含む）
         abb00010 = abb00000.find("ns:ABB00010", _NS)
         assert abb00010 is not None
-        assert abb00010.find("ns:ABB00030", _NS).text == "5000000"
+        # ABB00030(営業等)は ABB00020(事業)グループの下
+        abb00020 = abb00010.find("ns:ABB00020", _NS)
+        assert abb00020 is not None
+        assert abb00020.find("ns:ABB00030", _NS).text == "5000000"
+        # ABB00080(給与)は ABB00010 直下
         assert abb00010.find("ns:ABB00080", _NS).text == "8000000"
 
-        # 青色申告決算書: KOA210 > AMF00000 > AMF00100
+        # 青色申告決算書: KOA210 > KOA210-1 > AMF00000 > AMF00010 > AMF00090 > AMF00100
         koa210 = contents.find("ns:KOA210", _NS)
-        amf00000 = koa210.find("ns:AMF00000", _NS)
-        assert amf00000 is not None
-        assert amf00000.find("ns:AMF00100", _NS).text == "5000000"
-
-    def test_income_tax_with_schedule3(
-        self,
-        sample_income_tax_result: IncomeTaxResult,
-        sample_separate_tax: SeparateTaxResult,
-    ) -> None:
-        builder = XtxBuilder(tax_type="income", fiscal_year=2025)
-        builder.set_taxpayer_info(
-            name="山田太郎",
-            name_kana="ﾔﾏﾀﾞ ﾀﾛｳ",
-            address="東京都千代田区千代田1-1",
-            address_code="13101",
-            zip_code="1000001",
-            tax_office_code="01234",
-            tax_office_name="麹町",
-        )
-
-        # P1 と Schedule3 は同じ KOA020 にマージされる
-        p1_fields = build_income_tax_p1_fields(sample_income_tax_result)
-        builder.add_form("KOA020", "23.0", p1_fields, nesting_key="KOA020-1")
-
-        s3_fields = build_schedule3_fields(sample_separate_tax)
-        builder.add_form("KOA020", "23.0", s3_fields)
-
-        xml_str = builder.build()
-        root = ET.fromstring(xml_str)
-
-        # KOA020 は1つだけ生成される
-        koa020_list = root.findall(".//ns:KOA020", _NS)
-        assert len(koa020_list) == 1
-
-        # ABL コードも含まれる
-        assert _find_descendant(root, "ABL00310") is not None
+        amf00090 = koa210.find("ns:KOA210-1/ns:AMF00000/ns:AMF00010/ns:AMF00090", _NS)
+        assert amf00090 is not None
+        assert amf00090.find("ns:AMF00100", _NS).text == "5000000"

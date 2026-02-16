@@ -308,45 +308,6 @@ def test_calc_retirement_officer(tmp_path: Path) -> None:
 
 
 # ============================================================
-# calc-separate
-# ============================================================
-
-
-def test_calc_separate_stock(tmp_path: Path) -> None:
-    input_file = _write_input(
-        tmp_path,
-        {
-            "fiscal_year": 2025,
-            "stock_gains": 1_000_000,
-            "stock_losses": 200_000,
-        },
-    )
-    result = _run(SCRIPT, "calc-separate", "--input", str(input_file))
-    assert result.returncode == 0, result.stderr
-    output = json.loads(result.stdout)
-    assert output["stock_net_gain"] == 800_000
-    assert output["stock_taxable_income"] == 800_000
-    assert output["stock_income_tax"] > 0
-
-
-def test_calc_separate_fx(tmp_path: Path) -> None:
-    input_file = _write_input(
-        tmp_path,
-        {
-            "fiscal_year": 2025,
-            "fx_gains": 500_000,
-            "fx_expenses": 50_000,
-        },
-    )
-    result = _run(SCRIPT, "calc-separate", "--input", str(input_file))
-    assert result.returncode == 0, result.stderr
-    output = json.loads(result.stdout)
-    assert output["fx_net_income"] == 450_000
-    assert output["fx_taxable_income"] == 450_000
-    assert output["fx_income_tax"] > 0
-
-
-# ============================================================
 # Error handling
 # ============================================================
 
