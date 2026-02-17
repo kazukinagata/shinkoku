@@ -126,6 +126,10 @@ uv run python skills/journal/scripts/import_data.py receipt \
 
 **重要: 画像の読み取りは receipt-reader サブエージェントに委任する。** メインコンテキストで直接 Read ツールによる画像読み取りを行わないこと（Vision トークンでコンテキストが圧迫されるため）。
 
+> **⚠ MANDATORY**: 画像ファイルをメインコンテキストで直接 Read してはならない。
+> 必ず以下のデュアルエージェント OCR 検証手順に従うこと。
+> 違反すると OCR 精度が低下し、フィールド誤読の原因となる。
+
 #### 単一レシートの場合
 
 1. `receipt` コマンドでファイルの存在を確認する
@@ -134,11 +138,11 @@ uv run python skills/journal/scripts/import_data.py receipt \
    2つのサブエージェントを並列で起動し（1メッセージで2つの Task を送信）、結果を照合する:
    ```
    Task(
-     subagent_type="receipt-reader",
+     subagent_type="shinkoku:receipt-reader",
      prompt="【読み取り A】以下のレシート画像を読み取り、構造化データを返してください: {ファイルパス}"
    )
    Task(
-     subagent_type="receipt-reader",
+     subagent_type="shinkoku:receipt-reader",
      prompt="【読み取り B】以下のレシート画像を読み取り、構造化データを返してください: {ファイルパス}"
    )
    ```
@@ -166,11 +170,11 @@ uv run python skills/journal/scripts/import_data.py receipt \
    2つのサブエージェントを並列で起動し（1メッセージで2つの Task を送信）、全ファイルをそれぞれに渡す:
    ```
    Task(
-     subagent_type="receipt-reader",
+     subagent_type="shinkoku:receipt-reader",
      prompt="【読み取り A】以下のレシート画像をすべて読み取り、各ファイルの構造化データを返してください:\n- {パス1}\n- {パス2}\n- ..."
    )
    Task(
-     subagent_type="receipt-reader",
+     subagent_type="shinkoku:receipt-reader",
      prompt="【読み取り B】以下のレシート画像をすべて読み取り、各ファイルの構造化データを返してください:\n- {パス1}\n- {パス2}\n- ..."
    )
    ```
@@ -207,16 +211,20 @@ uv run python skills/journal/scripts/import_data.py invoice \
 
 #### 画像ファイルの場合: デュアルエージェント OCR 検証
 
+> **⚠ MANDATORY**: 画像ファイルをメインコンテキストで直接 Read してはならない。
+> 必ず以下のデュアルエージェント OCR 検証手順に従うこと。
+> 違反すると OCR 精度が低下し、フィールド誤読の原因となる。
+
 `extracted_text` が空の場合（画像ファイルまたはスキャン PDF）、2つのサブエージェントに並列で読み取りを委任し、結果を照合する。
 
 1. **2つのサブエージェントを並列で起動する（1メッセージで2つの Task を送信）:**
    ```
    Task(
-     subagent_type="invoice-reader",
+     subagent_type="shinkoku:invoice-reader",
      prompt="【読み取り A】以下の請求書を読み取り、構造化データを返してください: {ファイルパス}"
    )
    Task(
-     subagent_type="invoice-reader",
+     subagent_type="shinkoku:invoice-reader",
      prompt="【読み取り B】以下の請求書を読み取り、構造化データを返してください: {ファイルパス}"
    )
    ```

@@ -109,16 +109,20 @@ python skills/journal/scripts/import_data.py import-withholding --input withhold
 
 #### 画像ファイルの場合: デュアルエージェント OCR 検証
 
+> **⚠ MANDATORY**: 画像ファイルをメインコンテキストで直接 Read してはならない。
+> 必ず以下のデュアルエージェント OCR 検証手順に従うこと。
+> 違反すると OCR 精度が低下し、フィールド誤読の原因となる。
+
 `extracted_text` が空の場合（画像ファイルまたはスキャン PDF）、2つのサブエージェントに並列で読み取りを委任し、結果を照合する。
 
 1. **2つのサブエージェントを並列で起動する（1メッセージで2つの Task を送信）:**
    ```
    Task(
-     subagent_type="withholding-reader",
+     subagent_type="shinkoku:withholding-reader",
      prompt="【読み取り A】以下の源泉徴収票を読み取り、構造化データを返してください: {ファイルパス}"
    )
    Task(
-     subagent_type="withholding-reader",
+     subagent_type="shinkoku:withholding-reader",
      prompt="【読み取り B】以下の源泉徴収票を読み取り、構造化データを返してください: {ファイルパス}"
    )
    ```
@@ -197,16 +201,20 @@ python skills/journal/scripts/import_data.py import-withholding --input withhold
 
 #### 画像ファイルの場合: デュアルエージェント OCR 検証
 
+> **⚠ MANDATORY**: 画像ファイルをメインコンテキストで直接 Read してはならない。
+> 必ず以下のデュアルエージェント OCR 検証手順に従うこと。
+> 違反すると OCR 精度が低下し、フィールド誤読の原因となる。
+
 `extracted_text` が空の場合（画像ファイルまたはスキャン PDF）、2つのサブエージェントに並列で読み取りを委任し、結果を照合する。
 
 1. **2つのサブエージェントを並列で起動する（1メッセージで2つの Task を送信）:**
    ```
    Task(
-     subagent_type="deduction-cert-reader",
+     subagent_type="shinkoku:deduction-cert-reader",
      prompt="【読み取り A】以下の控除証明書を読み取り、構造化データを返してください: {ファイルパス}"
    )
    Task(
-     subagent_type="deduction-cert-reader",
+     subagent_type="shinkoku:deduction-cert-reader",
      prompt="【読み取り B】以下の控除証明書を読み取り、構造化データを返してください: {ファイルパス}"
    )
    ```
@@ -252,16 +260,20 @@ python skills/journal/scripts/import_data.py import-withholding --input withhold
 
 #### 画像ファイルの場合: デュアルエージェント OCR 検証
 
+> **⚠ MANDATORY**: 画像ファイルをメインコンテキストで直接 Read してはならない。
+> 必ず以下のデュアルエージェント OCR 検証手順に従うこと。
+> 違反すると OCR 精度が低下し、フィールド誤読の原因となる。
+
 `extracted_text` が空の場合（画像ファイルまたはスキャン PDF）、2つのサブエージェントに並列で読み取りを委任し、結果を照合する。
 
 1. **2つのサブエージェントを並列で起動する（1メッセージで2つの Task を送信）:**
    ```
    Task(
-     subagent_type="payment-statement-reader",
+     subagent_type="shinkoku:payment-statement-reader",
      prompt="【読み取り A】以下の支払調書を読み取り、構造化データを返してください: {ファイルパス}"
    )
    Task(
-     subagent_type="payment-statement-reader",
+     subagent_type="shinkoku:payment-statement-reader",
      prompt="【読み取り B】以下の支払調書を読み取り、構造化データを返してください: {ファイルパス}"
    )
    ```

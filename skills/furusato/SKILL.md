@@ -41,6 +41,10 @@ description: >
 
 **重要: 画像の読み取りは receipt-reader サブエージェントに委任する。** メインコンテキストで直接 Read ツールによる画像読み取りを行わないこと（Vision トークンでコンテキストが圧迫されるため）。
 
+> **⚠ MANDATORY**: 画像ファイルをメインコンテキストで直接 Read してはならない。
+> 必ず以下のデュアルエージェント OCR 検証手順に従うこと。
+> 違反すると OCR 精度が低下し、フィールド誤読の原因となる。
+
 #### 単一の受領証明書の場合
 
 **デュアルエージェント OCR 検証で画像を読み取る:**
@@ -48,11 +52,11 @@ description: >
 2つのサブエージェントを並列で起動し（1メッセージで2つの Task を送信）、結果を照合する:
 ```
 Task(
-  subagent_type="receipt-reader",
+  subagent_type="shinkoku:receipt-reader",
   prompt="【読み取り A】以下のふるさと納税受領証明書の画像を読み取り、構造化データを返してください: {ファイルパス}"
 )
 Task(
-  subagent_type="receipt-reader",
+  subagent_type="shinkoku:receipt-reader",
   prompt="【読み取り B】以下のふるさと納税受領証明書の画像を読み取り、構造化データを返してください: {ファイルパス}"
 )
 ```
@@ -82,11 +86,11 @@ Task(
    2つのサブエージェントを並列で起動し（1メッセージで2つの Task を送信）、全ファイルをそれぞれに渡す:
    ```
    Task(
-     subagent_type="receipt-reader",
+     subagent_type="shinkoku:receipt-reader",
      prompt="【読み取り A】以下のふるさと納税受領証明書の画像をすべて読み取り、各ファイルの構造化データを返してください:\n- {パス1}\n- {パス2}\n- ..."
    )
    Task(
-     subagent_type="receipt-reader",
+     subagent_type="shinkoku:receipt-reader",
      prompt="【読み取り B】以下のふるさと納税受領証明書の画像をすべて読み取り、各ファイルの構造化データを返してください:\n- {パス1}\n- {パス2}\n- ..."
    )
    ```
