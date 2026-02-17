@@ -21,9 +21,11 @@ from shinkoku.tools.tax_calc import (  # noqa: E402
     calc_furusato_deduction_limit,
     calc_pension_deduction,
     calc_retirement_income,
+    sanity_check_income_tax,
 )
 from shinkoku.models import (  # noqa: E402
     IncomeTaxInput,
+    IncomeTaxResult,
     ConsumptionTaxInput,
     PensionDeductionInput,
     RetirementIncomeInput,
@@ -196,6 +198,47 @@ def _handle_calc_retirement(args: argparse.Namespace) -> None:
     _output_json(result.model_dump())
 
 
+def _handle_sanity_check(args: argparse.Namespace) -> None:
+    """sanity-check: 所得税計算結果のサニティチェック。"""
+    params = _load_json(args.input)
+
+    if "input" not in params or "result" not in params:
+        _error_exit("JSON には 'input' と 'result' の両キーが必要です")
+
+    input_raw = params["input"]
+    result_raw = params["result"]
+
+    # ネストされた Pydantic モデルの構築（IncomeTaxInput）
+    if "life_insurance_detail" in input_raw and input_raw["life_insurance_detail"]:
+        input_raw["life_insurance_detail"] = LifeInsurancePremiumInput(
+            **input_raw["life_insurance_detail"]
+        )
+    else:
+        input_raw.pop("life_insurance_detail", None)
+
+    if "housing_loan_detail" in input_raw and input_raw["housing_loan_detail"]:
+        input_raw["housing_loan_detail"] = HousingLoanDetail(**input_raw["housing_loan_detail"])
+    else:
+        input_raw.pop("housing_loan_detail", None)
+
+    if "dependents" in input_raw and input_raw["dependents"]:
+        input_raw["dependents"] = [DependentInfo(**d) for d in input_raw["dependents"]]
+    else:
+        input_raw.pop("dependents", None)
+
+    if "small_business_mutual_aid" in input_raw and input_raw["small_business_mutual_aid"]:
+        input_raw["small_business_mutual_aid"] = SmallBusinessMutualAidInput(
+            **input_raw["small_business_mutual_aid"]
+        )
+    else:
+        input_raw.pop("small_business_mutual_aid", None)
+
+    input_data = IncomeTaxInput(**input_raw)
+    tax_result = IncomeTaxResult(**result_raw)
+    check_result = sanity_check_income_tax(input_data, tax_result)
+    _output_json(check_result.model_dump())
+
+
 # ============================================================
 # CLI setup
 # ============================================================
@@ -213,6 +256,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "calc-furusato-limit",
         "calc-pension",
         "calc-retirement",
+        "sanity-check",
     ]:
         p = sub.add_parser(name)
         p.add_argument("--input", required=True, help="入力 JSON ファイルパス")
@@ -228,6 +272,7 @@ _HANDLERS: dict[str, callable] = {
     "calc-furusato-limit": _handle_calc_furusato_limit,
     "calc-pension": _handle_calc_pension,
     "calc-retirement": _handle_calc_retirement,
+    "sanity-check": _handle_sanity_check,
 }
 
 

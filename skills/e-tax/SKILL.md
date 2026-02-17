@@ -74,6 +74,11 @@ xtx 生成に必要なデータが揃っているか検証する。
 
 [4] 消費税（該当者のみ）
     - .shinkoku/progress/08-consumption-tax.md が存在し、status: completed であること
+
+[5] サニティチェック
+    - xtx 生成前に `tax_calc.py sanity-check` を実行する
+    - error > 0 の場合: xtx 生成を中止し、`/income-tax` スキルで修正を促す
+    - warning > 0 の場合: ユーザーに確認してから続行する
 ```
 
 不足している場合は、対応するスキルの実行を案内する:

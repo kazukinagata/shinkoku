@@ -25,6 +25,8 @@ from shinkoku.models import (
     PensionDeductionResult,
     RetirementIncomeInput,
     RetirementIncomeResult,
+    TaxSanityCheckItem,
+    TaxSanityCheckResult,
 )
 from shinkoku.tax_constants import (
     BASIC_DEDUCTION_TABLE,
@@ -943,11 +945,20 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     salary_income_after = max(0, input_data.salary_income - salary_deduction)
 
     # Step 2: Business income（赤字の場合は負値 → 給与所得と損益通算）
-    business_income = (
-        input_data.business_revenue
-        - input_data.business_expenses
-        - input_data.blue_return_deduction
+    # 青色申告特別控除は事業所得（収入−経費）を上限とする（租特法25条の2）
+    warnings: list[str] = []
+    business_profit_before_deduction = input_data.business_revenue - input_data.business_expenses
+    effective_blue_deduction = min(
+        input_data.blue_return_deduction,
+        max(0, business_profit_before_deduction),
     )
+    if effective_blue_deduction < input_data.blue_return_deduction:
+        warnings.append(
+            f"青色申告特別控除を自動調整しました: "
+            f"{input_data.blue_return_deduction:,}円 → {effective_blue_deduction:,}円"
+            f"（事業利益 {business_profit_before_deduction:,}円が上限）"
+        )
+    business_income = business_profit_before_deduction - effective_blue_deduction
 
     # Step 3: Total income（損益通算後 + その他所得）
     total_income_raw = salary_income_after + business_income
@@ -1030,9 +1041,8 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         income_tax_after_credits * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR
     )
 
-    # Step 9: Total tax and filing amount (truncate to 100 yen)
-    total_tax_raw = income_tax_after_credits + reconstruction_tax
-    total_tax = (total_tax_raw // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+    # Step 9: 所得税及び復興特別所得税の額（㊺）— 端数処理なし
+    total_tax = income_tax_after_credits + reconstruction_tax
 
     # Step 10: Difference（給与源泉+事業源泉+その他源泉+予定納税を差し引く）
     total_withheld = (
@@ -1041,7 +1051,14 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         + input_data.other_income_withheld_tax
         + input_data.estimated_tax_payment
     )
-    tax_due = total_tax - total_withheld
+    tax_due_raw = total_tax - total_withheld
+
+    # 国税通則法 第119条: 納付すべき確定金額は100円未満切捨て
+    # 国税通則法 第120条: 還付金は1円単位（1円未満切捨て）
+    if tax_due_raw > 0:
+        tax_due = (tax_due_raw // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+    else:
+        tax_due = tax_due_raw
 
     # 個別の税額控除額を抽出
     _dividend_credit = 0
@@ -1057,6 +1074,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         salary_income_after_deduction=salary_income_after,
         business_income=business_income,
         total_income=total_income,
+        effective_blue_return_deduction=effective_blue_deduction,
         total_income_deductions=total_income_deductions,
         taxable_income=taxable_income,
         income_tax_base=income_tax_base,
@@ -1072,6 +1090,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         loss_carryforward_applied=loss_applied,
         tax_due=tax_due,
         deductions_detail=deductions,
+        warnings=warnings,
     )
 
 
@@ -1320,3 +1339,146 @@ def calc_retirement_income(input_data: RetirementIncomeInput) -> RetirementIncom
 
 
 # ============================================================
+# Sanity Check (申告前サニティチェック)
+# ============================================================
+
+
+def sanity_check_income_tax(
+    input_data: IncomeTaxInput,
+    result: IncomeTaxResult,
+) -> TaxSanityCheckResult:
+    """所得税計算結果のサニティチェック。
+
+    入力と出力の整合性を検証し、明らかな異常を検出する。
+    """
+    items: list[TaxSanityCheckItem] = []
+
+    business_profit = input_data.business_revenue - input_data.business_expenses
+
+    # 1. BLUE_DEDUCTION_ON_LOSS — 赤字なのに控除適用（Part A 修正後は防御的チェック）
+    if business_profit < 0 and result.effective_blue_return_deduction > 0:
+        items.append(
+            TaxSanityCheckItem(
+                severity="error",
+                code="BLUE_DEDUCTION_ON_LOSS",
+                message=f"事業が赤字（{business_profit:,}円）にもかかわらず"
+                f"青色申告特別控除{result.effective_blue_return_deduction:,}円が適用されています",
+            )
+        )
+
+    # 2. BLUE_DEDUCTION_EXCEEDS_PROFIT — 控除が利益超過
+    if business_profit > 0 and result.effective_blue_return_deduction > business_profit:
+        items.append(
+            TaxSanityCheckItem(
+                severity="error",
+                code="BLUE_DEDUCTION_EXCEEDS_PROFIT",
+                message=f"青色申告特別控除（{result.effective_blue_return_deduction:,}円）が"
+                f"事業利益（{business_profit:,}円）を超過しています",
+            )
+        )
+
+    # 3. LARGE_BUSINESS_LOSS — 事業損失が1,000万円超
+    if result.business_income < -10_000_000:
+        items.append(
+            TaxSanityCheckItem(
+                severity="warning",
+                code="LARGE_BUSINESS_LOSS",
+                message=f"事業損失が{result.business_income:,}円と大きい値です。入力を確認してください",
+            )
+        )
+
+    # 4. TAX_ON_ZERO_INCOME — 課税所得0なのに税額発生
+    if result.taxable_income == 0 and result.income_tax_base > 0:
+        items.append(
+            TaxSanityCheckItem(
+                severity="error",
+                code="TAX_ON_ZERO_INCOME",
+                message="課税所得が0円ですが算出税額が発生しています",
+            )
+        )
+
+    # 5. NEGATIVE_TOTAL_INCOME — 合計所得が負（損益通算後もマイナスの場合）
+    total_raw = result.salary_income_after_deduction + result.business_income
+    if total_raw < 0:
+        items.append(
+            TaxSanityCheckItem(
+                severity="info",
+                code="NEGATIVE_TOTAL_INCOME",
+                message=f"損益通算後の合計所得が負（{total_raw:,}円）です。"
+                "純損失の繰越控除の適用を検討してください",
+            )
+        )
+
+    # 6. TAXABLE_INCOME_ROUNDING — 1,000円未満切捨て漏れ
+    if result.taxable_income % TAXABLE_INCOME_ROUNDING != 0 and result.taxable_income > 0:
+        items.append(
+            TaxSanityCheckItem(
+                severity="error",
+                code="TAXABLE_INCOME_ROUNDING",
+                message=f"課税所得（{result.taxable_income:,}円）が1,000円単位になっていません",
+            )
+        )
+
+    # 7. RECONSTRUCTION_TAX_MISMATCH — 復興特別所得税の計算不一致
+    expected_reconstruction = int(
+        result.income_tax_after_credits * RECONSTRUCTION_TAX_RATE // RECONSTRUCTION_TAX_DENOMINATOR
+    )
+    if result.reconstruction_tax != expected_reconstruction:
+        items.append(
+            TaxSanityCheckItem(
+                severity="error",
+                code="RECONSTRUCTION_TAX_MISMATCH",
+                message=f"復興特別所得税の計算が不一致です"
+                f"（実際: {result.reconstruction_tax:,}円、"
+                f"期待: {expected_reconstruction:,}円）",
+            )
+        )
+
+    # 8. CREDITS_EXCEED_TAX — 税額控除が算出税額超過
+    if result.total_tax_credits > result.income_tax_base and result.income_tax_base > 0:
+        items.append(
+            TaxSanityCheckItem(
+                severity="warning",
+                code="CREDITS_EXCEED_TAX",
+                message=f"税額控除（{result.total_tax_credits:,}円）が"
+                f"算出税額（{result.income_tax_base:,}円）を超過しています",
+            )
+        )
+
+    # 9. NO_WITHHOLDING_ON_SALARY — 給与ありなのに源泉徴収0
+    if input_data.salary_income > 0 and input_data.withheld_tax == 0:
+        items.append(
+            TaxSanityCheckItem(
+                severity="warning",
+                code="NO_WITHHOLDING_ON_SALARY",
+                message=f"給与収入（{input_data.salary_income:,}円）がありますが"
+                "源泉徴収税額が0円です。源泉徴収票を確認してください",
+            )
+        )
+
+    # 10. REFUND_EXCEEDS_WITHHELD — 還付額が源泉徴収+予定納税の合計超過
+    total_prepaid = (
+        input_data.withheld_tax
+        + input_data.business_withheld_tax
+        + input_data.other_income_withheld_tax
+        + input_data.estimated_tax_payment
+    )
+    if result.tax_due < 0 and abs(result.tax_due) > total_prepaid:
+        items.append(
+            TaxSanityCheckItem(
+                severity="error",
+                code="REFUND_EXCEEDS_WITHHELD",
+                message=f"還付額（{abs(result.tax_due):,}円）が"
+                f"源泉徴収+予定納税の合計（{total_prepaid:,}円）を超過しています",
+            )
+        )
+
+    error_count = sum(1 for item in items if item.severity == "error")
+    warning_count = sum(1 for item in items if item.severity == "warning")
+
+    return TaxSanityCheckResult(
+        passed=error_count == 0,
+        items=items,
+        error_count=error_count,
+        warning_count=warning_count,
+    )

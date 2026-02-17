@@ -394,6 +394,8 @@ class IncomeTaxResult(BaseModel):
     salary_income_after_deduction: int = 0
     business_income: int = 0
     total_income: int = 0
+    # 青色申告特別控除（実効額）
+    effective_blue_return_deduction: int = 0
     # 所得控除
     total_income_deductions: int = 0
     taxable_income: int = 0
@@ -415,6 +417,8 @@ class IncomeTaxResult(BaseModel):
     )
     # 内訳
     deductions_detail: DeductionsResult | None = None
+    # 警告（自動調整等）
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ConsumptionTaxInput(BaseModel):
@@ -1047,3 +1051,23 @@ class RetirementIncomeResult(BaseModel):
     years_of_service: int
     is_officer: bool
     half_taxation_applied: bool  # 1/2課税が適用されたか
+
+
+# --- サニティチェック (sanity check) ---
+
+
+class TaxSanityCheckItem(BaseModel):
+    """サニティチェックの1項目。"""
+
+    severity: str = Field(pattern=r"^(error|warning|info)$")
+    code: str
+    message: str
+
+
+class TaxSanityCheckResult(BaseModel):
+    """サニティチェック結果。"""
+
+    passed: bool
+    items: list[TaxSanityCheckItem] = Field(default_factory=list)
+    error_count: int = 0
+    warning_count: int = 0

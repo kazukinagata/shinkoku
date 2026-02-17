@@ -227,7 +227,7 @@ def generate_income_tax_xtx(
         income_tax_result,
         salary_revenue=0,
         business_revenue=pl.total_revenue,
-        blue_return_deduction=blue_deduction,
+        blue_return_deduction=income_tax_result.effective_blue_return_deduction,
     )
     builder.add_form(
         "KOA020",
@@ -252,7 +252,9 @@ def generate_income_tax_xtx(
 
     # 青色申告決算書 PL
     if config.filing.return_type == "blue":
-        pl_fields = build_pl_fields(pl, blue_return_deduction=blue_deduction)
+        pl_fields = build_pl_fields(
+            pl, blue_return_deduction=income_tax_result.effective_blue_return_deduction
+        )
         builder.add_form(
             "KOA210",
             FORM_VERSIONS["KOA210"],

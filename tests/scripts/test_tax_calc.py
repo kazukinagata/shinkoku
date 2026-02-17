@@ -308,6 +308,88 @@ def test_calc_retirement_officer(tmp_path: Path) -> None:
 
 
 # ============================================================
+# sanity-check
+# ============================================================
+
+
+def test_sanity_check_pass(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "input": {
+                "fiscal_year": 2025,
+                "business_revenue": 3_000_000,
+                "business_expenses": 1_000_000,
+                "blue_return_deduction": 650_000,
+                "salary_income": 5_000_000,
+                "withheld_tax": 100_000,
+            },
+            "result": {
+                "fiscal_year": 2025,
+                "salary_income_after_deduction": 3_560_000,
+                "business_income": 1_350_000,
+                "effective_blue_return_deduction": 650_000,
+                "total_income": 4_910_000,
+                "taxable_income": 3_000_000,
+                "income_tax_base": 202_500,
+                "total_tax_credits": 0,
+                "income_tax_after_credits": 202_500,
+                "reconstruction_tax": 4_252,
+                "total_tax": 206_752,
+                "withheld_tax": 100_000,
+                "tax_due": 106_700,
+            },
+        },
+    )
+    result = _run(SCRIPT, "sanity-check", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["passed"] is True
+    assert output["error_count"] == 0
+
+
+def test_sanity_check_detects_error(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "input": {
+                "fiscal_year": 2025,
+                "business_revenue": 100_000,
+                "business_expenses": 200_000,
+            },
+            "result": {
+                "fiscal_year": 2025,
+                "effective_blue_return_deduction": 50_000,
+                "taxable_income": 0,
+                "income_tax_base": 0,
+                "income_tax_after_credits": 0,
+                "reconstruction_tax": 0,
+                "total_tax": 0,
+                "tax_due": 0,
+            },
+        },
+    )
+    result = _run(SCRIPT, "sanity-check", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["passed"] is False
+    assert output["error_count"] > 0
+    codes = [item["code"] for item in output["items"]]
+    assert "BLUE_DEDUCTION_ON_LOSS" in codes
+
+
+def test_sanity_check_missing_keys(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {"fiscal_year": 2025},  # missing 'input' and 'result'
+    )
+    result = _run(SCRIPT, "sanity-check", "--input", str(input_file))
+    assert result.returncode == 1
+    output = json.loads(result.stdout)
+    assert output["status"] == "error"
+
+
+# ============================================================
 # Error handling
 # ============================================================
 

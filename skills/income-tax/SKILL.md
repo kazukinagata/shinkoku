@@ -677,17 +677,54 @@ python skills/income-tax/scripts/tax_calc.py calc-income --input income_input.js
 
 所得税計算前に `calc_deductions` を個別に呼び出す場合は、`donations` パラメータにステップ1.14で登録した寄附金レコードのリストを必ず渡すこと。
 
+**青色申告特別控除の自動キャップ:**
+
+`blue_return_deduction` は config の値をそのまま渡してよい。計算エンジンが事業利益を上限として自動キャップする（租特法25条の2）。
+結果の `effective_blue_return_deduction` と `warnings` を必ず確認すること。
+
 **計算結果の確認:**
 
 1. 合計所得金額の内訳を表示する
-2. 繰越損失が適用されている場合はその額を明示する
-3. 所得税の速算表の適用が正しいか確認する
-4. 復興特別所得税が正しく加算されているか確認する
-5. 源泉徴収税額（給与分 + 事業分）が正しく控除されているか確認する
-6. 予定納税額が正しく控除されているか確認する
-7. 最終的な納付額（または還付額）を明示する
+2. `effective_blue_return_deduction` を確認し、自動調整があれば `warnings` の内容を表示する
+3. 繰越損失が適用されている場合はその額を明示する
+4. 所得税の速算表の適用が正しいか確認する
+5. 復興特別所得税が正しく加算されているか確認する
+6. 源泉徴収税額（給与分 + 事業分）が正しく控除されているか確認する
+7. 予定納税額が正しく控除されているか確認する
+8. 最終的な納付額（または還付額）を明示する
 
 所得税の速算表・配偶者控除テーブル・住宅ローン限度額等は `references/deduction-tables.md` を参照。
+
+## ステップ3.1: サニティチェック（必須）
+
+`calc-income` の結果を自動検証する。このステップはスキップ不可。
+
+### `tax_calc.py sanity-check` の呼び出し
+
+```bash
+python skills/income-tax/scripts/tax_calc.py sanity-check --input sanity_input.json
+```
+入力 JSON:
+```json
+{
+  "input": { ... },
+  "result": { ... }
+}
+```
+- `input`: ステップ3で `calc-income` に渡した IncomeTaxInput
+- `result`: ステップ3で `calc-income` から返された IncomeTaxResult
+
+出力 (TaxSanityCheckResult):
+- `passed`: true/false
+- `items`: チェック項目のリスト（severity, code, message）
+- `error_count`: エラー件数
+- `warning_count`: 警告件数
+
+### 結果に応じた対応
+
+- **error > 0**: 計算結果に問題があります。エラー内容を確認し、入力を修正してステップ3を再実行してください
+- **warning > 0**: 警告内容をユーザーに提示し、確認してから続行してください
+- **passed = true**: 問題なし。次のステップに進む
 
 ## ステップ3.5: 医療費控除の明細書PDF生成（該当者のみ）
 
