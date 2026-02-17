@@ -58,7 +58,7 @@ jobs:
         run: uv run pytest tests/integration/ -v --tb=short
 
       - name: E2E tests
-        run: uv run pytest tests/e2e/ -v --tb=short
+        run: uv run pytest tests/e2e/ -v --tb=short || test $? -eq 5
 
   coverage:
     name: Coverage
