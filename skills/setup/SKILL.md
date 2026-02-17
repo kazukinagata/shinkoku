@@ -120,6 +120,50 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 - `filing.simple_bookkeeping`: 簡易帳簿かどうか（true / false、デフォルト: false）
 - `filing.electronic_bookkeeping`: 優良な電子帳簿保存の有無（true / false）。e-Tax提出の場合は不問（65万円控除にはe-Taxだけで十分）
 
+## ステップ2.9: 控除・申告に影響する重要事項の確認（スキップ不可）
+
+以下の項目は所得税額・住民税に大きく影響するため、**全項目について必ず確認する**。
+「該当なし」も含め、明示的な回答を得ること。未確認のまま次のステップに進んではならない。
+
+### 2.9-1. 家族構成（配偶者・扶養親族）
+
+以下を確認し、config に保存する。詳細（所得金額・障害区分等）は `/income-tax` で登録する。
+
+- `family.has_spouse`: 配偶者の有無（true / false）
+  - true の場合:
+    - 配偶者の年間所得（概算）を確認し、配偶者控除/特別控除の適用可能性を把握する
+    - 所得48万円以下 → 配偶者控除、48万〜133万円 → 配偶者特別控除
+    - **事業専従者かどうか**: 青色事業専従者として給与を受けている配偶者は配偶者控除の対象外
+- `family.has_dependents`: 扶養親族の有無（true / false）
+  - true の場合: 人数と概要（子・親など）を確認する
+  - **16歳未満の子供も含める**: 扶養控除は対象外だが、住民税の非課税判定・均等割判定に
+    必要なため、申告書第二表「住民税に関する事項」に記載が必要
+  - **事業専従者は除外**: 青色事業専従者・白色事業専従者は扶養親族に該当しない
+- `family.dependent_count`: 扶養親族の人数（16歳未満を含む）
+
+※ 配偶者・扶養親族のマイナンバーは `/income-tax` スキルのステップ1.5 で収集する。
+
+### 2.9-2. 住宅ローン控除
+
+- `housing_loan.applicable`: 住宅ローン控除の適用有無（true / false）
+  - true の場合:
+    - `housing_loan.first_year`: 初年度かどうか（true / false）
+    - 初年度 → `/income-tax` のステップ3.7 で計算明細書を作成する（添付書類が別途必要）
+    - 2年目以降 → 年末調整で適用済みなら確定申告での追加手続きは原則不要
+
+### 2.9-3. 予定納税
+
+- `estimated_tax.applicable`: 予定納税の有無（true / false）
+  - 判定基準: 前年の確定申告書の㊺欄（申告納税額）が **15万円以上** → 予定納税あり
+  - true の場合:
+    - `estimated_tax.amount`: 予定納税の合計額（第1期 + 第2期、int 円）を確認する
+    - 減額申請をした場合は減額後の金額を記入する
+
+### 2.9-4. 世帯主の氏名（本人でない場合）
+
+ステップ2.5-2 で `relationship_to_head` が「本人」以外の場合:
+- `taxpayer.household_head_name`: 世帯主の氏名を確認する（申告書に記載が必要）
+
 ## ステップ3: パス設定
 
 以下のパスを確認する。デフォルト値を提示し、変更がなければそのまま採用する。
@@ -210,6 +254,22 @@ filing:
   simple_bookkeeping: {simple_bookkeeping}
   electronic_bookkeeping: {electronic_bookkeeping}
   tax_office_name: {tax_office_name}
+
+# --- 家族構成 ---
+family:
+  has_spouse: {has_spouse}
+  has_dependents: {has_dependents}
+  dependent_count: {dependent_count}
+
+# --- 住宅ローン控除 ---
+housing_loan:
+  applicable: {applicable}
+  first_year: {first_year}
+
+# --- 予定納税 ---
+estimated_tax:
+  applicable: {applicable}
+  amount: {amount}
 
 # --- 書類ディレクトリ（任意） ---
 invoices_dir: {invoices_dir}
@@ -314,6 +374,14 @@ fiscal_year: {tax_year}
 - 申告の種類: {return_type}
 - 青色申告特別控除: {blue_return_deduction}円
 - 所轄税務署: {tax_office_name}
+
+## 控除・申告に影響する重要事項
+
+- 配偶者: {あり（概算所得: ○万円）/ なし}
+- 扶養親族: {あり（○人、うち16歳未満○人）/ なし}
+- 住宅ローン控除: {適用あり（初年度/2年目以降）/ 適用なし}
+- 予定納税: {あり（合計○円）/ なし}
+- 世帯主: {本人 / ○○（氏名）}
 
 ## 書類ディレクトリ
 
