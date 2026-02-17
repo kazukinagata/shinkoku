@@ -89,14 +89,36 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 
 ## ステップ2.8: 申告方法の確認
 
+以下の項目を順に確認し、青色申告特別控除額を**自動判定**する。
+
+### ヒアリング項目
+
 - `filing.submission_method`: 提出方法（e-tax / mail / in-person）
 - `filing.return_type`: 申告の種類（blue / white）
-- `filing.blue_return_deduction`: 青色申告特別控除額（650000 / 550000 / 100000）
-  - 650,000: e-Tax提出 + 優良電子帳簿保存（最大控除）
-  - 550,000: e-Tax提出のみ（電子帳簿保存なし）
-  - 100,000: 簡易帳簿
-- `filing.electronic_bookkeeping`: 電子帳簿保存の有無（true / false）
 - `filing.tax_office_name`: 所轄税務署名
+
+### 青色申告特別控除の自動判定フロー
+
+`return_type` が `blue` の場合、以下のフローで控除額を判定する:
+
+1. 記帳方法を聞く（複式簿記 / 簡易帳簿）
+2. **簡易帳簿の場合** → `simple_bookkeeping: true`、控除額 = 100,000円で確定
+3. **複式簿記の場合**:
+   - **e-Tax提出** (`submission_method: e-tax`) → 控除額 = 650,000円で確定（`electronic_bookkeeping` は不問）
+   - **書面提出** (`submission_method: mail` or `in-person`) → `electronic_bookkeeping` を聞く
+     - `true`（優良な電子帳簿保存あり） → 控除額 = 650,000円
+     - `false` → 控除額 = 550,000円
+
+4. 判定結果をユーザーに表示して確認する
+
+### 関連フィールド
+
+- `filing.blue_return_deduction`: 青色申告特別控除額（自動判定される。手動指定も可）
+  - 650,000: 複式簿記 + (e-Tax提出 又は 電子帳簿保存) + 期限内申告
+  - 550,000: 複式簿記 + 書面提出 + 期限内申告（e-Tax/電子帳簿保存なし）
+  - 100,000: 簡易帳簿 又は 期限後申告
+- `filing.simple_bookkeeping`: 簡易帳簿かどうか（true / false、デフォルト: false）
+- `filing.electronic_bookkeeping`: 優良な電子帳簿保存の有無（true / false）。e-Tax提出の場合は不問（65万円控除にはe-Taxだけで十分）
 
 ## ステップ3: パス設定
 
@@ -185,6 +207,7 @@ filing:
   submission_method: {submission_method}
   return_type: {return_type}
   blue_return_deduction: {blue_return_deduction}
+  simple_bookkeeping: {simple_bookkeeping}
   electronic_bookkeeping: {electronic_bookkeeping}
   tax_office_name: {tax_office_name}
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class TaxpayerConfig(BaseModel):
@@ -50,15 +50,54 @@ class BusinessConfig(BaseModel):
     establishment_year: int | None = None  # 開業年
 
 
+def determine_blue_return_deduction(
+    submission_method: str,
+    return_type: str,
+    electronic_bookkeeping: bool,
+    simple_bookkeeping: bool = False,
+) -> int:
+    """青色申告特別控除額を自動判定する。
+
+    判定ロジック（国税庁 No.2072、租税特別措置法第25条の2）:
+    - 65万円: 複式簿記 + (e-Tax提出 又は 電子帳簿保存) + 期限内申告
+    - 55万円: 複式簿記 + 書面提出 + 期限内申告
+    - 10万円: 簡易帳簿 又は 期限後申告
+    """
+    if return_type != "blue":
+        return 0
+    if simple_bookkeeping:
+        return 100_000
+    # 複式簿記: e-Tax提出 又は 電子帳簿保存 → 65万円
+    if submission_method == "e-tax" or electronic_bookkeeping:
+        return 650_000
+    # 複式簿記 + 書面提出 + 電子帳簿保存なし → 55万円
+    return 550_000
+
+
 class FilingConfig(BaseModel):
     """申告方法。"""
 
     submission_method: str = "e-tax"  # e-tax / mail / in-person
     return_type: str = "blue"  # blue / white
     blue_return_deduction: int = 650_000
+    simple_bookkeeping: bool = False  # 簡易帳簿かどうか
     electronic_bookkeeping: bool = False
     tax_office_name: str = ""
     seiribango: str = ""  # 整理番号（8桁）
+
+    @model_validator(mode="after")
+    def validate_blue_return_deduction(self) -> FilingConfig:
+        """submission_method・electronic_bookkeeping から控除額の整合性を検証する。"""
+        expected = determine_blue_return_deduction(
+            submission_method=self.submission_method,
+            return_type=self.return_type,
+            electronic_bookkeeping=self.electronic_bookkeeping,
+            simple_bookkeeping=self.simple_bookkeeping,
+        )
+        # return_type が white の場合は控除額 0 だが、設定ファイルの既存値を尊重する
+        if self.return_type == "blue" and self.blue_return_deduction != expected:
+            self.blue_return_deduction = expected
+        return self
 
 
 class RefundAccountConfig(BaseModel):

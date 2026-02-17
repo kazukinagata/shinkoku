@@ -10,6 +10,7 @@ from shinkoku.config import (
     FilingConfig,
     ShinkokuConfig,
     TaxpayerConfig,
+    determine_blue_return_deduction,
     load_config,
 )
 
@@ -280,3 +281,137 @@ class TestEmptyConfigFile:
         assert isinstance(cfg, ShinkokuConfig)
         assert cfg.tax_year == 2025
         assert cfg.db_path == "./shinkoku.db"
+
+
+class TestDetermineBlueReturnDeduction:
+    """青色申告特別控除額の自動判定ロジック（国税庁 No.2072）。"""
+
+    def test_etax_without_electronic_bookkeeping(self):
+        """e-Tax提出だけで65万円控除（電子帳簿保存は不問）。"""
+        result = determine_blue_return_deduction(
+            submission_method="e-tax",
+            return_type="blue",
+            electronic_bookkeeping=False,
+            simple_bookkeeping=False,
+        )
+        assert result == 650_000
+
+    def test_etax_with_electronic_bookkeeping(self):
+        """e-Tax提出 + 電子帳簿保存でも65万円。"""
+        result = determine_blue_return_deduction(
+            submission_method="e-tax",
+            return_type="blue",
+            electronic_bookkeeping=True,
+            simple_bookkeeping=False,
+        )
+        assert result == 650_000
+
+    def test_mail_without_electronic_bookkeeping(self):
+        """書面提出（郵送）+ 電子帳簿保存なし → 55万円。"""
+        result = determine_blue_return_deduction(
+            submission_method="mail",
+            return_type="blue",
+            electronic_bookkeeping=False,
+            simple_bookkeeping=False,
+        )
+        assert result == 550_000
+
+    def test_mail_with_electronic_bookkeeping(self):
+        """書面提出（郵送）+ 電子帳簿保存あり → 65万円。"""
+        result = determine_blue_return_deduction(
+            submission_method="mail",
+            return_type="blue",
+            electronic_bookkeeping=True,
+            simple_bookkeeping=False,
+        )
+        assert result == 650_000
+
+    def test_in_person_without_electronic_bookkeeping(self):
+        """書面提出（持参）+ 電子帳簿保存なし → 55万円。"""
+        result = determine_blue_return_deduction(
+            submission_method="in-person",
+            return_type="blue",
+            electronic_bookkeeping=False,
+            simple_bookkeeping=False,
+        )
+        assert result == 550_000
+
+    def test_in_person_with_electronic_bookkeeping(self):
+        """書面提出（持参）+ 電子帳簿保存あり → 65万円。"""
+        result = determine_blue_return_deduction(
+            submission_method="in-person",
+            return_type="blue",
+            electronic_bookkeeping=True,
+            simple_bookkeeping=False,
+        )
+        assert result == 650_000
+
+    def test_simple_bookkeeping(self):
+        """簡易帳簿 → 10万円（提出方法に関わらず）。"""
+        result = determine_blue_return_deduction(
+            submission_method="e-tax",
+            return_type="blue",
+            electronic_bookkeeping=False,
+            simple_bookkeeping=True,
+        )
+        assert result == 100_000
+
+    def test_white_return(self):
+        """白色申告 → 0円（青色申告特別控除なし）。"""
+        result = determine_blue_return_deduction(
+            submission_method="e-tax",
+            return_type="white",
+            electronic_bookkeeping=False,
+            simple_bookkeeping=False,
+        )
+        assert result == 0
+
+
+class TestFilingConfigValidator:
+    """FilingConfig の model_validator による控除額自動補正。"""
+
+    def test_etax_blue_auto_sets_650000(self):
+        """e-Tax + 複式簿記 → blue_return_deduction が 650,000 に自動設定される。"""
+        filing = FilingConfig(
+            submission_method="e-tax",
+            return_type="blue",
+            electronic_bookkeeping=False,
+        )
+        assert filing.blue_return_deduction == 650_000
+
+    def test_mail_blue_auto_sets_550000(self):
+        """郵送 + 複式簿記 + 電子帳簿保存なし → 550,000 に自動補正。"""
+        filing = FilingConfig(
+            submission_method="mail",
+            return_type="blue",
+            electronic_bookkeeping=False,
+        )
+        assert filing.blue_return_deduction == 550_000
+
+    def test_mail_blue_with_bookkeeping_auto_sets_650000(self):
+        """郵送 + 電子帳簿保存あり → 650,000 に自動補正。"""
+        filing = FilingConfig(
+            submission_method="mail",
+            return_type="blue",
+            electronic_bookkeeping=True,
+        )
+        assert filing.blue_return_deduction == 650_000
+
+    def test_simple_bookkeeping_auto_sets_100000(self):
+        """簡易帳簿 → 100,000 に自動補正。"""
+        filing = FilingConfig(
+            submission_method="e-tax",
+            return_type="blue",
+            simple_bookkeeping=True,
+        )
+        assert filing.blue_return_deduction == 100_000
+
+    def test_overridden_deduction_gets_corrected(self):
+        """手動で不整合な値を設定しても自動補正される。"""
+        filing = FilingConfig(
+            submission_method="mail",
+            return_type="blue",
+            electronic_bookkeeping=False,
+            blue_return_deduction=650_000,  # 不正: 郵送+電子帳簿なしなら55万
+        )
+        assert filing.blue_return_deduction == 550_000
