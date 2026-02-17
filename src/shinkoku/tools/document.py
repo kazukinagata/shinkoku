@@ -43,6 +43,7 @@ from shinkoku.tools.pdf_coordinates import (
     INCOME_TAX_P2,
     BLUE_RETURN_PL_P1,
     BLUE_RETURN_BS,
+    BLUE_RETURN_BS_BEGINNING,
     CONSUMPTION_TAX_P1,
     INCOME_DETAIL_SHEET,
     INCOME_DETAIL_SHEET_SIZE,
@@ -235,6 +236,61 @@ def _build_bs_fields(
         fields.append(_coord_field(BLUE_RETURN_BS[field_name], total))
 
     fields.append(_coord_field(BLUE_RETURN_BS["total_equity"], bs_data.total_equity))
+
+    # 期首列（opening_assets が設定されている場合のみ出力）
+    if bs_data.opening_assets is not None:
+        opening_asset_totals: dict[str, int] = {}
+        for item in bs_data.opening_assets:
+            field_name = _ASSET_FIELD_MAP.get(item.account_name)
+            if field_name and field_name in BLUE_RETURN_BS_BEGINNING:
+                opening_asset_totals[field_name] = (
+                    opening_asset_totals.get(field_name, 0) + item.amount
+                )
+
+        for field_name, total in opening_asset_totals.items():
+            fields.append(_coord_field(BLUE_RETURN_BS_BEGINNING[field_name], total))
+
+        if bs_data.opening_total_assets is not None:
+            fields.append(
+                _coord_field(BLUE_RETURN_BS_BEGINNING["total_assets"], bs_data.opening_total_assets)
+            )
+
+    if bs_data.opening_liabilities is not None:
+        opening_liab_totals: dict[str, int] = {}
+        for item in bs_data.opening_liabilities:
+            field_name = _LIABILITY_FIELD_MAP.get(item.account_name)
+            if field_name and field_name in BLUE_RETURN_BS_BEGINNING:
+                opening_liab_totals[field_name] = (
+                    opening_liab_totals.get(field_name, 0) + item.amount
+                )
+
+        for field_name, total in opening_liab_totals.items():
+            fields.append(_coord_field(BLUE_RETURN_BS_BEGINNING[field_name], total))
+
+        if bs_data.opening_total_liabilities is not None:
+            fields.append(
+                _coord_field(
+                    BLUE_RETURN_BS_BEGINNING["total_liabilities"],
+                    bs_data.opening_total_liabilities,
+                )
+            )
+
+    if bs_data.opening_equity is not None:
+        opening_equity_totals: dict[str, int] = {}
+        for item in bs_data.opening_equity:
+            field_name = _EQUITY_FIELD_MAP.get(item.account_name)
+            if field_name and field_name in BLUE_RETURN_BS_BEGINNING:
+                opening_equity_totals[field_name] = (
+                    opening_equity_totals.get(field_name, 0) + item.amount
+                )
+
+        for field_name, total in opening_equity_totals.items():
+            fields.append(_coord_field(BLUE_RETURN_BS_BEGINNING[field_name], total))
+
+        if bs_data.opening_total_equity is not None:
+            fields.append(
+                _coord_field(BLUE_RETURN_BS_BEGINNING["total_equity"], bs_data.opening_total_equity)
+            )
 
     return fields
 

@@ -131,38 +131,41 @@ def _get_pl_result(db_path: str, fiscal_year: int) -> PLResult:
     )
 
 
+def _bs_items_from_dicts(items: list[dict]) -> list[BSItem]:
+    """dict のリストを BSItem リストに変換するヘルパー。"""
+    return [
+        BSItem(
+            account_code=item["account_code"],
+            account_name=item["account_name"],
+            amount=item["amount"],
+        )
+        for item in items
+    ]
+
+
 def _get_bs_result(db_path: str, fiscal_year: int) -> BSResult:
     """DB から BS データを取得し BSResult モデルに変換する。"""
     bs_dict = ledger_bs(db_path=db_path, fiscal_year=fiscal_year)
+
+    # 期首データ（空リストの場合も含めて変換）
+    opening_assets_raw = bs_dict.get("opening_assets", [])
+    opening_liabilities_raw = bs_dict.get("opening_liabilities", [])
+    opening_equity_raw = bs_dict.get("opening_equity", [])
+
     return BSResult(
         fiscal_year=fiscal_year,
-        assets=[
-            BSItem(
-                account_code=a["account_code"],
-                account_name=a["account_name"],
-                amount=a["amount"],
-            )
-            for a in bs_dict.get("assets", [])
-        ],
-        liabilities=[
-            BSItem(
-                account_code=li["account_code"],
-                account_name=li["account_name"],
-                amount=li["amount"],
-            )
-            for li in bs_dict.get("liabilities", [])
-        ],
-        equity=[
-            BSItem(
-                account_code=e["account_code"],
-                account_name=e["account_name"],
-                amount=e["amount"],
-            )
-            for e in bs_dict.get("equity", [])
-        ],
+        assets=_bs_items_from_dicts(bs_dict.get("assets", [])),
+        liabilities=_bs_items_from_dicts(bs_dict.get("liabilities", [])),
+        equity=_bs_items_from_dicts(bs_dict.get("equity", [])),
         total_assets=bs_dict["total_assets"],
         total_liabilities=bs_dict["total_liabilities"],
         total_equity=bs_dict["total_equity"],
+        opening_assets=_bs_items_from_dicts(opening_assets_raw) or None,
+        opening_liabilities=_bs_items_from_dicts(opening_liabilities_raw) or None,
+        opening_equity=_bs_items_from_dicts(opening_equity_raw) or None,
+        opening_total_assets=bs_dict.get("opening_total_assets"),
+        opening_total_liabilities=bs_dict.get("opening_total_liabilities"),
+        opening_total_equity=bs_dict.get("opening_total_equity"),
     )
 
 

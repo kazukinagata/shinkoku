@@ -22,6 +22,7 @@ from shinkoku.models import (
     JournalSearchParams,
     LossCarryforwardInput,
     MedicalExpenseInput,
+    OpeningBalanceInput,
     OtherIncomeInput,
     ProfessionalFeeInput,
     RentDetailInput,
@@ -667,6 +668,32 @@ def ledger_bs(*, db_path: str, fiscal_year: int) -> dict:
         net_income = rev_net - exp_net
         total_equity = total_equity_accounts + net_income
 
+        # 期首残高を取得
+        opening_rows = conn.execute(
+            "SELECT ob.account_code, a.name, a.category, ob.amount "
+            "FROM opening_balances ob "
+            "INNER JOIN accounts a ON a.code = ob.account_code "
+            "WHERE ob.fiscal_year = ? AND ob.amount != 0 "
+            "ORDER BY ob.account_code",
+            (fiscal_year,),
+        ).fetchall()
+
+        opening_assets = [
+            {"account_code": r[0], "account_name": r[1], "amount": r[3]}
+            for r in opening_rows
+            if r[2] == "asset"
+        ]
+        opening_liabilities = [
+            {"account_code": r[0], "account_name": r[1], "amount": r[3]}
+            for r in opening_rows
+            if r[2] == "liability"
+        ]
+        opening_equity = [
+            {"account_code": r[0], "account_name": r[1], "amount": r[3]}
+            for r in opening_rows
+            if r[2] == "equity"
+        ]
+
         return {
             "status": "ok",
             "fiscal_year": fiscal_year,
@@ -677,7 +704,110 @@ def ledger_bs(*, db_path: str, fiscal_year: int) -> dict:
             "total_liabilities": total_liabilities,
             "total_equity": total_equity,
             "net_income": net_income,
+            "opening_assets": opening_assets,
+            "opening_liabilities": opening_liabilities,
+            "opening_equity": opening_equity,
+            "opening_total_assets": sum(a["amount"] for a in opening_assets),
+            "opening_total_liabilities": sum(li["amount"] for li in opening_liabilities),
+            "opening_total_equity": sum(e["amount"] for e in opening_equity),
         }
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 期首残高 (Opening Balances)
+# ============================================================
+
+
+def ledger_set_opening_balance(
+    *, db_path: str, fiscal_year: int, detail: OpeningBalanceInput
+) -> dict:
+    """Upsert a single opening balance record."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO opening_balances "
+            "(fiscal_year, account_code, amount) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT(fiscal_year, account_code) DO UPDATE SET "
+            "amount=excluded.amount",
+            (fiscal_year, detail.account_code, detail.amount),
+        )
+        conn.commit()
+        return {
+            "status": "ok",
+            "fiscal_year": fiscal_year,
+            "account_code": detail.account_code,
+        }
+    finally:
+        conn.close()
+
+
+def ledger_set_opening_balances_batch(
+    *, db_path: str, fiscal_year: int, balances: list[OpeningBalanceInput]
+) -> dict:
+    """Upsert multiple opening balance records in a single transaction."""
+    conn = get_connection(db_path)
+    try:
+        for b in balances:
+            conn.execute(
+                "INSERT INTO opening_balances "
+                "(fiscal_year, account_code, amount) "
+                "VALUES (?, ?, ?) "
+                "ON CONFLICT(fiscal_year, account_code) DO UPDATE SET "
+                "amount=excluded.amount",
+                (fiscal_year, b.account_code, b.amount),
+            )
+        conn.commit()
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(balances)}
+    finally:
+        conn.close()
+
+
+def ledger_list_opening_balances(*, db_path: str, fiscal_year: int) -> dict:
+    """List opening balances for a fiscal year with account names."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT ob.id, ob.fiscal_year, ob.account_code, a.name, a.category, ob.amount "
+            "FROM opening_balances ob "
+            "INNER JOIN accounts a ON a.code = ob.account_code "
+            "WHERE ob.fiscal_year = ? "
+            "ORDER BY ob.account_code",
+            (fiscal_year,),
+        ).fetchall()
+        items = [
+            {
+                "id": r[0],
+                "fiscal_year": r[1],
+                "account_code": r[2],
+                "account_name": r[3],
+                "category": r[4],
+                "amount": r[5],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "fiscal_year": fiscal_year, "count": len(items), "records": items}
+    finally:
+        conn.close()
+
+
+def ledger_delete_opening_balance(*, db_path: str, opening_balance_id: int) -> dict:
+    """Delete an opening balance record."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM opening_balances WHERE id = ?", (opening_balance_id,)
+        ).fetchone()
+        if row is None:
+            return {
+                "status": "error",
+                "message": f"Opening balance {opening_balance_id} not found",
+            }
+        conn.execute("DELETE FROM opening_balances WHERE id = ?", (opening_balance_id,))
+        conn.commit()
+        return {"status": "ok", "opening_balance_id": opening_balance_id}
     finally:
         conn.close()
 

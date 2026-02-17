@@ -1,11 +1,5 @@
--- shinkoku schema v4
+-- shinkoku schema
 -- 確定申告自動化のための複式簿記データベース
-
--- スキーマバージョン管理
-CREATE TABLE IF NOT EXISTS schema_version (
-    version INTEGER PRIMARY KEY,
-    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
 -- 年度管理
 CREATE TABLE IF NOT EXISTS fiscal_years (
@@ -264,6 +258,16 @@ CREATE TABLE IF NOT EXISTS inventory_records (
     UNIQUE(fiscal_year, period)
 );
 
+-- 期首残高
+CREATE TABLE IF NOT EXISTS opening_balances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
+    account_code TEXT NOT NULL REFERENCES accounts(code),
+    amount INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(fiscal_year, account_code)
+);
+
 -- 税理士等報酬
 CREATE TABLE IF NOT EXISTS professional_fees (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -390,6 +394,7 @@ CREATE INDEX IF NOT EXISTS idx_dependents_fiscal_year ON dependents(fiscal_year)
 CREATE INDEX IF NOT EXISTS idx_other_income_items_fiscal_year ON other_income_items(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_crypto_income_records_fiscal_year ON crypto_income_records(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_fiscal_year ON inventory_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_opening_balances_fiscal_year ON opening_balances(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_professional_fees_fiscal_year ON professional_fees(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_stock_trading_accounts_fiscal_year ON stock_trading_accounts(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_stock_loss_carryforward_fiscal_year ON stock_loss_carryforward(fiscal_year);

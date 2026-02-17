@@ -31,6 +31,7 @@ from shinkoku.models import (  # noqa: E402
     JournalSearchParams,
     LossCarryforwardInput,
     MedicalExpenseInput,
+    OpeningBalanceInput,
     OtherIncomeInput,
     ProfessionalFeeInput,
     RentDetailInput,
@@ -71,6 +72,7 @@ from shinkoku.tools.ledger import (  # noqa: E402
     ledger_delete_insurance_policy,
     ledger_delete_inventory,
     ledger_delete_journal,
+    ledger_delete_opening_balance,
     ledger_delete_loss_carryforward,
     ledger_delete_medical_expense,
     ledger_delete_other_income,
@@ -92,6 +94,7 @@ from shinkoku.tools.ledger import (  # noqa: E402
     ledger_list_housing_loan_details,
     ledger_list_insurance_policies,
     ledger_list_inventory,
+    ledger_list_opening_balances,
     ledger_list_loss_carryforward,
     ledger_list_medical_expenses,
     ledger_list_other_income,
@@ -105,6 +108,8 @@ from shinkoku.tools.ledger import (  # noqa: E402
     ledger_save_withholding_slip,
     ledger_search,
     ledger_set_inventory,
+    ledger_set_opening_balance,
+    ledger_set_opening_balances_batch,
     ledger_set_spouse,
     ledger_trial_balance,
     ledger_update_journal,
@@ -459,6 +464,41 @@ def cmd_inv_list(args: argparse.Namespace) -> int:
 
 def cmd_inv_delete(args: argparse.Namespace) -> int:
     return _output(ledger_delete_inventory(db_path=args.db_path, inventory_id=args.inventory_id))
+
+
+# --- Opening Balance ---
+
+
+def cmd_ob_set(args: argparse.Namespace) -> int:
+    data = _load_json(args.input)
+    detail = OpeningBalanceInput(**data)
+    return _output(
+        ledger_set_opening_balance(
+            db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
+        )
+    )
+
+
+def cmd_ob_set_batch(args: argparse.Namespace) -> int:
+    data = _load_json(args.input)
+    balances = [OpeningBalanceInput(**item) for item in data]
+    return _output(
+        ledger_set_opening_balances_batch(
+            db_path=args.db_path, fiscal_year=args.fiscal_year, balances=balances
+        )
+    )
+
+
+def cmd_ob_list(args: argparse.Namespace) -> int:
+    return _output(ledger_list_opening_balances(db_path=args.db_path, fiscal_year=args.fiscal_year))
+
+
+def cmd_ob_delete(args: argparse.Namespace) -> int:
+    return _output(
+        ledger_delete_opening_balance(
+            db_path=args.db_path, opening_balance_id=args.opening_balance_id
+        )
+    )
 
 
 # --- Professional Fee ---
@@ -934,6 +974,29 @@ def build_parser() -> argparse.ArgumentParser:
     _add_db_arg(p)
     p.add_argument("--inventory-id", required=True, type=int)
     p.set_defaults(func=cmd_inv_delete)
+
+    # --- Opening Balance ---
+    p = sub.add_parser("ob-set", help="期首残高設定")
+    _add_db_arg(p)
+    _add_fy_arg(p)
+    _add_input_arg(p)
+    p.set_defaults(func=cmd_ob_set)
+
+    p = sub.add_parser("ob-set-batch", help="期首残高一括設定")
+    _add_db_arg(p)
+    _add_fy_arg(p)
+    _add_input_arg(p)
+    p.set_defaults(func=cmd_ob_set_batch)
+
+    p = sub.add_parser("ob-list", help="期首残高一覧")
+    _add_db_arg(p)
+    _add_fy_arg(p)
+    p.set_defaults(func=cmd_ob_list)
+
+    p = sub.add_parser("ob-delete", help="期首残高削除")
+    _add_db_arg(p)
+    p.add_argument("--opening-balance-id", required=True, type=int)
+    p.set_defaults(func=cmd_ob_delete)
 
     # --- Professional Fee ---
     p = sub.add_parser("pf-add", help="税理士等報酬追加")

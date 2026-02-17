@@ -16,7 +16,6 @@ def in_memory_db():
     conn.row_factory = sqlite3.Row
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
-    conn.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (4)")
     conn.commit()
     yield conn
     conn.close()

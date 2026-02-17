@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from shinkoku.models import BSResult, PLResult
 from shinkoku.xtx.field_codes import (
+    BS_CODES_BEGINNING,
     BS_CODES_ENDING,
+    BS_LIABILITIES_BEGINNING,
     BS_LIABILITIES_ENDING,
     PL_CODES,
 )
@@ -128,7 +130,7 @@ def build_pl_fields(
 def build_bs_fields(
     bs: BSResult,
 ) -> dict[str, int | str]:
-    """青色申告決算書 貸借対照表 の AMG コード辞書を生成する（期末のみ）。
+    """青色申告決算書 貸借対照表 の AMG コード辞書を生成する（期首・期末）。
 
     Args:
         bs: 貸借対照表データ
@@ -174,5 +176,43 @@ def build_bs_fields(
             fields[BS_LIABILITIES_ENDING[key]] = total
 
     _add_if_nonzero(fields, BS_LIABILITIES_ENDING["total_liabilities"], bs.total_liabilities)
+
+    # 資産の部（期首）
+    if bs.opening_assets is not None:
+        opening_asset_totals: dict[str, int] = {}
+        for item in bs.opening_assets:
+            key = _ASSET_ACCOUNT_MAP.get(item.account_name)
+            if key:
+                opening_asset_totals[key] = opening_asset_totals.get(key, 0) + item.amount
+
+        for key, total in opening_asset_totals.items():
+            if key in BS_CODES_BEGINNING and total:
+                fields[BS_CODES_BEGINNING[key]] = total
+
+        if bs.opening_total_assets is not None:
+            _add_if_nonzero(fields, BS_CODES_BEGINNING["total_assets"], bs.opening_total_assets)
+
+    # 負債・純資産の部（期首）
+    if bs.opening_liabilities is not None:
+        opening_liab_totals: dict[str, int] = {}
+        for item in bs.opening_liabilities:
+            key = _LIABILITY_ACCOUNT_MAP.get(item.account_name)
+            if key:
+                opening_liab_totals[key] = opening_liab_totals.get(key, 0) + item.amount
+
+        for key, total in opening_liab_totals.items():
+            if key in BS_LIABILITIES_BEGINNING and total:
+                fields[BS_LIABILITIES_BEGINNING[key]] = total
+
+    if bs.opening_equity is not None:
+        opening_equity_totals: dict[str, int] = {}
+        for item in bs.opening_equity:
+            key = _EQUITY_ACCOUNT_MAP.get(item.account_name)
+            if key:
+                opening_equity_totals[key] = opening_equity_totals.get(key, 0) + item.amount
+
+        for key, total in opening_equity_totals.items():
+            if key in BS_LIABILITIES_BEGINNING and total:
+                fields[BS_LIABILITIES_BEGINNING[key]] = total
 
     return fields

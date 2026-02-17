@@ -334,6 +334,17 @@ for _code in BS_CODES_ENDING.values():
 for _code in BS_LIABILITIES_ENDING.values():
     BS_FIELD_GROUPS[_code] = _BS_LIABILITY_ENDING_PATH
 
+# 期首パス（XSD: KOA210-4 > AMG00000 > AMG00020(資産) > AMG00040(期首)）
+_BS_ASSET_BEGINNING_PATH = ["AMG00000", "AMG00020", "AMG00040"]
+_BS_LIABILITY_BEGINNING_PATH = ["AMG00000", "AMG00450", "AMG00490"]
+
+# 資産の部（期首）: AMG00060〜AMG00230
+for _code in BS_CODES_BEGINNING.values():
+    BS_FIELD_GROUPS[_code] = _BS_ASSET_BEGINNING_PATH
+# 負債の部（期首）: AMG00510〜AMG00600
+for _code in BS_LIABILITIES_BEGINNING.values():
+    BS_FIELD_GROUPS[_code] = _BS_LIABILITY_BEGINNING_PATH
+
 # ============================================================
 # 消費税申告書 (SHA010) AAJ/AAK コード
 # ============================================================

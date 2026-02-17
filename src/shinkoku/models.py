@@ -133,6 +133,20 @@ class BSResult(BaseModel):
     total_assets: int
     total_liabilities: int
     total_equity: int
+    # 期首残高（None = 未取得）
+    opening_assets: list[BSItem] | None = None
+    opening_liabilities: list[BSItem] | None = None
+    opening_equity: list[BSItem] | None = None
+    opening_total_assets: int | None = None
+    opening_total_liabilities: int | None = None
+    opening_total_equity: int | None = None
+
+
+class OpeningBalanceInput(BaseModel):
+    """期首残高の入力。"""
+
+    account_code: str
+    amount: int = Field(description="円単位の整数")
 
 
 # --- データ取り込み (import) ---

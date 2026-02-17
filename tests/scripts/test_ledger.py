@@ -1203,6 +1203,111 @@ class TestDonation:
 
 
 # ============================================================
+# Opening Balance CRUD
+# ============================================================
+
+
+class TestOpeningBalance:
+    def test_set_list_delete(self, db_path, tmp_path):
+        f = write_json(tmp_path, {"account_code": "1001", "amount": 500000}, name="ob.json")
+        out = run_ledger(
+            "ob-set",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            f,
+        )
+        assert out["status"] == "ok"
+        assert out["account_code"] == "1001"
+
+        out = run_ledger(
+            "ob-list",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+        )
+        assert out["status"] == "ok"
+        assert out["count"] == 1
+        ob_id = out["records"][0]["id"]
+
+        out = run_ledger(
+            "ob-delete",
+            "--db-path",
+            db_path,
+            "--opening-balance-id",
+            str(ob_id),
+        )
+        assert out["status"] == "ok"
+
+    def test_set_batch(self, db_path, tmp_path):
+        f = write_json(
+            tmp_path,
+            [
+                {"account_code": "1001", "amount": 100000},
+                {"account_code": "1002", "amount": 200000},
+            ],
+            name="ob_batch.json",
+        )
+        out = run_ledger(
+            "ob-set-batch",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            f,
+        )
+        assert out["status"] == "ok"
+        assert out["count"] == 2
+
+        out = run_ledger(
+            "ob-list",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+        )
+        assert out["status"] == "ok"
+        assert out["count"] == 2
+
+    def test_upsert(self, db_path, tmp_path):
+        f1 = write_json(tmp_path, {"account_code": "1001", "amount": 100000}, name="ob1.json")
+        run_ledger(
+            "ob-set",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            f1,
+        )
+
+        f2 = write_json(tmp_path, {"account_code": "1001", "amount": 999000}, name="ob2.json")
+        run_ledger(
+            "ob-set",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            f2,
+        )
+
+        out = run_ledger(
+            "ob-list",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+        )
+        assert out["count"] == 1
+        assert out["records"][0]["amount"] == 999000
+
+
+# ============================================================
 # Error handling
 # ============================================================
 

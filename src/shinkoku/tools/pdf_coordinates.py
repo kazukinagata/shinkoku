@@ -891,6 +891,46 @@ BLUE_RETURN_BS: dict[str, dict] = {
     "total_equity": {"x": 555.0, "y": 130.0, "font_size": 7, "type": "number"},
 }
 
+# ============================================================
+# 青色申告決算書 貸借対照表（期首列）
+# y 座標は期末と同一行、x 座標は期末の左隣列
+# 資産期首: x ≈ 235.0（期末 x=313.0 の左隣列）
+# 負債期首: x ≈ 477.0（期末 x=555.0 の左隣列）
+# 事業主貸/事業主借/青色申告特別控除前の所得金額は期末専用のため期首座標なし
+# ============================================================
+
+BLUE_RETURN_BS_BEGINNING: dict[str, dict] = {
+    # --- 資産の部（期首欄） ---
+    "cash": {"x": 235.0, "y": 497.0, "font_size": 7, "type": "number"},
+    "checking_deposit": {"x": 235.0, "y": 479.5, "font_size": 7, "type": "number"},
+    "time_deposit": {"x": 235.0, "y": 462.0, "font_size": 7, "type": "number"},
+    "bank_deposit": {"x": 235.0, "y": 444.5, "font_size": 7, "type": "number"},
+    "notes_receivable": {"x": 235.0, "y": 427.0, "font_size": 7, "type": "number"},
+    "accounts_receivable": {"x": 235.0, "y": 409.5, "font_size": 7, "type": "number"},
+    "securities": {"x": 235.0, "y": 392.0, "font_size": 7, "type": "number"},
+    "inventory": {"x": 235.0, "y": 374.5, "font_size": 7, "type": "number"},
+    "prepaid": {"x": 235.0, "y": 357.0, "font_size": 7, "type": "number"},
+    "loans_receivable": {"x": 235.0, "y": 339.5, "font_size": 7, "type": "number"},
+    "buildings": {"x": 235.0, "y": 322.0, "font_size": 7, "type": "number"},
+    "building_fixtures": {"x": 235.0, "y": 304.5, "font_size": 7, "type": "number"},
+    "machinery": {"x": 235.0, "y": 287.0, "font_size": 7, "type": "number"},
+    "vehicles": {"x": 235.0, "y": 269.5, "font_size": 7, "type": "number"},
+    "equipment": {"x": 235.0, "y": 252.0, "font_size": 7, "type": "number"},
+    "land": {"x": 235.0, "y": 234.5, "font_size": 7, "type": "number"},
+    "total_assets": {"x": 235.0, "y": 147.5, "font_size": 7, "type": "number"},
+    # --- 負債・資本の部（期首欄） ---
+    "notes_payable": {"x": 477.0, "y": 497.0, "font_size": 7, "type": "number"},
+    "accounts_payable": {"x": 477.0, "y": 479.5, "font_size": 7, "type": "number"},
+    "borrowings": {"x": 477.0, "y": 462.0, "font_size": 7, "type": "number"},
+    "unpaid": {"x": 477.0, "y": 444.5, "font_size": 7, "type": "number"},
+    "advance_received": {"x": 477.0, "y": 427.0, "font_size": 7, "type": "number"},
+    "deposits_received": {"x": 477.0, "y": 409.5, "font_size": 7, "type": "number"},
+    "bad_debt_reserve": {"x": 477.0, "y": 234.5, "font_size": 7, "type": "number"},
+    "total_liabilities": {"x": 477.0, "y": 217.0, "font_size": 7, "type": "number"},
+    "capital": {"x": 477.0, "y": 165.0, "font_size": 7, "type": "number"},
+    "total_equity": {"x": 477.0, "y": 130.0, "font_size": 7, "type": "number"},
+}
+
 
 # ============================================================
 # 消費税確定申告書 第一表
