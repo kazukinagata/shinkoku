@@ -422,33 +422,55 @@ class IncomeTaxResult(BaseModel):
 
 
 class ConsumptionTaxInput(BaseModel):
-    """消費税計算の入力。"""
+    """消費税計算の入力。
+
+    売上・仕入は税込金額で入力する。
+    """
 
     fiscal_year: int
     method: str = Field(
         pattern=r"^(standard|simplified|special_20pct)$",
         description="standard=本則, simplified=簡易, special_20pct=2割特例",
     )
-    taxable_sales_10: int = 0
-    taxable_sales_8: int = 0
-    taxable_purchases_10: int = 0
-    taxable_purchases_8: int = 0
+    taxable_sales_10: int = 0  # 課税売上高(税込, 標準税率10%)
+    taxable_sales_8: int = 0  # 課税売上高(税込, 軽減税率8%)
+    taxable_purchases_10: int = 0  # 課税仕入高(税込, 標準税率10%)
+    taxable_purchases_8: int = 0  # 課税仕入高(税込, 軽減税率8%)
     simplified_business_type: int | None = Field(
         default=None, ge=1, le=6, description="簡易課税の事業区分(1-6)"
     )
+    interim_payment: int = 0  # 中間納付税額
 
 
 class ConsumptionTaxResult(BaseModel):
-    """消費税計算結果。"""
+    """消費税計算結果。
+
+    正しい計算フロー（消費税法 第28条、第45条）:
+    1. 課税標準額 = 税込金額 × 100/110（or 100/108）、1,000円未満切捨（国税通則法118条）
+    2. 消費税額(国税) = 課税標準額 × 7.8%（or 6.24%）
+    3. 控除対象仕入税額を計算（方式により異なる）
+    4. 差引税額 = 消費税額 − 控除対象仕入税額、100円未満切捨（国税通則法119条）
+    5. 地方消費税 = 差引税額 × 22/78、100円未満切捨
+    """
 
     fiscal_year: int
     method: str
-    taxable_sales_total: int = 0
-    tax_on_sales: int = 0
-    tax_on_purchases: int = 0
-    tax_due: int = 0
-    local_tax_due: int = 0
-    total_due: int = 0
+    # 課税売上
+    taxable_sales_total: int = 0  # 課税売上高合計（税込）— 表示用
+    taxable_base_10: int = 0  # 課税標準額(10%分, 税抜, 1000円切捨)
+    taxable_base_8: int = 0  # 課税標準額(8%分, 税抜, 1000円切捨)
+    # 消費税額
+    national_tax_on_sales: int = 0  # 消費税額(国税: 7.8%分+6.24%分)
+    tax_on_sales: int = 0  # = national_tax_on_sales（後方互換エイリアス）
+    tax_on_purchases: int = 0  # 控除対象仕入税額(国税部分)
+    # 差引き
+    net_tax: int = 0  # 差引税額(100円切捨, 正の場合のみ) AAJ00100
+    refund_shortfall: int = 0  # 控除不足還付税額(仕入>売上の場合) AAJ00090
+    interim_payment: int = 0  # 中間納付税額 AAJ00110
+    tax_due: int = 0  # 納付税額 = net_tax - interim_payment AAJ00120
+    # 地方消費税
+    local_tax_due: int = 0  # 地方消費税額
+    total_due: int = 0  # 合計納付税額（負=還付）
 
 
 # --- ふるさと納税 (furusato nozei) ---

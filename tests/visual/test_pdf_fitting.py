@@ -355,11 +355,14 @@ class TestConsumptionTaxFitting:
             fiscal_year=2025,
             method="special_20pct",
             taxable_sales_total=12_800_000,
-            tax_on_sales=1_163_636,
-            tax_on_purchases=232_727,
-            tax_due=232_700,
-            local_tax_due=63_400,
-            total_due=296_100,
+            taxable_base_10=11_636_000,  # 12,800,000 * 100/110 = 11,636,363 → 1000円切捨
+            national_tax_on_sales=907_608,  # 11,636,000 * 78/1000
+            tax_on_sales=907_608,
+            tax_on_purchases=726_086,  # 907,608 * 80%
+            net_tax=181_500,  # 907,608 * 20% = 181,521 → 100円切捨
+            tax_due=181_500,
+            local_tax_due=51_100,  # 181,500 * 22/78 = 51,192 → 100円切捨
+            total_due=232_600,
         )
         result = generate_consumption_tax_pdf(
             tax_result=ct,

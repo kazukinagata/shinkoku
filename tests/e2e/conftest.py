@@ -143,7 +143,9 @@ def _salary_plus_business_scenario():
             "consumption_tax": {
                 "taxable_sales_10": 3_850_000,
                 "special_20pct": {
-                    "tax_on_sales": 350_000,
+                    # 課税標準額: 3,850,000 * 100/110 = 3,500,000
+                    # 消費税額(国税): 3,500,000 * 78/1000 = 273,000
+                    "tax_on_sales": 273_000,
                     "tax_due": 54_600,
                     "local_tax_due": 15_400,
                     "total_due": 70_000,

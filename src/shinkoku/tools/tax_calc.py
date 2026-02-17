@@ -74,6 +74,11 @@ from shinkoku.tax_constants import (
     INCOME_TAX_TOP_DEDUCTION,
     INCOME_TAX_TOP_RATE,
     LOCAL_TAX_RATIO,
+    CONSUMPTION_TAX_BASE_ROUNDING,
+    CONSUMPTION_TAX_STANDARD_NATIONAL_RATE,
+    CONSUMPTION_TAX_STANDARD_NATIONAL_DENOM,
+    CONSUMPTION_TAX_REDUCED_NATIONAL_RATE,
+    CONSUMPTION_TAX_REDUCED_NATIONAL_DENOM,
     LIFE_INSURANCE_COMBINED_MAX,
     LIFE_INSURANCE_NEW_MAX,
     LIFE_INSURANCE_OLD_MAX,
@@ -161,15 +166,16 @@ def calc_life_insurance_deduction(premium: int) -> int:
 
     New system: max 40,000 per category, max 120,000 total for 3 categories.
     This function calculates for a single category.
+    所得税法第76条: 1円未満の端数は切り上げ。
     """
     if premium <= 0:
         return 0
     if premium <= 20_000:
         return premium
     if premium <= 40_000:
-        return premium // 2 + 10_000
+        return -(-premium // 2) + 10_000  # 1円未満切り上げ（所得税法76条）
     if premium <= 80_000:
-        return premium // 4 + 20_000
+        return -(-premium // 4) + 20_000  # 1円未満切り上げ（所得税法76条）
     return LIFE_INSURANCE_NEW_MAX
 
 
@@ -179,15 +185,18 @@ def calc_life_insurance_deduction(premium: int) -> int:
 
 
 def calc_life_insurance_deduction_old(premium: int) -> int:
-    """旧制度の生命保険料控除（1区分あたり、上限50,000円）。"""
+    """旧制度の生命保険料控除（1区分あたり、上限50,000円）。
+
+    所得税法第76条: 1円未満の端数は切り上げ。
+    """
     if premium <= 0:
         return 0
     if premium <= 25_000:
         return premium
     if premium <= 50_000:
-        return premium // 2 + 12_500
+        return -(-premium // 2) + 12_500  # 1円未満切り上げ（所得税法76条）
     if premium <= 100_000:
-        return premium // 4 + 25_000
+        return -(-premium // 4) + 25_000  # 1円未満切り上げ（所得税法76条）
     return LIFE_INSURANCE_OLD_MAX
 
 
@@ -241,6 +250,7 @@ def calc_earthquake_insurance_deduction(
     地震保険: min(premium, 50,000)
     旧長期: ≤5,000→全額, ≤15,000→premium//2+2,500, >15,000→15,000
     合算: min(地震 + 旧長期, 50,000)
+    所得税法第77条: 1円未満の端数は切り上げ。
     """
     eq = min(earthquake_premium, EARTHQUAKE_INSURANCE_MAX) if earthquake_premium > 0 else 0
 
@@ -249,7 +259,7 @@ def calc_earthquake_insurance_deduction(
         if old_long_term_premium <= 5_000:
             old = old_long_term_premium
         elif old_long_term_premium <= 15_000:
-            old = old_long_term_premium // 2 + 2_500
+            old = -(-old_long_term_premium // 2) + 2_500  # 1円未満切り上げ（所得税法77条）
         else:
             old = OLD_LONG_TERM_MAX
 
@@ -579,9 +589,13 @@ def calc_housing_loan_credit(
             limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED
 
         capped = min(detail.year_end_balance, limit)
-        return int(capped * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR)
+        # 住宅ローン控除額: 100円未満切捨（租税特別措置法第41条第2項）
+        credit = capped * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR
+        return (credit // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
 
-    return int(balance * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR)
+    # 住宅ローン控除額: 100円未満切捨（租税特別措置法第41条第2項）
+    credit = balance * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR
+    return (credit // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
 
 
 # ============================================================
@@ -1100,67 +1114,110 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
 
 
 def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResult:
-    """Calculate consumption tax (Reiwa 7).
+    """消費税の計算（令和7年分）。
+
+    正しい計算フロー（消費税法 第28条、第45条）:
+    1. 課税標準額 = 税込金額 × 100/110（or 100/108）、1,000円未満切捨（国税通則法118条）
+    2. 消費税額(国税) = 課税標準額 × 7.8%（10%品目）or 6.24%（8%品目）
+    3. 控除対象仕入税額（方式による）
+    4. 差引税額(正の場合) = 消費税額 − 仕入税額、100円未満切捨（国税通則法119条）
+       控除不足還付税額(負の場合) = 仕入税額 − 消費税額
+    5. 地方消費税 = 差引税額 × 22/78、100円未満切捨
 
     Methods:
-    - special_20pct: Invoice 2-wari special = sales tax * 20%
-    - simplified: Simplified taxation = tax * (1 - deemed ratio)
-    - standard: Standard taxation = sales tax - purchase tax
-
-    National tax rate = 7.8/10 of total 10% rate
-    Local consumption tax = national * 22/78
-    All truncated to 100 yen.
+    - special_20pct: 2割特例 = 消費税額(国税) × 20%
+    - simplified: 簡易課税 = 消費税額(国税) × (1 - みなし仕入率)
+    - standard: 本則課税 = 消費税額(国税) - 実際の仕入税額(国税部分)
     """
-    # Calculate tax on sales
-    # For 10% rate items: tax_included_amount * 10/110 or tax_excluded * 10/100
-    # We assume inputs are tax-excluded amounts
-    tax_on_sales_10 = input_data.taxable_sales_10 * 10 // 110 if input_data.taxable_sales_10 else 0
-    tax_on_sales_8 = input_data.taxable_sales_8 * 8 // 108 if input_data.taxable_sales_8 else 0
-
-    # Actually, let's treat inputs as tax-included amounts for sales
-    # and compute the consumption tax portion
-    total_tax_on_sales = tax_on_sales_10 + tax_on_sales_8
     taxable_sales_total = input_data.taxable_sales_10 + input_data.taxable_sales_8
 
+    # Step 1: 課税標準額 = 税込金額から税抜を逆算し、1,000円未満切捨（国税通則法118条）
+    base_10_raw = input_data.taxable_sales_10 * 100 // 110 if input_data.taxable_sales_10 else 0
+    base_8_raw = input_data.taxable_sales_8 * 100 // 108 if input_data.taxable_sales_8 else 0
+    taxable_base_10 = (base_10_raw // CONSUMPTION_TAX_BASE_ROUNDING) * CONSUMPTION_TAX_BASE_ROUNDING
+    taxable_base_8 = (base_8_raw // CONSUMPTION_TAX_BASE_ROUNDING) * CONSUMPTION_TAX_BASE_ROUNDING
+
+    # Step 2: 消費税額（国税部分）= 課税標準額 × 7.8/100（10%品目）+ 6.24/100（8%品目）
+    national_tax_10 = (
+        taxable_base_10
+        * CONSUMPTION_TAX_STANDARD_NATIONAL_RATE
+        // CONSUMPTION_TAX_STANDARD_NATIONAL_DENOM
+    )
+    national_tax_8 = (
+        taxable_base_8
+        * CONSUMPTION_TAX_REDUCED_NATIONAL_RATE
+        // CONSUMPTION_TAX_REDUCED_NATIONAL_DENOM
+    )
+    national_tax_on_sales = national_tax_10 + national_tax_8
+
+    # Step 3: 控除対象仕入税額（方式による）
     if input_data.method == "special_20pct":
-        # 2-wari special: tax due = sales tax * 20%
-        tax_due_raw = total_tax_on_sales * SPECIAL_20PCT_RATE // 100
-        tax_on_purchases = total_tax_on_sales - tax_due_raw  # deemed 80% credit
+        # 2割特例: 仕入控除税額 = 消費税額(国税) × 80%
+        tax_on_purchases = national_tax_on_sales * (100 - SPECIAL_20PCT_RATE) // 100
+        tax_due_raw = national_tax_on_sales - tax_on_purchases
 
     elif input_data.method == "simplified":
-        btype = input_data.simplified_business_type or 5  # default: service
+        # 簡易課税: 仕入控除税額 = 消費税額(国税) × みなし仕入率
+        btype = input_data.simplified_business_type or 5  # default: サービス業
         ratio = SIMPLIFIED_DEEMED_RATIOS.get(btype, SIMPLIFIED_DEFAULT_RATIO)
-        tax_on_purchases = total_tax_on_sales * ratio // 100
-        tax_due_raw = total_tax_on_sales - tax_on_purchases
+        tax_on_purchases = national_tax_on_sales * ratio // 100
+        tax_due_raw = national_tax_on_sales - tax_on_purchases
 
-    else:  # standard
-        tax_on_purchases_10 = (
-            input_data.taxable_purchases_10 * 10 // 110 if input_data.taxable_purchases_10 else 0
+    else:  # standard（本則課税）
+        # 仕入税額 = 税込仕入額 × 7.8/110（10%品目）+ 6.24/108（8%品目）
+        purchase_tax_10 = (
+            input_data.taxable_purchases_10 * CONSUMPTION_TAX_STANDARD_NATIONAL_RATE // 1100
+            if input_data.taxable_purchases_10
+            else 0
         )
-        tax_on_purchases_8 = (
-            input_data.taxable_purchases_8 * 8 // 108 if input_data.taxable_purchases_8 else 0
+        purchase_tax_8 = (
+            input_data.taxable_purchases_8 * CONSUMPTION_TAX_REDUCED_NATIONAL_RATE // 10800
+            if input_data.taxable_purchases_8
+            else 0
         )
-        tax_on_purchases = tax_on_purchases_10 + tax_on_purchases_8
-        tax_due_raw = total_tax_on_sales - tax_on_purchases
+        tax_on_purchases = purchase_tax_10 + purchase_tax_8
+        tax_due_raw = national_tax_on_sales - tax_on_purchases
 
-    # Split into national (7.8/10) and local (2.2/10)
-    # National tax = tax_due * 78/100, truncated to 100 yen
-    national_tax = max(0, tax_due_raw * NATIONAL_TAX_RATIO // 100)
-    national_tax = (national_tax // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+    # Step 4: 差引税額 or 控除不足還付税額
+    if tax_due_raw >= 0:
+        # 差引税額: 100円未満切捨（国税通則法119条）
+        net_tax = (tax_due_raw // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+        refund_shortfall = 0
+    else:
+        # 控除不足還付税額（仕入税額 > 売上税額）
+        net_tax = 0
+        refund_shortfall = abs(tax_due_raw)
 
-    # Local tax = national * 22/78, truncated to 100 yen
-    local_tax = national_tax * LOCAL_TAX_RATIO // NATIONAL_TAX_RATIO
-    local_tax = (local_tax // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+    # 納付税額 = 差引税額 − 中間納付税額
+    interim_payment = input_data.interim_payment
+    tax_due = net_tax - interim_payment
 
-    total_due = national_tax + local_tax
+    # Step 5: 地方消費税 = 差引税額 × 22/78, 100円未満切捨
+    if net_tax > 0:
+        local_tax = net_tax * LOCAL_TAX_RATIO // NATIONAL_TAX_RATIO
+        local_tax = (local_tax // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+    elif refund_shortfall > 0:
+        # 還付の場合も地方消費税部分は計算する（還付額に含む）
+        local_tax_raw = refund_shortfall * LOCAL_TAX_RATIO // NATIONAL_TAX_RATIO
+        local_tax = -((local_tax_raw // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING)
+    else:
+        local_tax = 0
+
+    total_due = tax_due + local_tax
 
     return ConsumptionTaxResult(
         fiscal_year=input_data.fiscal_year,
         method=input_data.method,
         taxable_sales_total=taxable_sales_total,
-        tax_on_sales=total_tax_on_sales,
+        taxable_base_10=taxable_base_10,
+        taxable_base_8=taxable_base_8,
+        national_tax_on_sales=national_tax_on_sales,
+        tax_on_sales=national_tax_on_sales,  # 後方互換
         tax_on_purchases=tax_on_purchases,
-        tax_due=national_tax,
+        net_tax=net_tax,
+        refund_shortfall=refund_shortfall,
+        interim_payment=interim_payment,
+        tax_due=tax_due,
         local_tax_due=local_tax,
         total_due=total_due,
     )

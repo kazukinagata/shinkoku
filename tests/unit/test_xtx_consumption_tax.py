@@ -22,15 +22,20 @@ def _find_descendant(root: ET.Element, tag: str) -> ET.Element | None:
 
 @pytest.fixture()
 def sample_consumption_tax() -> ConsumptionTaxResult:
+    """本則課税のサンプル: 課税標準額5,000,000（税抜, 1000円切捨済）、国税7.8%。"""
     return ConsumptionTaxResult(
         fiscal_year=2025,
         method="standard",
-        taxable_sales_total=5_000_000,
+        taxable_sales_total=5_500_000,  # 税込
+        taxable_base_10=5_000_000,  # 税抜, 1000円切捨済
+        taxable_base_8=0,
+        national_tax_on_sales=390_000,  # 5,000,000 * 78/1000
         tax_on_sales=390_000,
         tax_on_purchases=200_000,
-        tax_due=190_000,
-        local_tax_due=47_200,
-        total_due=237_200,
+        net_tax=190_000,  # 差引税額(100円切捨)
+        tax_due=190_000,  # 中間納付なし
+        local_tax_due=53_500,  # 190,000 * 22/78 = 53,589 → 53,500
+        total_due=243_500,
     )
 
 
@@ -42,10 +47,12 @@ class TestBuildConsumptionTaxFields:
         assert isinstance(fields, dict)
 
     def test_has_taxable_base(self, sample_consumption_tax: ConsumptionTaxResult) -> None:
+        """AAJ00010: 課税標準額 = taxable_base_10 + taxable_base_8（税抜）"""
         fields = build_consumption_tax_fields(sample_consumption_tax)
         assert fields["AAJ00010"] == 5_000_000
 
     def test_has_consumption_tax(self, sample_consumption_tax: ConsumptionTaxResult) -> None:
+        """AAJ00020: 消費税額 = national_tax_on_sales（国税7.8%部分）"""
         fields = build_consumption_tax_fields(sample_consumption_tax)
         assert fields["AAJ00020"] == 390_000
 
@@ -56,34 +63,59 @@ class TestBuildConsumptionTaxFields:
         assert fields["AAJ00050"] == 200_000
 
     def test_has_net_tax(self, sample_consumption_tax: ConsumptionTaxResult) -> None:
+        """AAJ00100: 差引税額 = net_tax（100円切捨, 正の場合のみ）"""
         fields = build_consumption_tax_fields(sample_consumption_tax)
         assert fields["AAJ00100"] == 190_000
 
     def test_has_tax_due(self, sample_consumption_tax: ConsumptionTaxResult) -> None:
+        """AAJ00120: 納付税額"""
         fields = build_consumption_tax_fields(sample_consumption_tax)
         assert fields["AAJ00120"] == 190_000
 
     def test_has_local_tax(self, sample_consumption_tax: ConsumptionTaxResult) -> None:
         fields = build_consumption_tax_fields(sample_consumption_tax)
-        assert fields["AAK00040"] == 47_200
+        assert fields["AAK00040"] == 53_500
 
     def test_has_total_due(self, sample_consumption_tax: ConsumptionTaxResult) -> None:
         fields = build_consumption_tax_fields(sample_consumption_tax)
-        assert fields["AAK00130"] == 237_200
+        assert fields["AAK00130"] == 243_500
 
     def test_skips_zero_values(self) -> None:
         result = ConsumptionTaxResult(
             fiscal_year=2025,
             method="standard",
-            taxable_sales_total=1_000_000,
+            taxable_sales_total=1_100_000,
+            taxable_base_10=1_000_000,
+            national_tax_on_sales=78_000,
             tax_on_sales=78_000,
             tax_on_purchases=0,
+            net_tax=78_000,
             tax_due=78_000,
-            local_tax_due=19_400,
-            total_due=97_400,
+            local_tax_due=22_000,
+            total_due=100_000,
         )
         fields = build_consumption_tax_fields(result)
         assert "AAJ00050" not in fields  # 仕入税額が 0 → スキップ
+
+    def test_refund_case(self) -> None:
+        """還付ケース: AAJ00090(控除不足還付税額)が設定される。"""
+        result = ConsumptionTaxResult(
+            fiscal_year=2025,
+            method="standard",
+            taxable_sales_total=1_100_000,
+            taxable_base_10=1_000_000,
+            national_tax_on_sales=78_000,
+            tax_on_sales=78_000,
+            tax_on_purchases=150_000,
+            net_tax=0,
+            refund_shortfall=72_000,
+            tax_due=0,
+            local_tax_due=-20_300,
+            total_due=-20_300,
+        )
+        fields = build_consumption_tax_fields(result)
+        assert "AAJ00100" not in fields  # 差引税額 = 0 → スキップ
+        assert fields["AAJ00090"] == 72_000  # 控除不足還付税額
 
 
 class TestConsumptionTaxXtxGeneration:
@@ -121,4 +153,4 @@ class TestConsumptionTaxXtxGeneration:
 
         aak00000 = sha010.find("ns:AAK00000", _NS)
         assert aak00000 is not None
-        assert aak00000.find("ns:AAK00130", _NS).text == "237200"
+        assert aak00000.find("ns:AAK00130", _NS).text == "243500"
