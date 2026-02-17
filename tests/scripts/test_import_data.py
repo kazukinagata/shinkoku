@@ -91,6 +91,16 @@ def test_import_invoice_not_found(tmp_path: Path):
     assert result.returncode == 1
 
 
+def test_import_invoice_image_file(tmp_path: Path):
+    img = tmp_path / "invoice.jpg"
+    img.write_bytes(b"\xff\xd8\xff\xe0dummy")
+    result = run_import("invoice", "--file-path", str(img))
+    assert result.returncode == 0
+    output = json.loads(result.stdout)
+    assert output["status"] == "ok"
+    assert output["extracted_text"] == ""
+
+
 # --- withholding ---
 
 
@@ -106,6 +116,16 @@ def test_import_withholding(tmp_path: Path):
 def test_import_withholding_not_found(tmp_path: Path):
     result = run_import("withholding", "--file-path", str(tmp_path / "missing.pdf"))
     assert result.returncode == 1
+
+
+def test_import_withholding_image_file(tmp_path: Path):
+    img = tmp_path / "withholding.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\ndummy")
+    result = run_import("withholding", "--file-path", str(img))
+    assert result.returncode == 0
+    output = json.loads(result.stdout)
+    assert output["status"] == "ok"
+    assert output["extracted_text"] == ""
 
 
 # --- furusato-receipt ---

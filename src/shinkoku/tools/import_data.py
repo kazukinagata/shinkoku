@@ -242,12 +242,14 @@ def _extract_pdf_text(file_path: str) -> str:
 
 
 def import_invoice(*, file_path: str) -> dict:
-    """Extract text from an invoice PDF and return InvoiceData template."""
+    """請求書の読み取り。PDF の場合はテキスト抽出し、画像の場合は Claude Vision に委任する。"""
     path = Path(file_path)
     if not path.exists():
         return {"status": "error", "message": f"File not found: {file_path}"}
 
-    extracted_text = _extract_pdf_text(file_path)
+    extracted_text = ""
+    if path.suffix.lower() == ".pdf":
+        extracted_text = _extract_pdf_text(file_path)
 
     return {
         "status": "ok",
@@ -262,12 +264,14 @@ def import_invoice(*, file_path: str) -> dict:
 
 
 def import_withholding(*, file_path: str) -> dict:
-    """Extract text from a withholding slip PDF and return template."""
+    """源泉徴収票の読み取り。PDF の場合はテキスト抽出し、画像の場合は Claude Vision に委任する。"""
     path = Path(file_path)
     if not path.exists():
         return {"status": "error", "message": f"File not found: {file_path}"}
 
-    extracted_text = _extract_pdf_text(file_path)
+    extracted_text = ""
+    if path.suffix.lower() == ".pdf":
+        extracted_text = _extract_pdf_text(file_path)
 
     return {
         "status": "ok",

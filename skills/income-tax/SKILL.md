@@ -92,6 +92,30 @@ python skills/journal/scripts/import_data.py import-withholding --input withhold
 }
 ```
 
+#### 画像ファイルの場合: デュアルエージェント OCR 検証
+
+`extracted_text` が空の場合（画像ファイルまたはスキャン PDF）、2つのサブエージェントに並列で読み取りを委任し、結果を照合する。
+
+1. **2つのサブエージェントを並列で起動する（1メッセージで2つの Task を送信）:**
+   ```
+   Task(
+     subagent_type="withholding-reader",
+     prompt="【読み取り A】以下の源泉徴収票を読み取り、構造化データを返してください: {ファイルパス}"
+   )
+   Task(
+     subagent_type="withholding-reader",
+     prompt="【読み取り B】以下の源泉徴収票を読み取り、構造化データを返してください: {ファイルパス}"
+   )
+   ```
+
+2. **結果照合:** 両エージェントの結果から `payment_amount`, `withheld_tax`, `social_insurance` を比較する
+
+3. **一致の場合:** そのまま採用。「2つの独立した読み取りで結果が一致しました」と報告
+
+4. **不一致の場合:** ユーザーに元画像パスと両方の結果を提示し、正しい方を選択してもらう:
+   - 差異のあるフィールドを明示する
+   - A を採用 / B を採用 / 手動入力 の3択を AskUserQuestion で提示する
+
 **取り込み後の処理:**
 
 1. 抽出された各金額が正しいか確認する
@@ -136,6 +160,30 @@ python skills/journal/scripts/import_data.py import-withholding --input withhold
    - 全額が所得控除（上限: 自営業者は年額81.6万円）
 2. 小規模企業共済の掛金がある場合も同様に確認する
 
+#### 画像ファイルの場合: デュアルエージェント OCR 検証
+
+`extracted_text` が空の場合（画像ファイルまたはスキャン PDF）、2つのサブエージェントに並列で読み取りを委任し、結果を照合する。
+
+1. **2つのサブエージェントを並列で起動する（1メッセージで2つの Task を送信）:**
+   ```
+   Task(
+     subagent_type="deduction-cert-reader",
+     prompt="【読み取り A】以下の控除証明書を読み取り、構造化データを返してください: {ファイルパス}"
+   )
+   Task(
+     subagent_type="deduction-cert-reader",
+     prompt="【読み取り B】以下の控除証明書を読み取り、構造化データを返してください: {ファイルパス}"
+   )
+   ```
+
+2. **結果照合:** 両エージェントの結果から `annual_premium`, `certificate_type` を比較する
+
+3. **一致の場合:** そのまま採用。「2つの独立した読み取りで結果が一致しました」と報告
+
+4. **不一致の場合:** ユーザーに元画像パスと両方の結果を提示し、正しい方を選択してもらう:
+   - 差異のあるフィールドを明示する
+   - A を採用 / B を採用 / 手動入力 の3択を AskUserQuestion で提示する
+
 ## ステップ1.7: 医療費明細の集計
 
 医療費控除を適用する場合、明細を集計する。
@@ -166,6 +214,31 @@ python skills/journal/scripts/import_data.py import-withholding --input withhold
 ### 支払調書の取り込み
 
 1. `import_data.py import-payment-statement --input payment_input.json` で支払調書PDF/画像からデータを抽出する
+
+#### 画像ファイルの場合: デュアルエージェント OCR 検証
+
+`extracted_text` が空の場合（画像ファイルまたはスキャン PDF）、2つのサブエージェントに並列で読み取りを委任し、結果を照合する。
+
+1. **2つのサブエージェントを並列で起動する（1メッセージで2つの Task を送信）:**
+   ```
+   Task(
+     subagent_type="payment-statement-reader",
+     prompt="【読み取り A】以下の支払調書を読み取り、構造化データを返してください: {ファイルパス}"
+   )
+   Task(
+     subagent_type="payment-statement-reader",
+     prompt="【読み取り B】以下の支払調書を読み取り、構造化データを返してください: {ファイルパス}"
+   )
+   ```
+
+2. **結果照合:** 両エージェントの結果から `gross_amount`, `withholding_tax`, `payer_name` を比較する
+
+3. **一致の場合:** そのまま採用。「2つの独立した読み取りで結果が一致しました」と報告
+
+4. **不一致の場合:** ユーザーに元画像パスと両方の結果を提示し、正しい方を選択してもらう:
+   - 差異のあるフィールドを明示する
+   - A を採用 / B を採用 / 手動入力 の3択を AskUserQuestion で提示する
+
 2. `ledger.py add-business-withholding --db-path DB_PATH --input withholding.json` で取引先別の源泉徴収情報を登録する:
    ```json
    {
