@@ -16,22 +16,18 @@ def main() -> None:
 
     # Register all subcommand modules
     from shinkoku.cli import (
-        doc_generate,
         furusato,
         import_data,
         ledger,
         profile,
         tax_calc,
-        xtx,
     )
 
     ledger.register(subparsers)
     import_data.register(subparsers)
     tax_calc.register(subparsers)
-    doc_generate.register(subparsers)
     furusato.register(subparsers)
     profile.register(subparsers)
-    xtx.register(subparsers)
 
     args = parser.parse_args()
     if not hasattr(args, "func"):

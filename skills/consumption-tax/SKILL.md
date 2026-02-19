@@ -2,17 +2,17 @@
 name: consumption-tax
 description: >
   This skill should be used when the user needs to calculate consumption tax
-  (消費税), determine their tax method (2割特例, 簡易課税, or 本則課税), or
-  generate the consumption tax return PDF. Trigger phrases include:
-  "消費税を計算", "消費税の申告", "消費税申告書", "2割特例", "簡易課税",
-  "本則課税", "課税売上", "消費税額", "消費税PDF", "インボイス",
+  (消費税) or determine their tax method (2割特例, 簡易課税, or 本則課税).
+  Trigger phrases include: "消費税を計算", "消費税の申告", "消費税申告書",
+  "2割特例", "簡易課税", "本則課税", "課税売上", "消費税額", "インボイス",
   "みなし仕入率", "課税仕入".
 ---
 
-# 消費税計算・申告書作成（Consumption Tax Calculation）
+# 消費税計算（Consumption Tax Calculation）
 
-課税売上・課税仕入から消費税額を計算し、消費税申告書のPDFを生成するスキル。
+課税売上・課税仕入から消費税額を計算するスキル。
 assess スキルで消費税の課税事業者と判定され、settlement スキルで決算が完了していることを前提とする。
+計算結果は `/e-tax` スキル（Claude in Chrome）で確定申告書等作成コーナーに入力する。
 
 ## 設定の読み込み（最初に実行）
 
@@ -227,25 +227,7 @@ shinkoku tax calc-consumption --input consumption_input.json
 → 最も有利な方法: [方法名]（差額: ○○,○○○円）
 ```
 
-## ステップ4: 消費税申告書PDFの生成
-
-消費税申告書PDFの生成は `/document` スキルに委任できる。
-消費税計算完了後、ユーザーに「`/document` で確定申告書類PDFを一括生成できます」と案内する。
-
-なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
-
-### `doc_generate.py consumption-tax` の呼び出し
-
-```bash
-shinkoku doc consumption-tax --input consumption_result.json --output-path output/consumption_tax_2025.pdf
-```
-入力 JSON には ConsumptionTaxResult の全フィールドを含める。
-
-- 消費税及び地方消費税の申告書を生成する
-- 適用した方法（2割特例/簡易課税/本則課税）に応じた様式で出力する
-- 付表も合わせて生成する
-
-## ステップ5: 計算結果サマリーの提示
+## ステップ4: 計算結果サマリーの提示
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -271,11 +253,9 @@ shinkoku doc consumption-tax --input consumption_result.json --output-path outpu
   地方消費税の納付税額:        ○○,○○○円
   合計納付税額:               ○○○,○○○円
 
-■ 出力ファイル:
-  → [出力パス]/consumption_tax_2025.pdf
-
 ■ 次のステップ:
-  → submit スキルで提出準備を行う
+  → /e-tax で確定申告書等作成コーナーに入力する（Claude in Chrome）
+  → /submit で提出準備を行う
   → 消費税の納付期限: 令和○年3月31日
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
@@ -326,12 +306,9 @@ fiscal_year: {tax_year}
 - 地方消費税の納付税額: {金額}円
 - **合計納付税額: {金額}円**
 
-## 出力ファイル
-
-- 消費税申告書PDF: {ファイルパス}
-
 ## 次のステップ
 
+/e-tax で確定申告書等作成コーナーに入力する（Claude in Chrome）
 /submit で提出準備を行う
 消費税の納付期限: 令和{年}年3月31日
 ```

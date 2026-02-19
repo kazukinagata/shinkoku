@@ -2,16 +2,16 @@
 name: settlement
 description: >
   This skill should be used when the user needs to perform year-end closing
-  adjustments (決算整理), generate financial statements (決算書), compute
+  adjustments (決算整理), review financial statements (決算書), compute
   depreciation, or review their trial balance. Trigger phrases include:
   "決算", "決算整理", "決算書を作る", "減価償却", "試算表", "残高試算表",
-  "損益計算書", "貸借対照表", "BS", "PL", "決算書PDF", "期末処理",
+  "損益計算書", "貸借対照表", "BS", "PL", "期末処理",
   "棚卸し", "未払計上", "前払処理".
 ---
 
 # 決算整理・決算書作成（Year-End Settlement）
 
-会計年度末の決算整理仕訳を登録し、残高試算表・損益計算書・貸借対照表を生成するスキル。
+会計年度末の決算整理仕訳を登録し、残高試算表・損益計算書・貸借対照表を確認するスキル。
 journal スキルで日常仕訳の入力が完了していることを前提とする。
 
 ## 設定の読み込み（最初に実行）
@@ -300,25 +300,6 @@ shinkoku ledger bs --db-path DB_PATH --input query.json
 - 現金・預金残高が実際の残高と一致するか
 - 固定資産の帳簿価額が減価償却後の金額であるか
 
-### 3-3. 決算書PDFの生成
-
-決算書PDFの生成は `/document` スキルに委任できる。
-決算整理完了後、ユーザーに「`/document` で確定申告書類PDFを一括生成できます」と案内する。
-
-なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
-
-#### 青色申告決算書: `doc_generate.py bs-pl`
-
-```bash
-shinkoku doc bs-pl --input bs_pl_input.json --output-path output/bs_pl_2025.pdf
-```
-入力 JSON には `fiscal_year`, `pl_revenues`, `pl_expenses`, `bs_assets`, `bs_liabilities`, `bs_equity` を含める。
-
-- 損益計算書と貸借対照表を1つのPDFファイルに出力する
-- 青色申告決算書の様式に準拠した形式で生成する
-- 出力後、ファイルパスをユーザーに案内する
-
-
 ## ステップ4: 決算結果サマリーの提示
 
 ```
@@ -343,13 +324,9 @@ shinkoku doc bs-pl --input bs_pl_input.json --output-path output/bs_pl_2025.pdf
   - 棚卸調整:   ○○○,○○○円
   - 未払計上:   ○○○,○○○円
 
-■ 出力ファイル:
-  → [出力パス]/bs_pl_2025.pdf
-  → [出力パス]/rent_detail_2025.pdf（該当者のみ）
-
 ■ 次のステップ:
-  → income-tax スキルで所得税の計算を行う
-  → consumption-tax スキルで消費税の計算を行う
+  → /income-tax で所得税の計算を行う
+  → /consumption-tax で消費税の計算を行う
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -393,11 +370,6 @@ fiscal_year: {tax_year}
 |------|---------|---------|------|
 | {減価償却費等} | {科目名} | {科目名} | {金額}円 |
 （減価償却、地代家賃按分、棚卸調整、未払計上等を記載）
-
-## 出力ファイル
-
-- 青色申告決算書PDF: {ファイルパス}
-- 地代家賃内訳PDF: {ファイルパス}（該当者のみ）
 
 ## 次のステップ
 

@@ -2,21 +2,22 @@
 
 確定申告自動化 Claude Code Plugin。Python 3.11+、SQLite WAL モードで動作する。
 会社員＋副業（事業所得・青色申告）の所得税・消費税確定申告をエンドツーエンドで支援する。
+帳簿管理・税額計算は CLI で実行し、確定申告書等作成コーナーへの入力は Claude in Chrome が代行する。
 
 ## 対象ペルソナ
 
-Full = 計算・帳票・xtx すべて対応、Partial = 計算は可能だが帳票/xtx の一部が未対応、Out = 対象外
+Full = 計算＋確定申告書等作成コーナーへの入力代行、Out = 対象外
 
 | ペルソナ | 対応レベル | 備考 |
 |---------|-----------|------|
-| 個人事業主（青色申告・一般用） | Full | メインターゲット。帳簿→決算書→申告書→xtx 全自動 |
-| 会社員＋副業（事業所得） | Full | 源泉徴収票＋事業所得の申告書→xtx |
-| 給与所得のみ（会社員） | Full | 還付申告・医療費控除等→xtx |
+| 個人事業主（青色申告・一般用） | Full | メインターゲット。帳簿→決算書→税額計算→作成コーナー入力 |
+| 会社員＋副業（事業所得） | Full | 源泉徴収票＋事業所得の税額計算→作成コーナー入力 |
+| 給与所得のみ（会社員） | Full | 還付申告・医療費控除等→作成コーナー入力 |
 | 消費税課税事業者 | Full | 2割特例・簡易課税・本則課税すべて対応 |
 | ふるさと納税利用者 | Full | CRUD + 控除計算 + 限度額推定 |
-| 住宅ローン控除（初年度） | Full | 控除額計算＋xtx KOB130 対応。初年度は添付書類が別途必要 |
-| 医療費控除 | Full | 明細書→xtx（KOB560 対応済み） |
-| 仮想通貨トレーダー | Full | 雑所得（総合課税）として申告書に自動反映 |
+| 住宅ローン控除（初年度） | Full | 控除額計算。初年度は添付書類が別途必要 |
+| 医療費控除 | Full | 明細集計＋控除額計算 |
+| 仮想通貨トレーダー | Full | 雑所得（総合課税）として税額計算に自動反映 |
 | 株式投資家（分離課税） | Out | 株式譲渡所得・配当の分離課税には対応していません |
 | FXトレーダー | Out | 先物取引に係る雑所得等には対応していません |
 | 不動産所得 | Out | 不動産所得用の決算書・申告に対応していません |
@@ -56,7 +57,7 @@ make lint         # Ruff lint チェック
 
 uv run pytest tests/unit/ -v      # ユニットテストのみ
 uv run pytest tests/scripts/ -v   # CLI スクリプトテスト
-uv run pytest tests/visual/ -v    # PDF ビジュアルリグレッションテスト
+uv run pytest tests/integration/ -v  # 統合テスト
 
 uv run mypy src/shinkoku/ --ignore-missing-imports  # 型チェック
 uv run ruff format --check src/ tests/              # フォーマットチェック
@@ -73,9 +74,6 @@ uv run shinkoku ledger trial-balance --db-path shinkoku.db --fiscal-year 2025
 # 税額計算
 uv run shinkoku tax calc-income --input income_params.json
 
-# PDF 帳票生成
-uv run shinkoku doc income-tax --input tax_result.json --output-path output/
-
 # データ取込
 uv run shinkoku import csv --file-path transactions.csv
 
@@ -84,9 +82,6 @@ uv run shinkoku furusato summary --db-path shinkoku.db --fiscal-year 2025
 
 # プロファイル
 uv run shinkoku profile --config shinkoku.config.yaml
-
-# xtx（e-Tax XML）生成
-uv run shinkoku xtx generate --db-path shinkoku.db --config shinkoku.config.yaml --output-dir output/
 ```
 
 ## コーディング規約
@@ -146,7 +141,7 @@ uv run shinkoku xtx generate --db-path shinkoku.db --config shinkoku.config.yaml
 - エントリーポイント: `src/shinkoku/cli/__init__.py` の `main()` で全サブコマンドを登録
 - 各モジュール（`src/shinkoku/cli/*.py`）は `register(subparsers)` 関数を公開し、サブコマンドを登録する
 - 入力: 複雑なパラメータは `--input <json_file>` で JSON ファイル受け取り。単純パラメータは CLI 引数
-- 出力: JSON を stdout に出力。PDF 生成系は `--output-path` でファイル出力 + メタ情報を stdout
+- 出力: JSON を stdout に出力
 - エラー: `{"status": "error", "message": "..."}` を stdout + exit code 1
 - DB 系: `--db-path` 引数で SQLite パスを受け取り
 - ビジネスロジックは `src/shinkoku/tools/` の純粋関数として分離する
@@ -179,12 +174,12 @@ uv run shinkoku xtx generate --db-path shinkoku.db --config shinkoku.config.yaml
 
 ## テスト規約
 
-- 構成: `tests/unit/` / `tests/scripts/` / `tests/visual/`
+- 構成: `tests/unit/` / `tests/scripts/` / `tests/integration/`
 - `tests/scripts/`: CLI の統合テスト（subprocess で `shinkoku` コマンドを呼び出し、JSON 出力を検証）
-- `tests/unit/`: DB・config・xtx 等のコアモジュールのユニットテスト
-- `tests/visual/`: PDF ビジュアルリグレッションテスト
+- `tests/unit/`: DB・config 等のコアモジュールのユニットテスト
+- `tests/integration/`: 複数モジュールの結合テスト
 - 共有フィクスチャ: `in_memory_db`, `in_memory_db_with_accounts`, `sample_journals`
-- マーカー: `@pytest.mark.slow`, `@pytest.mark.visual_regression`
+- マーカー: `@pytest.mark.slow`
 
 ## 主要ファイル
 
@@ -204,11 +199,8 @@ uv run shinkoku xtx generate --db-path shinkoku.db --config shinkoku.config.yaml
 | `src/shinkoku/tools/ledger.py` | 帳簿管理（仕訳CRUD・財務諸表） |
 | `src/shinkoku/tools/tax_calc.py` | 税額計算（所得税・消費税・控除・減価償却） |
 | `src/shinkoku/tools/import_data.py` | データ取り込み（CSV・レシート・請求書） |
-| `src/shinkoku/tools/document.py` | PDF帳票生成 |
 | `src/shinkoku/tools/furusato.py` | ふるさと納税 CRUD・集計 |
 | `src/shinkoku/tools/profile.py` | 納税者プロファイル取得 |
-| `src/shinkoku/tools/pdf_utils.py` | PDF生成ユーティリティ |
-| `src/shinkoku/tools/pdf_coordinates.py` | PDF帳票の座標定義 |
 
 ### CLI モジュール（src/shinkoku/cli/）
 
@@ -218,29 +210,15 @@ uv run shinkoku xtx generate --db-path shinkoku.db --config shinkoku.config.yaml
 | `src/shinkoku/cli/__main__.py` | — | `python -m shinkoku.cli` 実行用 |
 | `src/shinkoku/cli/ledger.py` | 71 | 帳簿管理 CLI（init, journal-add, search, trial-balance 等） |
 | `src/shinkoku/cli/tax_calc.py` | 8 | 税額計算 CLI（calc-income, calc-deductions 等） |
-| `src/shinkoku/cli/doc_generate.py` | 9 | PDF帳票生成 CLI（income-tax, bs-pl, full-set, preview 等） |
 | `src/shinkoku/cli/import_data.py` | 9 | データ取込 CLI（csv, receipt, invoice 等） |
 | `src/shinkoku/cli/furusato.py` | 4 | ふるさと納税 CLI（add, list, delete, summary） |
 | `src/shinkoku/cli/profile.py` | 1 | プロファイル取得 CLI |
-| `src/shinkoku/cli/xtx.py` | 1 | xtx（e-Tax XML）生成 CLI |
-
-### xtx（e-Tax XML）
-
-| ファイルパス | 役割 |
-|------------|------|
-| `src/shinkoku/xtx/generator.py` | xtx 生成エンジン（XtxBuilder クラス） |
-| `src/shinkoku/xtx/field_codes.py` | ABB コード定数辞書・名前空間・ネスト構造定義 |
-| `src/shinkoku/xtx/income_tax.py` | 所得税申告書B 第一表・第二表 xtx ビルダー |
-| `src/shinkoku/xtx/blue_return.py` | 青色申告決算書 PL・BS xtx ビルダー |
-| `src/shinkoku/xtx/consumption_tax.py` | 消費税申告書 xtx ビルダー |
-| `src/shinkoku/xtx/attachments.py` | 医療費・住宅ローン控除明細書 xtx ビルダー |
-| `src/shinkoku/xtx/generate_xtx.py` | xtx 生成オーケストレーション（DB→計算→XML出力） |
 
 ### スキル（skills/）
 
 | ファイルパス | 役割 |
 |------------|------|
-| `skills/e-tax/SKILL.md` | e-Tax 電子申告スキル（xtx 生成→アップロード案内） |
+| `skills/e-tax/SKILL.md` | e-Tax 電子申告スキル（Claude in Chrome で確定申告書等作成コーナーに入力） |
 | `skills/setup/SKILL.md` | セットアップウィザード（設定ファイル生成・DB初期化） |
 | `skills/reading-receipt/SKILL.md` | レシート画像 OCR スキル |
 | `skills/reading-withholding/SKILL.md` | 源泉徴収票 OCR スキル |

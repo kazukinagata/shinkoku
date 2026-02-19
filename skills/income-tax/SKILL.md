@@ -2,17 +2,17 @@
 name: income-tax
 description: >
   This skill should be used when the user needs to calculate their income tax
-  (所得税), generate the tax return form (確定申告書), compute deductions, or
-  import withholding slips. Trigger phrases include: "所得税を計算",
-  "確定申告書を作成", "控除を計算", "源泉徴収票を取り込む", "所得税額",
-  "納付額を計算", "還付額を計算", "確定申告書PDF", "第一表", "第二表",
-  "申告書B", "所得控除", "税額控除".
+  (所得税), compute deductions, or import withholding slips. Trigger phrases
+  include: "所得税を計算", "確定申告書を作成", "控除を計算",
+  "源泉徴収票を取り込む", "所得税額", "納付額を計算", "還付額を計算",
+  "第一表", "第二表", "申告書B", "所得控除", "税額控除".
 ---
 
-# 所得税計算・確定申告書作成（Income Tax Calculation）
+# 所得税計算（Income Tax Calculation）
 
-事業所得・各種控除から所得税額を計算し、確定申告書（申告書B様式）のPDFを生成するスキル。
+事業所得・各種控除から所得税額を計算するスキル。
 settlement スキルで決算書の作成が完了していることを前提とする。
+計算結果は `/e-tax` スキル（Claude in Chrome）で確定申告書等作成コーナーに入力する。
 
 ## 設定の読み込み（最初に実行）
 
@@ -681,38 +681,9 @@ shinkoku tax sanity-check --input sanity_input.json
 - **warning > 0**: 警告内容をユーザーに提示し、確認してから続行してください
 - **passed = true**: 問題なし。次のステップに進む
 
-## ステップ3.5: 医療費控除の明細書PDF生成（該当者のみ）
+## ステップ3.5: 住宅ローン控除明細の DB 登録（該当者のみ）
 
-医療費控除を適用する場合、明細書PDFを生成する。
-
-### `doc_generate.py medical-expense` の呼び出し
-
-```bash
-shinkoku doc medical-expense --input medical_input.json --output-path output/medical_expense_2025.pdf
-```
-入力 JSON:
-```json
-{
-  "fiscal_year": 2025,
-  "expenses": [
-    {
-      "medical_institution": "ABC病院",
-      "patient_name": "山田太郎",
-      "amount": 150000,
-      "insurance_reimbursement": 0
-    }
-  ],
-  "total_income": 5000000
-}
-```
-
-## ステップ3.7: 住宅ローン控除の計算明細書PDF生成（該当者のみ）
-
-住宅ローン控除（初年度）を適用する場合、計算明細書PDFを生成する。
-
-### 住宅ローン控除明細の DB 登録
-
-PDF 生成前に、住宅ローン控除の詳細情報を DB に登録する。
+住宅ローン控除（初年度）を適用する場合、詳細情報を DB に登録する。
 
 1. `ledger.py add-housing-loan-detail --db-path DB_PATH --input housing.json` で住宅ローン控除の明細を登録する:
    ```json
@@ -735,46 +706,8 @@ PDF 生成前に、住宅ローン控除の詳細情報を DB に登録する。
      }
    }
    ```
-2. 登録後、DB の情報を使って PDF を生成する
-
-### `doc_generate.py housing-loan` の呼び出し
-
-```bash
-shinkoku doc housing-loan --input housing_loan_input.json --output-path output/housing_loan_2025.pdf
-```
-入力 JSON:
-```json
-{
-  "fiscal_year": 2025,
-  "housing_detail": {
-    "housing_type": "new_custom",
-    "housing_category": "certified",
-    "move_in_date": "2024-03-15",
-    "year_end_balance": 30000000,
-    "is_new_construction": true
-  },
-  "credit_amount": 210000
-}
-```
 
 住宅区分別の年末残高上限テーブルは `references/deduction-tables.md` を参照。
-
-## ステップ4-5: PDF帳票の生成
-
-PDF帳票の生成は `/document` スキルに委任する。
-所得税計算完了後、ユーザーに「`/document` で確定申告書類PDFを一括生成できます」と案内する。
-
-なお、個別に生成する場合は以下のツールを直接呼び出すことも可能:
-
-### 確定申告書PDF: `doc_generate.py income-tax`
-
-```bash
-shinkoku doc income-tax --input income_tax_result.json --output-path output/income_tax_2025.pdf --config-path shinkoku.config.yaml
-```
-
-- 確定申告書B様式（第一表）のPDFを生成する
-- `--config-path` を渡すことで住所・氏名・電話等がPDFに自動記入される
-- 出力後、主要な記載内容をサマリーとして表示する
 
 ## ステップ6: 計算結果サマリーの提示
 
@@ -809,15 +742,10 @@ shinkoku doc income-tax --input income_tax_result.json --output-path output/inco
   ---------------------------------
   申告納税額:          ○○,○○○円（納付 / 還付）
 
-■ 出力ファイル:
-  → [出力パス]/income_tax_2025.pdf
-  → [出力パス]/deduction_detail_2025.pdf
-  → [出力パス]/medical_expense_detail_2025.pdf（該当者のみ）
-  → [出力パス]/housing_loan_detail_2025.pdf（住宅ローン控除初年度のみ）
-
 ■ 次のステップ:
-  → consumption-tax スキルで消費税の計算を行う
-  → submit スキルで提出準備を行う
+  → /consumption-tax で消費税の計算を行う
+  → /e-tax で確定申告書等作成コーナーに入力する（Claude in Chrome）
+  → /submit で提出準備を行う
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -901,16 +829,10 @@ fiscal_year: {tax_year}
 - 予定納税額: {金額}円
 - **申告納税額: {金額}円（{納付/還付}）**
 
-## 出力ファイル
-
-- 確定申告書PDF: {ファイルパス}
-- 控除明細PDF: {ファイルパス}
-- 医療費控除明細書PDF: {ファイルパス}（該当者のみ）
-- 住宅ローン控除明細書PDF: {ファイルパス}（該当者のみ）
-
 ## 次のステップ
 
 /consumption-tax で消費税の計算を行う
+/e-tax で確定申告書等作成コーナーに入力する（Claude in Chrome）
 /submit で提出準備を行う
 ```
 
@@ -935,10 +857,11 @@ fiscal_year: {tax_year}
 詳細なテーブル・パラメータは以下を参照:
 - **`references/form-b-fields.md`** — 確定申告書B様式の各欄の対応
 - **`references/deduction-tables.md`** — 所得税速算表、配偶者控除テーブル、基礎控除テーブル、住宅ローン限度額、生命保険料控除等
+
 ## 免責事項
 
 - この計算は一般的な所得税の計算ロジックに基づく
-- 分離課税（株式・FX）は対象外 — 第三表の生成・計算は行わない
+- 分離課税（株式・FX）は対象外 — 第三表の計算は行わない
 - 白色申告（収支内訳書）は対象外
 - 不動産所得、譲渡所得（不動産売却等）、退職所得は現時点で未対応
 - 最終的な申告内容は税理士等の専門家に確認することを推奨する
