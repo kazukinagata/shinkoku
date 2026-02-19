@@ -15,5 +15,8 @@ templates/
 specs/
 .playwright-cli/
 
+# Research screenshots
+skills/e-tax/research/*.png
+
 # Planning docs
 docs/plans/
