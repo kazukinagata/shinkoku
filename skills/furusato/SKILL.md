@@ -37,31 +37,16 @@ description: >
 
 `import_data.py furusato-receipt --file-path PATH` でファイルの存在を確認する。
 
-### 1-2. receipt-reader サブエージェントで読み取り
+### 1-2. 画像の読み取り
 
-**重要: 画像の読み取りは receipt-reader サブエージェントに委任する。** メインコンテキストで直接 Read ツールによる画像読み取りを行わないこと（Vision トークンでコンテキストが圧迫されるため）。
-
-> **⚠ MANDATORY**: 画像ファイルをメインコンテキストで直接 Read してはならない。
-> 必ず以下のデュアルエージェント OCR 検証手順に従うこと。
-> 違反すると OCR 精度が低下し、フィールド誤読の原因となる。
+**重要: 画像の読み取りは対応する reading-* スキルに委任する。**
 
 #### 単一の受領証明書の場合
 
-**デュアルエージェント OCR 検証で画像を読み取る:**
+画像ファイルの読み取りには `/reading-receipt` スキルを使用する。
+スキルの指示に従い、デュアル検証（2つの独立した読み取り結果の照合）を行って結果を取得する。
 
-2つのサブエージェントを並列で起動し（1メッセージで2つの Task を送信）、結果を照合する:
-```
-Task(
-  subagent_type="shinkoku:receipt-reader",
-  prompt="【読み取り A】以下のふるさと納税受領証明書の画像を読み取り、構造化データを返してください: {ファイルパス}"
-)
-Task(
-  subagent_type="shinkoku:receipt-reader",
-  prompt="【読み取り B】以下のふるさと納税受領証明書の画像を読み取り、構造化データを返してください: {ファイルパス}"
-)
-```
-
-**結果照合:** 両エージェントの結果から `amount`, `date`, `municipality_name` を比較する
+**結果照合:** 両方の読み取り結果から `amount`, `date`, `municipality_name` を比較する
 
 **一致の場合:** そのまま採用。「2つの独立した読み取りで結果が一致しました」と報告
 
@@ -69,7 +54,7 @@ Task(
 - 差異のあるフィールドを明示する
 - A を採用 / B を採用 / 手動入力 の3択を AskUserQuestion で提示する
 
-サブエージェントから返された `---FURUSATO_RECEIPT_DATA---` ブロックから以下の情報を取得する:
+読み取り結果の `---FURUSATO_RECEIPT_DATA---` ブロックから以下の情報を取得する:
 
 - **自治体名**: 寄附先の市区町村名
 - **都道府県名**: 寄附先の都道府県
@@ -80,22 +65,11 @@ Task(
 #### 複数の受領証明書を一括処理する場合
 
 1. Glob ツールで受領証明書画像の一覧を取得する（例: `furusato_receipts/*.jpg`, `furusato_receipts/*.png`）
-2. `import_data.py furusato-receipt --file-path PATH` で各ファイルの存在を確認する
-3. **デュアルエージェント OCR 検証で全ファイルを読み取る:**
+2. `shinkoku import furusato-receipt --file-path PATH` で各ファイルの存在を確認する
+3. 画像ファイルの読み取りには `/reading-receipt` スキルを使用する。
+   スキルの指示に従い、デュアル検証（2つの独立した読み取り結果の照合）を行って結果を取得する。
 
-   2つのサブエージェントを並列で起動し（1メッセージで2つの Task を送信）、全ファイルをそれぞれに渡す:
-   ```
-   Task(
-     subagent_type="shinkoku:receipt-reader",
-     prompt="【読み取り A】以下のふるさと納税受領証明書の画像をすべて読み取り、各ファイルの構造化データを返してください:\n- {パス1}\n- {パス2}\n- ..."
-   )
-   Task(
-     subagent_type="shinkoku:receipt-reader",
-     prompt="【読み取り B】以下のふるさと納税受領証明書の画像をすべて読み取り、各ファイルの構造化データを返してください:\n- {パス1}\n- {パス2}\n- ..."
-   )
-   ```
-
-   **結果照合:** ファイル単位で両エージェントの `amount`, `date`, `municipality_name` を比較する
+   **結果照合:** ファイル単位で両方の読み取り結果の `amount`, `date`, `municipality_name` を比較する
 
    **一致の場合:** そのまま採用。「2つの独立した読み取りで結果が一致しました」と報告
 
@@ -103,7 +77,7 @@ Task(
    - 差異のあるフィールドを明示する
    - A を採用 / B を採用 / 手動入力 の3択を AskUserQuestion で提示する
 
-4. サブエージェントから返された各証明書の結果をまとめてユーザーに提示する
+4. 各証明書の結果をまとめてユーザーに提示する
 
 ### 1-3. ユーザーに確認
 
@@ -114,7 +88,7 @@ Task(
 確認が完了したら `furusato.py add` で登録する。
 
 ```bash
-uv run python skills/furusato/scripts/furusato.py add --db-path DB --input FILE
+shinkoku furusato add --db-path DB --input FILE
 ```
 
 入力 JSON ファイルのフォーマット:
@@ -146,7 +120,7 @@ uv run python skills/furusato/scripts/furusato.py add --db-path DB --input FILE
 すべての寄附データを登録したら `furusato.py summary` で集計する。
 
 ```bash
-uv run python skills/furusato/scripts/furusato.py summary --db-path DB --fiscal-year YEAR [--estimated-limit N]
+shinkoku furusato summary --db-path DB --fiscal-year YEAR [--estimated-limit N]
 ```
 
 表示する情報:
@@ -160,7 +134,7 @@ uv run python skills/furusato/scripts/furusato.py summary --db-path DB --fiscal-
 所得情報が把握できている場合は `tax_calc.py furusato-limit` で上限を推定する。
 
 ```bash
-uv run python skills/income-tax/scripts/tax_calc.py furusato-limit --input FILE
+shinkoku tax furusato-limit --input FILE
 ```
 
 上限超過の場合は警告を表示:

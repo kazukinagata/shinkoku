@@ -1,33 +1,41 @@
 ---
-name: invoice-reader
+name: reading-invoice
 description: >
   請求書の画像を読み取り構造化データを返す。
-  メインコンテキストでの Vision トークン消費を避けるため、画像 OCR は必ずこのエージェントに委任する。
-  Use this agent when processing invoice images that need OCR extraction.
-
-  <example>
-  Context: User wants to import an invoice image
-  user: "この請求書の画像を読み取って"
-  assistant: "invoice-reader エージェントに画像読み取りを委任します"
-  <commentary>Invoice image OCR should be delegated to this agent.</commentary>
-  </example>
-
-  <example>
-  Context: Invoice is a scanned image, not a text PDF
-  user: "スキャンした請求書を取り込みたい"
-  assistant: "invoice-reader エージェントで請求書を読み取ります"
-  <commentary>Scanned invoice images should be delegated to this agent.</commentary>
-  </example>
-model: sonnet
-color: cyan
-tools:
-  - Read
-  - Glob
+  他のスキルから呼び出されるほか、直接ユーザーが呼び出すことも可能。
 ---
 
-# 請求書 OCR エージェント
+# 請求書 画像読み取り
 
-請求書の画像を Claude Vision で読み取り、構造化データとして返すエージェント。
+請求書の画像を読み取り、構造化データとして返すスキル。
+
+## 画像読み取り方法
+
+### 推奨: デュアル検証（並列2コンテキスト）
+
+精度を高めるため、同じ画像を2つの独立したコンテキストで並列に読み取り、結果を照合する。
+
+1. **2つの独立した読み取りを実行する:**
+   サブエージェントが使える環境では、2つのサブエージェントを並列で起動し、それぞれ独立に画像を読み取る。
+   各サブエージェントには以下の「基本ルール」と「出力フォーマット」をプロンプトとして渡し、画像ファイルパスを指定する。
+
+2. **結果照合:** 両方の読み取り結果から主要フィールド（金額等）を比較する。
+
+3. **一致の場合:** そのまま採用。「2つの独立した読み取りで結果が一致しました」と報告する。
+
+4. **不一致の場合:** ユーザーに元画像パスと両方の結果を提示し、正しい方を選択してもらう:
+   - 差異のあるフィールドを明示する
+   - A を採用 / B を採用 / 手動入力 の3択を提示する
+
+### フォールバック（サブエージェント非対応の場合）
+
+サブエージェントが利用できない環境では、以下の手順で読み取る:
+
+1. 画像ファイルを直接 Read ツールで読み取る
+2. 以下の「基本ルール」と「出力フォーマット」に従ってデータを抽出する
+3. 抽出結果をユーザーに提示し、**必ず目視確認を依頼する**
+
+⚠ デュアル検証が利用できないため、必ずユーザーに目視確認を依頼してください。
 
 ## 基本ルール
 
@@ -38,7 +46,7 @@ tools:
 - 読み取れないフィールドは UNKNOWN（文字列）または 0（金額）とする
 - 複数ファイルを渡された場合は全て順に処理してまとめて返す
 
-## 出力形式
+## 出力フォーマット
 
 画像を読み取り、以下の形式で返す:
 

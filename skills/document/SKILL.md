@@ -55,30 +55,27 @@ description: >
 
 ## 帳票生成の実行
 
-各帳票について `pdf-form-filler` サブエージェントを Task ツールで spawn する。
+各帳票について PDF帳票の記入には `/filling-pdf` スキルを使用する。
+コンテキスト消費を抑えるため、各帳票の生成はサブエージェントに `/filling-pdf` スキルの内容をプロンプトとして渡して委任する。
 
-### spawn 時に渡す情報
+### 委任時に渡す情報
 
 1. **帳票種類**: 生成する帳票の名称
 2. **テンプレートPDFのパス**: `templates/r07/` 内のファイル
 3. **入力データ**: 進捗情報から取得した計算結果 + config のプロフィール情報
 4. **出力先**: `{output_dir}/{帳票名}_{fiscal_year}.pdf`
 
-### spawn の例
+### 委任の例
 
 ```
-Task tool:
-  subagent_type: general-purpose
-  prompt: |
-    pdf-form-filler エージェントとして動作してください。
-    skills/filling-pdf/SKILL.md を読んで手順に従ってください。
+/filling-pdf スキルを使用して以下の帳票を生成する:
 
-    帳票種類: 確定申告書 第一表
-    テンプレート: templates/r07/01.pdf
-    出力先: output/income_tax_p1_2025.pdf
+帳票種類: 確定申告書 第一表
+テンプレート: templates/r07/01.pdf
+出力先: output/income_tax_p1_2025.pdf
 
-    入力データ:
-    [計算結果・プロフィール情報をここに記載]
+入力データ:
+[計算結果・プロフィール情報をここに記載]
 ```
 
 ## 生成後の確認

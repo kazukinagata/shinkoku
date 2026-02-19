@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""税額計算 CLI スクリプト."""
+"""税額計算 CLI."""
 
 from __future__ import annotations
 
@@ -8,32 +7,28 @@ import json
 import sys
 from pathlib import Path
 
-_project_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(_project_root / "src") not in sys.path:
-    sys.path.insert(0, str(_project_root / "src"))
-
-from shinkoku.tools.tax_calc import (  # noqa: E402
-    calc_deductions,
-    calc_income_tax,
-    calc_depreciation_straight_line,
-    calc_depreciation_declining_balance,
+from shinkoku.models import (
+    ConsumptionTaxInput,
+    DependentInfo,
+    DonationRecordRecord,
+    HousingLoanDetail,
+    IncomeTaxInput,
+    IncomeTaxResult,
+    LifeInsurancePremiumInput,
+    PensionDeductionInput,
+    RetirementIncomeInput,
+    SmallBusinessMutualAidInput,
+)
+from shinkoku.tools.tax_calc import (
     calc_consumption_tax,
+    calc_deductions,
+    calc_depreciation_declining_balance,
+    calc_depreciation_straight_line,
     calc_furusato_deduction_limit,
+    calc_income_tax,
     calc_pension_deduction,
     calc_retirement_income,
     sanity_check_income_tax,
-)
-from shinkoku.models import (  # noqa: E402
-    IncomeTaxInput,
-    IncomeTaxResult,
-    ConsumptionTaxInput,
-    PensionDeductionInput,
-    RetirementIncomeInput,
-    LifeInsurancePremiumInput,
-    HousingLoanDetail,
-    DependentInfo,
-    DonationRecordRecord,
-    SmallBusinessMutualAidInput,
 )
 
 
@@ -239,14 +234,37 @@ def _handle_sanity_check(args: argparse.Namespace) -> None:
     _output_json(check_result.model_dump())
 
 
-# ============================================================
-# CLI setup
-# ============================================================
+_HANDLERS: dict[str, callable] = {
+    "calc-deductions": _handle_calc_deductions,
+    "calc-income": _handle_calc_income,
+    "calc-depreciation": _handle_calc_depreciation,
+    "calc-consumption": _handle_calc_consumption,
+    "calc-furusato-limit": _handle_calc_furusato_limit,
+    "calc-pension": _handle_calc_pension,
+    "calc-retirement": _handle_calc_retirement,
+    "sanity-check": _handle_sanity_check,
+}
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="税額計算 CLI")
-    sub = parser.add_subparsers(dest="command")
+def _dispatch(args: argparse.Namespace) -> None:
+    """サブコマンドをディスパッチする。"""
+    handler = _HANDLERS.get(args.subcommand)
+    if handler is None:
+        _error_exit(f"Unknown command: {args.subcommand}")
+    try:
+        handler(args)
+    except Exception as e:
+        _error_exit(str(e))
+
+
+def register(parent_subparsers: argparse._SubParsersAction) -> None:
+    """tax サブコマンドを親パーサーに登録する。"""
+    parser = parent_subparsers.add_parser(
+        "tax",
+        description="税額計算 CLI",
+        help="税額計算",
+    )
+    sub = parser.add_subparsers(dest="subcommand")
 
     for name in [
         "calc-deductions",
@@ -260,39 +278,6 @@ def _build_parser() -> argparse.ArgumentParser:
     ]:
         p = sub.add_parser(name)
         p.add_argument("--input", required=True, help="入力 JSON ファイルパス")
+        p.set_defaults(func=_dispatch)
 
-    return parser
-
-
-_HANDLERS: dict[str, callable] = {
-    "calc-deductions": _handle_calc_deductions,
-    "calc-income": _handle_calc_income,
-    "calc-depreciation": _handle_calc_depreciation,
-    "calc-consumption": _handle_calc_consumption,
-    "calc-furusato-limit": _handle_calc_furusato_limit,
-    "calc-pension": _handle_calc_pension,
-    "calc-retirement": _handle_calc_retirement,
-    "sanity-check": _handle_sanity_check,
-}
-
-
-def main() -> None:
-    parser = _build_parser()
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
-
-    handler = _HANDLERS.get(args.command)
-    if handler is None:
-        _error_exit(f"Unknown command: {args.command}")
-
-    try:
-        handler(args)
-    except Exception as e:
-        _error_exit(str(e))
-
-
-if __name__ == "__main__":
-    main()
+    parser.set_defaults(func=lambda args: parser.print_help() or sys.exit(1))

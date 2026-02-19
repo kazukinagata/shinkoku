@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
-"""帳簿管理 CLI スクリプト.
-
-仕訳CRUD、残高試算表、PL/BS、各種マスタCRUD（67サブコマンド）を提供する。
-"""
+"""帳簿管理 CLI（仕訳CRUD・財務諸表・各種マスタ）."""
 
 from __future__ import annotations
 
@@ -12,12 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# プロジェクトルートを sys.path に追加（スクリプト直接実行対応）
-_project_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(_project_root / "src") not in sys.path:
-    sys.path.insert(0, str(_project_root / "src"))
-
-from shinkoku.models import (  # noqa: E402
+from shinkoku.models import (
     BusinessWithholdingInput,
     CryptoIncomeInput,
     DependentInput,
@@ -41,7 +32,7 @@ from shinkoku.models import (  # noqa: E402
     StockTradingAccountInput,
     WithholdingSlipInput,
 )
-from shinkoku.tools.ledger import (  # noqa: E402
+from shinkoku.tools.ledger import (
     ledger_add_business_withholding,
     ledger_add_crypto_income,
     ledger_add_dependent,
@@ -117,20 +108,24 @@ from shinkoku.tools.ledger import (  # noqa: E402
 
 
 def _load_json(path: str) -> Any:
-    """JSON ファイルを読み込んで返す。"""
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    """JSON ファイルを読み込んで返す。パース失敗時は JSON エラー出力して終了。"""
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, FileNotFoundError, OSError) as e:
+        _error(str(e))
 
 
-def _output(result: dict) -> int:
-    """結果を JSON で stdout に出力し、終了コードを返す。"""
+def _output(result: dict) -> None:
+    """結果を JSON で stdout に出力し、エラー時は exit(1)。"""
     print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("status") != "error" else 1
+    if result.get("status") == "error":
+        sys.exit(1)
 
 
-def _error(message: str) -> int:
-    """エラーを JSON で stdout に出力し、終了コード 1 を返す。"""
+def _error(message: str) -> None:
+    """エラーを JSON で stdout に出力し、exit(1)。"""
     print(json.dumps({"status": "error", "message": message}, ensure_ascii=False))
-    return 1
+    sys.exit(1)
 
 
 # ============================================================
@@ -138,14 +133,14 @@ def _error(message: str) -> int:
 # ============================================================
 
 
-def cmd_init(args: argparse.Namespace) -> int:
-    return _output(ledger_init(fiscal_year=args.fiscal_year, db_path=args.db_path))
+def cmd_init(args: argparse.Namespace) -> None:
+    _output(ledger_init(fiscal_year=args.fiscal_year, db_path=args.db_path))
 
 
-def cmd_journal_add(args: argparse.Namespace) -> int:
+def cmd_journal_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     entry = JournalEntry(**data)
-    return _output(
+    _output(
         ledger_add_journal(
             db_path=args.db_path,
             fiscal_year=args.fiscal_year,
@@ -155,12 +150,12 @@ def cmd_journal_add(args: argparse.Namespace) -> int:
     )
 
 
-def cmd_journal_batch_add(args: argparse.Namespace) -> int:
+def cmd_journal_batch_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     if not isinstance(data, list):
-        return _error("Input must be a JSON array of journal entries")
+        _error("Input must be a JSON array of journal entries")
     entries = [JournalEntry(**e) for e in data]
-    return _output(
+    _output(
         ledger_add_journals_batch(
             db_path=args.db_path,
             fiscal_year=args.fiscal_year,
@@ -170,16 +165,16 @@ def cmd_journal_batch_add(args: argparse.Namespace) -> int:
     )
 
 
-def cmd_search(args: argparse.Namespace) -> int:
+def cmd_search(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     params = JournalSearchParams(**data)
-    return _output(ledger_search(db_path=args.db_path, params=params))
+    _output(ledger_search(db_path=args.db_path, params=params))
 
 
-def cmd_journal_update(args: argparse.Namespace) -> int:
+def cmd_journal_update(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     entry = JournalEntry(**data)
-    return _output(
+    _output(
         ledger_update_journal(
             db_path=args.db_path,
             journal_id=args.journal_id,
@@ -189,24 +184,24 @@ def cmd_journal_update(args: argparse.Namespace) -> int:
     )
 
 
-def cmd_journal_delete(args: argparse.Namespace) -> int:
-    return _output(ledger_delete_journal(db_path=args.db_path, journal_id=args.journal_id))
+def cmd_journal_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_journal(db_path=args.db_path, journal_id=args.journal_id))
 
 
-def cmd_trial_balance(args: argparse.Namespace) -> int:
-    return _output(ledger_trial_balance(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_trial_balance(args: argparse.Namespace) -> None:
+    _output(ledger_trial_balance(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_pl(args: argparse.Namespace) -> int:
-    return _output(ledger_pl(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_pl(args: argparse.Namespace) -> None:
+    _output(ledger_pl(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_bs(args: argparse.Namespace) -> int:
-    return _output(ledger_bs(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_bs(args: argparse.Namespace) -> None:
+    _output(ledger_bs(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_check_duplicates(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_check_duplicates(args: argparse.Namespace) -> None:
+    _output(
         ledger_check_duplicates(
             db_path=args.db_path,
             fiscal_year=args.fiscal_year,
@@ -218,24 +213,22 @@ def cmd_check_duplicates(args: argparse.Namespace) -> int:
 # --- Business Withholding ---
 
 
-def cmd_bw_add(args: argparse.Namespace) -> int:
+def cmd_bw_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = BusinessWithholdingInput(**data)
-    return _output(
+    _output(
         ledger_add_business_withholding(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_bw_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_business_withholding(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_bw_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_business_withholding(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_bw_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_bw_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_business_withholding(db_path=args.db_path, withholding_id=args.withholding_id)
     )
 
@@ -243,24 +236,22 @@ def cmd_bw_delete(args: argparse.Namespace) -> int:
 # --- Loss Carryforward ---
 
 
-def cmd_lc_add(args: argparse.Namespace) -> int:
+def cmd_lc_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = LossCarryforwardInput(**data)
-    return _output(
+    _output(
         ledger_add_loss_carryforward(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_lc_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_loss_carryforward(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_lc_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_loss_carryforward(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_lc_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_lc_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_loss_carryforward(
             db_path=args.db_path, loss_carryforward_id=args.loss_carryforward_id
         )
@@ -270,22 +261,22 @@ def cmd_lc_delete(args: argparse.Namespace) -> int:
 # --- Medical Expense ---
 
 
-def cmd_me_add(args: argparse.Namespace) -> int:
+def cmd_me_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = MedicalExpenseInput(**data)
-    return _output(
+    _output(
         ledger_add_medical_expense(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_me_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_medical_expenses(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_me_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_medical_expenses(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_me_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_me_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_medical_expense(
             db_path=args.db_path, medical_expense_id=args.medical_expense_id
         )
@@ -295,45 +286,41 @@ def cmd_me_delete(args: argparse.Namespace) -> int:
 # --- Rent Detail ---
 
 
-def cmd_rd_add(args: argparse.Namespace) -> int:
+def cmd_rd_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = RentDetailInput(**data)
-    return _output(
+    _output(
         ledger_add_rent_detail(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
     )
 
 
-def cmd_rd_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_rent_details(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_rd_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_rent_details(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_rd_delete(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_delete_rent_detail(db_path=args.db_path, rent_detail_id=args.rent_detail_id)
-    )
+def cmd_rd_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_rent_detail(db_path=args.db_path, rent_detail_id=args.rent_detail_id))
 
 
 # --- Housing Loan Detail ---
 
 
-def cmd_hl_add(args: argparse.Namespace) -> int:
+def cmd_hl_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = HousingLoanDetailInput(**data)
-    return _output(
+    _output(
         ledger_add_housing_loan_detail(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_hl_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_housing_loan_details(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_hl_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_housing_loan_details(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_hl_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_hl_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_housing_loan_detail(
             db_path=args.db_path, housing_loan_detail_id=args.housing_loan_detail_id
         )
@@ -343,62 +330,56 @@ def cmd_hl_delete(args: argparse.Namespace) -> int:
 # --- Spouse ---
 
 
-def cmd_spouse_set(args: argparse.Namespace) -> int:
+def cmd_spouse_set(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = SpouseInput(**data)
-    return _output(
-        ledger_set_spouse(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
-    )
+    _output(ledger_set_spouse(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail))
 
 
-def cmd_spouse_get(args: argparse.Namespace) -> int:
-    return _output(ledger_get_spouse(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_spouse_get(args: argparse.Namespace) -> None:
+    _output(ledger_get_spouse(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_spouse_delete(args: argparse.Namespace) -> int:
-    return _output(ledger_delete_spouse(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_spouse_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_spouse(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
 # --- Dependent ---
 
 
-def cmd_dep_add(args: argparse.Namespace) -> int:
+def cmd_dep_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = DependentInput(**data)
-    return _output(
-        ledger_add_dependent(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
-    )
+    _output(ledger_add_dependent(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail))
 
 
-def cmd_dep_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_dependents(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_dep_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_dependents(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_dep_delete(args: argparse.Namespace) -> int:
-    return _output(ledger_delete_dependent(db_path=args.db_path, dependent_id=args.dependent_id))
+def cmd_dep_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_dependent(db_path=args.db_path, dependent_id=args.dependent_id))
 
 
 # --- Withholding Slip ---
 
 
-def cmd_ws_save(args: argparse.Namespace) -> int:
+def cmd_ws_save(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = WithholdingSlipInput(**data)
-    return _output(
+    _output(
         ledger_save_withholding_slip(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_ws_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_withholding_slips(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_ws_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_withholding_slips(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_ws_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_ws_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_withholding_slip(
             db_path=args.db_path, withholding_slip_id=args.withholding_slip_id
         )
@@ -408,41 +389,39 @@ def cmd_ws_delete(args: argparse.Namespace) -> int:
 # --- Other Income ---
 
 
-def cmd_oi_add(args: argparse.Namespace) -> int:
+def cmd_oi_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = OtherIncomeInput(**data)
-    return _output(
+    _output(
         ledger_add_other_income(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
     )
 
 
-def cmd_oi_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_other_income(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_oi_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_other_income(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_oi_delete(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_delete_other_income(db_path=args.db_path, other_income_id=args.other_income_id)
-    )
+def cmd_oi_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_other_income(db_path=args.db_path, other_income_id=args.other_income_id))
 
 
 # --- Crypto Income ---
 
 
-def cmd_ci_add(args: argparse.Namespace) -> int:
+def cmd_ci_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = CryptoIncomeInput(**data)
-    return _output(
+    _output(
         ledger_add_crypto_income(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
     )
 
 
-def cmd_ci_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_crypto_income(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_ci_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_crypto_income(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_ci_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_ci_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_crypto_income(db_path=args.db_path, crypto_income_id=args.crypto_income_id)
     )
 
@@ -450,51 +429,49 @@ def cmd_ci_delete(args: argparse.Namespace) -> int:
 # --- Inventory ---
 
 
-def cmd_inv_set(args: argparse.Namespace) -> int:
+def cmd_inv_set(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = InventoryInput(**data)
-    return _output(
-        ledger_set_inventory(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
-    )
+    _output(ledger_set_inventory(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail))
 
 
-def cmd_inv_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_inventory(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_inv_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_inventory(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_inv_delete(args: argparse.Namespace) -> int:
-    return _output(ledger_delete_inventory(db_path=args.db_path, inventory_id=args.inventory_id))
+def cmd_inv_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_inventory(db_path=args.db_path, inventory_id=args.inventory_id))
 
 
 # --- Opening Balance ---
 
 
-def cmd_ob_set(args: argparse.Namespace) -> int:
+def cmd_ob_set(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = OpeningBalanceInput(**data)
-    return _output(
+    _output(
         ledger_set_opening_balance(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_ob_set_batch(args: argparse.Namespace) -> int:
+def cmd_ob_set_batch(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     balances = [OpeningBalanceInput(**item) for item in data]
-    return _output(
+    _output(
         ledger_set_opening_balances_batch(
             db_path=args.db_path, fiscal_year=args.fiscal_year, balances=balances
         )
     )
 
 
-def cmd_ob_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_opening_balances(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_ob_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_opening_balances(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_ob_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_ob_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_opening_balance(
             db_path=args.db_path, opening_balance_id=args.opening_balance_id
         )
@@ -504,24 +481,22 @@ def cmd_ob_delete(args: argparse.Namespace) -> int:
 # --- Professional Fee ---
 
 
-def cmd_pf_add(args: argparse.Namespace) -> int:
+def cmd_pf_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = ProfessionalFeeInput(**data)
-    return _output(
+    _output(
         ledger_add_professional_fee(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_pf_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_professional_fees(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_pf_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_professional_fees(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_pf_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_pf_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_professional_fee(
             db_path=args.db_path, professional_fee_id=args.professional_fee_id
         )
@@ -531,24 +506,22 @@ def cmd_pf_delete(args: argparse.Namespace) -> int:
 # --- Stock Trading Account ---
 
 
-def cmd_sta_add(args: argparse.Namespace) -> int:
+def cmd_sta_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = StockTradingAccountInput(**data)
-    return _output(
+    _output(
         ledger_add_stock_trading_account(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_sta_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_stock_trading_accounts(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_sta_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_stock_trading_accounts(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_sta_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_sta_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_stock_trading_account(
             db_path=args.db_path,
             stock_trading_account_id=args.stock_trading_account_id,
@@ -559,24 +532,22 @@ def cmd_sta_delete(args: argparse.Namespace) -> int:
 # --- Stock Loss Carryforward ---
 
 
-def cmd_slc_add(args: argparse.Namespace) -> int:
+def cmd_slc_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = StockLossCarryforwardInput(**data)
-    return _output(
+    _output(
         ledger_add_stock_loss_carryforward(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_slc_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_stock_loss_carryforward(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_slc_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_stock_loss_carryforward(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_slc_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_slc_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_stock_loss_carryforward(
             db_path=args.db_path,
             stock_loss_carryforward_id=args.stock_loss_carryforward_id,
@@ -587,43 +558,41 @@ def cmd_slc_delete(args: argparse.Namespace) -> int:
 # --- FX Trading ---
 
 
-def cmd_fx_add(args: argparse.Namespace) -> int:
+def cmd_fx_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = FXTradingInput(**data)
-    return _output(
+    _output(
         ledger_add_fx_trading(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
     )
 
 
-def cmd_fx_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_fx_trading(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_fx_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_fx_trading(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_fx_delete(args: argparse.Namespace) -> int:
-    return _output(ledger_delete_fx_trading(db_path=args.db_path, fx_trading_id=args.fx_trading_id))
+def cmd_fx_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_fx_trading(db_path=args.db_path, fx_trading_id=args.fx_trading_id))
 
 
 # --- FX Loss Carryforward ---
 
 
-def cmd_fxlc_add(args: argparse.Namespace) -> int:
+def cmd_fxlc_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = FXLossCarryforwardInput(**data)
-    return _output(
+    _output(
         ledger_add_fx_loss_carryforward(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_fxlc_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_fx_loss_carryforward(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_fxlc_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_fx_loss_carryforward(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_fxlc_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_fxlc_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_fx_loss_carryforward(
             db_path=args.db_path,
             fx_loss_carryforward_id=args.fx_loss_carryforward_id,
@@ -634,24 +603,22 @@ def cmd_fxlc_delete(args: argparse.Namespace) -> int:
 # --- Social Insurance Item ---
 
 
-def cmd_si_add(args: argparse.Namespace) -> int:
+def cmd_si_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = SocialInsuranceItemInput(**data)
-    return _output(
+    _output(
         ledger_add_social_insurance_item(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_si_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_social_insurance_items(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_si_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_social_insurance_items(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_si_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_si_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_social_insurance_item(
             db_path=args.db_path,
             social_insurance_item_id=args.social_insurance_item_id,
@@ -662,24 +629,22 @@ def cmd_si_delete(args: argparse.Namespace) -> int:
 # --- Insurance Policy ---
 
 
-def cmd_ip_add(args: argparse.Namespace) -> int:
+def cmd_ip_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = InsurancePolicyInput(**data)
-    return _output(
+    _output(
         ledger_add_insurance_policy(
             db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail
         )
     )
 
 
-def cmd_ip_list(args: argparse.Namespace) -> int:
-    return _output(
-        ledger_list_insurance_policies(db_path=args.db_path, fiscal_year=args.fiscal_year)
-    )
+def cmd_ip_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_insurance_policies(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_ip_delete(args: argparse.Namespace) -> int:
-    return _output(
+def cmd_ip_delete(args: argparse.Namespace) -> None:
+    _output(
         ledger_delete_insurance_policy(
             db_path=args.db_path, insurance_policy_id=args.insurance_policy_id
         )
@@ -689,20 +654,18 @@ def cmd_ip_delete(args: argparse.Namespace) -> int:
 # --- Donation ---
 
 
-def cmd_don_add(args: argparse.Namespace) -> int:
+def cmd_don_add(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     detail = DonationRecordInput(**data)
-    return _output(
-        ledger_add_donation(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail)
-    )
+    _output(ledger_add_donation(db_path=args.db_path, fiscal_year=args.fiscal_year, detail=detail))
 
 
-def cmd_don_list(args: argparse.Namespace) -> int:
-    return _output(ledger_list_donations(db_path=args.db_path, fiscal_year=args.fiscal_year))
+def cmd_don_list(args: argparse.Namespace) -> None:
+    _output(ledger_list_donations(db_path=args.db_path, fiscal_year=args.fiscal_year))
 
 
-def cmd_don_delete(args: argparse.Namespace) -> int:
-    return _output(ledger_delete_donation(db_path=args.db_path, donation_id=args.donation_id))
+def cmd_don_delete(args: argparse.Namespace) -> None:
+    _output(ledger_delete_donation(db_path=args.db_path, donation_id=args.donation_id))
 
 
 # ============================================================
@@ -722,11 +685,14 @@ def _add_input_arg(p: argparse.ArgumentParser) -> None:
     p.add_argument("--input", required=True, help="JSON ファイルパス")
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="帳簿管理 CLI（仕訳CRUD・財務諸表・各種マスタ）",
+def register(parent_subparsers: argparse._SubParsersAction) -> None:
+    """ledger サブコマンドを親パーサーに登録する。"""
+    parser = parent_subparsers.add_parser(
+        "ledger",
+        description="帳簿管理（仕訳CRUD・財務諸表・各種マスタ）",
+        help="帳簿管理",
     )
-    sub = parser.add_subparsers(dest="command")
+    sub = parser.add_subparsers(dest="subcommand")
 
     # --- init ---
     p = sub.add_parser("init", help="DB初期化")
@@ -1134,20 +1100,4 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--donation-id", required=True, type=int)
     p.set_defaults(func=cmd_don_delete)
 
-    return parser
-
-
-def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
-    if not args.command:
-        parser.print_help()
-        return 1
-    try:
-        return args.func(args)
-    except Exception as e:
-        return _error(str(e))
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    parser.set_defaults(func=lambda args: parser.print_help() or sys.exit(1))

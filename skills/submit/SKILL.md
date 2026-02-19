@@ -47,7 +47,7 @@ description: >
 `profile.py` で config から納税者情報を取得し、記入漏れがないか検証する。
 
 ```bash
-uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
+shinkoku profile --config shinkoku.config.yaml
 ```
 
 ### 検証項目

@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""帳票生成 CLI スクリプト."""
+"""帳票生成 CLI."""
 
 from __future__ import annotations
 
@@ -8,11 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-_project_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(_project_root / "src") not in sys.path:
-    sys.path.insert(0, str(_project_root / "src"))
-
-from shinkoku.models import (  # noqa: E402
+from shinkoku.models import (
     BSItem,
     BSResult,
     ConsumptionTaxResult,
@@ -20,7 +15,7 @@ from shinkoku.models import (  # noqa: E402
     PLItem,
     PLResult,
 )
-from shinkoku.tools.document import (  # noqa: E402
+from shinkoku.tools.document import (
     _resolve_config,
     _resolve_taxpayer_name,
     generate_bs_pl_pdf,
@@ -32,7 +27,7 @@ from shinkoku.tools.document import (  # noqa: E402
     generate_medical_expense_detail_pdf,
     generate_schedule_4_pdf,
 )
-from shinkoku.tools.pdf_utils import pdf_to_images  # noqa: E402
+from shinkoku.tools.pdf_utils import pdf_to_images
 
 
 def _load_json(path: str) -> dict:
@@ -295,14 +290,38 @@ def _handle_preview(args: argparse.Namespace) -> None:
     _output_json({"images": images, "num_pages": len(images)})
 
 
-# ============================================================
-# CLI setup
-# ============================================================
+_HANDLERS: dict[str, callable] = {
+    "bs-pl": _handle_bs_pl,
+    "income-tax": _handle_income_tax,
+    "consumption-tax": _handle_consumption_tax,
+    "medical-expense": _handle_medical_expense,
+    "housing-loan": _handle_housing_loan,
+    "schedule-4": _handle_schedule_4,
+    "income-tax-p2": _handle_income_tax_p2,
+    "full-set": _handle_full_set,
+    "preview": _handle_preview,
+}
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="帳票生成 CLI")
-    sub = parser.add_subparsers(dest="command")
+def _dispatch(args: argparse.Namespace) -> None:
+    """サブコマンドをディスパッチする。"""
+    handler = _HANDLERS.get(args.subcommand)
+    if handler is None:
+        _error_exit(f"Unknown command: {args.subcommand}")
+    try:
+        handler(args)
+    except Exception as e:
+        _error_exit(str(e))
+
+
+def register(parent_subparsers: argparse._SubParsersAction) -> None:
+    """doc サブコマンドを親パーサーに登録する。"""
+    parser = parent_subparsers.add_parser(
+        "doc",
+        description="帳票生成 CLI",
+        help="PDF帳票生成",
+    )
+    sub = parser.add_subparsers(dest="subcommand")
 
     # input + output-path + config-path を共有する subcommand
     for name in [
@@ -319,46 +338,13 @@ def _build_parser() -> argparse.ArgumentParser:
         p.add_argument("--input", required=True, help="入力 JSON ファイルパス")
         p.add_argument("--output-path", required=True, help="出力 PDF ファイルパス")
         p.add_argument("--config-path", default=None, help="設定 YAML ファイルパス")
+        p.set_defaults(func=_dispatch)
 
     # preview は別のインターフェース
     p = sub.add_parser("preview")
     p.add_argument("--pdf-path", required=True, help="プレビュー対象 PDF パス")
     p.add_argument("--output-dir", default=None, help="画像出力ディレクトリ")
     p.add_argument("--dpi", type=int, default=150, help="解像度 (DPI)")
+    p.set_defaults(func=_dispatch)
 
-    return parser
-
-
-_HANDLERS: dict[str, callable] = {
-    "bs-pl": _handle_bs_pl,
-    "income-tax": _handle_income_tax,
-    "consumption-tax": _handle_consumption_tax,
-    "medical-expense": _handle_medical_expense,
-    "housing-loan": _handle_housing_loan,
-    "schedule-4": _handle_schedule_4,
-    "income-tax-p2": _handle_income_tax_p2,
-    "full-set": _handle_full_set,
-    "preview": _handle_preview,
-}
-
-
-def main() -> None:
-    parser = _build_parser()
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
-
-    handler = _HANDLERS.get(args.command)
-    if handler is None:
-        _error_exit(f"Unknown command: {args.command}")
-
-    try:
-        handler(args)
-    except Exception as e:
-        _error_exit(str(e))
-
-
-if __name__ == "__main__":
-    main()
+    parser.set_defaults(func=lambda args: parser.print_help() or sys.exit(1))

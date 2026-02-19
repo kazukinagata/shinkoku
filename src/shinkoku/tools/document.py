@@ -12,6 +12,7 @@ Generates:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -65,7 +66,26 @@ from shinkoku.tax_constants import (
 # Template Resolution & Helpers
 # ============================================================
 
-TEMPLATE_DIR = Path(__file__).parent.parent.parent.parent / "templates"
+
+def _get_template_dir() -> Path:
+    """テンプレートディレクトリを解決する。
+
+    優先順位:
+    1. SHINKOKU_TEMPLATES_DIR 環境変数
+    2. CWD/templates（CLIから実行時のデフォルト）
+    3. パッケージ相対パス（src レイアウト用フォールバック）
+    """
+    env_dir = os.environ.get("SHINKOKU_TEMPLATES_DIR")
+    if env_dir:
+        return Path(env_dir)
+    cwd_dir = Path.cwd() / "templates"
+    if cwd_dir.exists():
+        return cwd_dir
+    # パッケージ相対: src/shinkoku/tools/document.py → 4つ上がプロジェクトルート
+    return Path(__file__).resolve().parent.parent.parent.parent / "templates"
+
+
+TEMPLATE_DIR = _get_template_dir()
 
 
 def _resolve_template(name: str) -> Path | None:

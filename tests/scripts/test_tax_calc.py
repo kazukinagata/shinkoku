@@ -1,24 +1,11 @@
-"""Tests for tax_calc.py CLI script."""
+"""Tests for tax_calc CLI."""
 
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT = PROJECT_ROOT / "skills" / "income-tax" / "scripts" / "tax_calc.py"
-
-
-def _run(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(script), *args],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        timeout=60,
-    )
+from .conftest import run_cli
 
 
 # ============================================================
@@ -45,7 +32,7 @@ def test_calc_deductions_basic(tmp_path: Path) -> None:
             "social_insurance": 700_000,
         },
     )
-    result = _run(SCRIPT, "calc-deductions", "--input", str(input_file))
+    result = run_cli("tax", "calc-deductions", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert "total_income_deductions" in output
@@ -62,7 +49,7 @@ def test_calc_deductions_with_furusato(tmp_path: Path) -> None:
             "furusato_nozei": 50_000,
         },
     )
-    result = _run(SCRIPT, "calc-deductions", "--input", str(input_file))
+    result = run_cli("tax", "calc-deductions", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     # ふるさと納税控除が含まれている
@@ -84,7 +71,7 @@ def test_calc_income_salary_only(tmp_path: Path) -> None:
             "social_insurance": 700_000,
         },
     )
-    result = _run(SCRIPT, "calc-income", "--input", str(input_file))
+    result = run_cli("tax", "calc-income", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert "taxable_income" in output
@@ -106,7 +93,7 @@ def test_calc_income_with_business(tmp_path: Path) -> None:
             "business_withheld_tax": 30_000,
         },
     )
-    result = _run(SCRIPT, "calc-income", "--input", str(input_file))
+    result = run_cli("tax", "calc-income", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["business_income"] == 3_000_000 - 1_000_000 - 650_000
@@ -129,7 +116,7 @@ def test_calc_depreciation_straight_line(tmp_path: Path) -> None:
             "months": 12,
         },
     )
-    result = _run(SCRIPT, "calc-depreciation", "--input", str(input_file))
+    result = run_cli("tax", "calc-depreciation", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["method"] == "straight_line"
@@ -149,7 +136,7 @@ def test_calc_depreciation_declining_balance(tmp_path: Path) -> None:
             "useful_life": 4,
         },
     )
-    result = _run(SCRIPT, "calc-depreciation", "--input", str(input_file))
+    result = run_cli("tax", "calc-depreciation", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["method"] == "declining_balance"
@@ -166,7 +153,7 @@ def test_calc_depreciation_declining_missing_params(tmp_path: Path) -> None:
             "useful_life": 4,
         },
     )
-    result = _run(SCRIPT, "calc-depreciation", "--input", str(input_file))
+    result = run_cli("tax", "calc-depreciation", "--input", str(input_file))
     assert result.returncode == 1
     output = json.loads(result.stdout)
     assert output["status"] == "error"
@@ -186,7 +173,7 @@ def test_calc_consumption_special(tmp_path: Path) -> None:
             "taxable_sales_10": 5_500_000,
         },
     )
-    result = _run(SCRIPT, "calc-consumption", "--input", str(input_file))
+    result = run_cli("tax", "calc-consumption", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["method"] == "special_20pct"
@@ -203,7 +190,7 @@ def test_calc_consumption_simplified(tmp_path: Path) -> None:
             "simplified_business_type": 5,
         },
     )
-    result = _run(SCRIPT, "calc-consumption", "--input", str(input_file))
+    result = run_cli("tax", "calc-consumption", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["method"] == "simplified"
@@ -222,7 +209,7 @@ def test_calc_furusato_limit(tmp_path: Path) -> None:
             "total_income_deductions": 1_500_000,
         },
     )
-    result = _run(SCRIPT, "calc-furusato-limit", "--input", str(input_file))
+    result = run_cli("tax", "calc-furusato-limit", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert "estimated_limit" in output
@@ -244,7 +231,7 @@ def test_calc_pension_over_65(tmp_path: Path) -> None:
             "other_income": 0,
         },
     )
-    result = _run(SCRIPT, "calc-pension", "--input", str(input_file))
+    result = run_cli("tax", "calc-pension", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["is_over_65"] is True
@@ -260,7 +247,7 @@ def test_calc_pension_under_65(tmp_path: Path) -> None:
             "is_over_65": False,
         },
     )
-    result = _run(SCRIPT, "calc-pension", "--input", str(input_file))
+    result = run_cli("tax", "calc-pension", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["is_over_65"] is False
@@ -279,7 +266,7 @@ def test_calc_retirement_normal(tmp_path: Path) -> None:
             "years_of_service": 20,
         },
     )
-    result = _run(SCRIPT, "calc-retirement", "--input", str(input_file))
+    result = run_cli("tax", "calc-retirement", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["severance_pay"] == 10_000_000
@@ -299,7 +286,7 @@ def test_calc_retirement_officer(tmp_path: Path) -> None:
             "is_officer": True,
         },
     )
-    result = _run(SCRIPT, "calc-retirement", "--input", str(input_file))
+    result = run_cli("tax", "calc-retirement", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["is_officer"] is True
@@ -341,7 +328,7 @@ def test_sanity_check_pass(tmp_path: Path) -> None:
             },
         },
     )
-    result = _run(SCRIPT, "sanity-check", "--input", str(input_file))
+    result = run_cli("tax", "sanity-check", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["passed"] is True
@@ -369,7 +356,7 @@ def test_sanity_check_detects_error(tmp_path: Path) -> None:
             },
         },
     )
-    result = _run(SCRIPT, "sanity-check", "--input", str(input_file))
+    result = run_cli("tax", "sanity-check", "--input", str(input_file))
     assert result.returncode == 0, result.stderr
     output = json.loads(result.stdout)
     assert output["passed"] is False
@@ -383,7 +370,7 @@ def test_sanity_check_missing_keys(tmp_path: Path) -> None:
         tmp_path,
         {"fiscal_year": 2025},  # missing 'input' and 'result'
     )
-    result = _run(SCRIPT, "sanity-check", "--input", str(input_file))
+    result = run_cli("tax", "sanity-check", "--input", str(input_file))
     assert result.returncode == 1
     output = json.loads(result.stdout)
     assert output["status"] == "error"
@@ -395,12 +382,12 @@ def test_sanity_check_missing_keys(tmp_path: Path) -> None:
 
 
 def test_missing_input_file(tmp_path: Path) -> None:
-    result = _run(SCRIPT, "calc-income", "--input", str(tmp_path / "nonexistent.json"))
+    result = run_cli("tax", "calc-income", "--input", str(tmp_path / "nonexistent.json"))
     assert result.returncode == 1
     output = json.loads(result.stdout)
     assert output["status"] == "error"
 
 
 def test_no_command() -> None:
-    result = _run(SCRIPT)
+    result = run_cli("tax")
     assert result.returncode == 1

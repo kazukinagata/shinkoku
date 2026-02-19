@@ -1,24 +1,11 @@
-"""Tests for doc_generate.py CLI script."""
+"""Tests for doc_generate CLI."""
 
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT = PROJECT_ROOT / "skills" / "document" / "scripts" / "doc_generate.py"
-
-
-def _run(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(script), *args],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        timeout=60,
-    )
+from .conftest import run_cli
 
 
 # ============================================================
@@ -61,8 +48,8 @@ def test_bs_pl_pl_only(tmp_path: Path) -> None:
             ],
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "bs-pl",
         "--input",
         str(input_file),
@@ -88,8 +75,8 @@ def test_bs_pl_with_bs(tmp_path: Path) -> None:
             "bs_equity": [{"account_code": "3100", "account_name": "元入金", "amount": 500_000}],
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "bs-pl",
         "--input",
         str(input_file),
@@ -125,8 +112,8 @@ def test_income_tax(tmp_path: Path) -> None:
             "tax_due": 142_400,
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "income-tax",
         "--input",
         str(input_file),
@@ -156,8 +143,8 @@ def test_consumption_tax(tmp_path: Path) -> None:
             "total_due": 100_000,
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "consumption-tax",
         "--input",
         str(input_file),
@@ -189,8 +176,8 @@ def test_medical_expense(tmp_path: Path) -> None:
             "total_income": 5_000_000,
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "medical-expense",
         "--input",
         str(input_file),
@@ -221,8 +208,8 @@ def test_housing_loan(tmp_path: Path) -> None:
             "credit_amount": 210_000,
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "housing-loan",
         "--input",
         str(input_file),
@@ -253,8 +240,8 @@ def test_schedule_4(tmp_path: Path) -> None:
             ],
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "schedule-4",
         "--input",
         str(input_file),
@@ -288,8 +275,8 @@ def test_income_tax_p2(tmp_path: Path) -> None:
             ],
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "income-tax-p2",
         "--input",
         str(input_file),
@@ -328,8 +315,8 @@ def test_full_set_minimal(tmp_path: Path) -> None:
             "pl_expenses": [{"account_code": "5100", "account_name": "通信費", "amount": 120_000}],
         },
     )
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "full-set",
         "--input",
         str(input_file),
@@ -346,8 +333,8 @@ def test_full_set_minimal(tmp_path: Path) -> None:
 
 
 def test_missing_input_file(tmp_path: Path) -> None:
-    result = _run(
-        SCRIPT,
+    result = run_cli(
+        "doc",
         "income-tax",
         "--input",
         str(tmp_path / "nonexistent.json"),
@@ -360,5 +347,5 @@ def test_missing_input_file(tmp_path: Path) -> None:
 
 
 def test_no_command() -> None:
-    result = _run(SCRIPT)
+    result = run_cli("doc")
     assert result.returncode == 1

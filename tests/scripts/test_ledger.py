@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .conftest import LEDGER_SCRIPT, run_script, write_json
+from .conftest import run_cli, write_json
 
 # ============================================================
 # ヘルパー
@@ -13,15 +13,15 @@ from .conftest import LEDGER_SCRIPT, run_script, write_json
 
 
 def run_ledger(*args: str) -> dict:
-    """Run ledger.py and parse JSON output."""
-    result = run_script(LEDGER_SCRIPT, *args)
+    """Run ledger subcommand and parse JSON output."""
+    result = run_cli("ledger", *args)
     assert result.stdout, f"No stdout. stderr={result.stderr}"
     return json.loads(result.stdout)
 
 
 def run_ledger_raw(*args: str):
-    """Run ledger.py and return raw CompletedProcess."""
-    return run_script(LEDGER_SCRIPT, *args)
+    """Run ledger subcommand and return raw CompletedProcess."""
+    return run_cli("ledger", *args)
 
 
 def add_journal(db: str, tmp: Path, name: str = "j.json") -> dict:

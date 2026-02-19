@@ -1,162 +1,293 @@
 # shinkoku
 
-確定申告を自動化する Claude Code Plugin。会社員＋副業（事業所得・青色申告）の所得税・消費税確定申告をエンドツーエンドで支援。
+確定申告を自動化する AI コーディングエージェント向けプラグイン。個人事業主・会社員の所得税・消費税の確定申告を、帳簿の記帳から申告書の生成までエンドツーエンドで支援します。
 
-## 概要
+**Claude Code Plugin** として動作するほか、**SKILL.md オープン標準** に準拠した Agent Skills パッケージとして、Claude Code / Cursor / Windsurf / GitHub Copilot / Gemini CLI / Codex / Cline / Roo Code など 35 以上の AI コーディングエージェントで利用できます。
 
-shinkoku は Claude Code Plugin（MCP Server）として動作し、会社員で副業を行う個人事業主（事業所得・青色申告）を対象とした確定申告の自動化ツールです。帳簿の記帳から税額計算、PDF帳票の生成まで、確定申告ワークフローの全体を8つの対話型スキルでカバーします。複式簿記に準拠した仕訳管理、令和7年分の税制改正を反映した所得税・消費税の自動計算、確定申告書B・青色申告決算書・消費税申告書のPDF生成に対応しています。
+## 想定ユーザー
 
-## 特徴
+| 対象 | 対応レベル | 備考 |
+|------|-----------|------|
+| 個人事業主（青色申告・一般用） | Full | メインターゲット。帳簿 → 決算書 → 申告書 → xtx 全自動 |
+| 会社員 + 副業（事業所得） | Full | 源泉徴収票 + 事業所得の申告書 → xtx |
+| 給与所得のみ（会社員） | Full | 還付申告・医療費控除等 → xtx |
+| 消費税課税事業者 | Full | 2割特例・簡易課税・本則課税すべて対応 |
+| ふるさと納税利用者 | Full | 寄附金 CRUD + 控除計算 + 限度額推定 |
+| 住宅ローン控除（初年度） | Full | 控除額計算 + xtx 対応（添付書類は別途必要） |
+| 医療費控除 | Full | 明細書 → xtx 対応 |
+| 仮想通貨トレーダー | Full | 雑所得（総合課税）として申告書に自動反映 |
 
-**帳簿管理**
-- 複式簿記に準拠した仕訳入力・管理
-- CSV・レシート・請求書・源泉徴収票の取り込み
-- 残高試算表・損益計算書・貸借対照表の自動生成
+- **Full** = 計算・PDF帳票・xtx（e-Tax XML）すべて対応
+- **Partial** = 計算は可能だが帳票・xtx の一部が未対応
+- **Out** = 対象外
 
-**税額計算**
-- 所得税（給与所得控除、各種所得控除、税額控除、復興特別所得税）
-- 消費税（2割特例・簡易課税・本則課税）
-- 控除の自動計算（基礎控除、社会保険料、生命保険料、配偶者控除 等）
-- 減価償却（定額法・定率法）
+## 非対応
 
-**帳票生成**
-- 確定申告書B（第一表・第二表）のPDF生成
-- 青色申告決算書のPDF生成
-- 消費税申告書のPDF生成
+以下のケースには対応していません。
 
-**スキル**
-- 8つの対話型ワークフローによる段階的なガイド
+| 対象 | 理由 |
+|------|------|
+| 株式投資家（分離課税） | 株式譲渡所得・配当の分離課税 |
+| FX トレーダー | 先物取引に係る雑所得等 |
+| 不動産所得 | 不動産所得用の決算書・申告 |
+| 退職所得 | 退職所得控除の計算 |
+| 譲渡所得（不動産売却） | 長期/短期税率、3,000万円特別控除 |
+| 外国税額控除 | 外国税支払額の追跡・控除計算 |
+| 農業所得・山林所得 | 専用所得区分 |
+| 非居住者 | 日本居住者専用 |
 
-## 前提条件
+---
+
+## ⚠️ 免責事項
+
+**確定申告は自己責任で行ってください。**
+
+- 本ツールが生成した申告書・計算結果は、提出前に**必ずご自身で内容を確認**してください
+- 税法の解釈や申告内容に不安がある場合は、**税理士等の専門家に相談**することを強く推奨します
+- 本ツールの利用によって生じた**いかなる損害についても、開発者は責任を負いません**
+- 税制は毎年改正されます。本ツールは令和7年分（2025年課税年度）の税制に基づいています
+
+---
+
+## インストール
+
+### 前提条件
 
 - Python 3.11 以上
 - [uv](https://docs.astral.sh/uv/) パッケージマネージャ
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
-## インストール
+### おすすめ: AI エージェントに `/setup` でセットアップを依頼
+
+インストール後、AI エージェントに `/setup` と入力するだけで、設定ファイルの生成・データベースの初期化を対話的に進められます。
+
+### 方法 1: Claude Code / Cowork プラグイン（フル機能）
+
+Claude Code のプラグイン機能を使い、OCR 画像読取を含む全機能を利用できます。
 
 ```bash
 git clone https://github.com/kazukinagata/shinkoku.git
 cd shinkoku
 uv sync --all-extras
-```
 
-## 設定
-
-`shinkoku.config.example.yaml` を `shinkoku.config.yaml` にコピーして編集します。
-
-```bash
-cp shinkoku.config.example.yaml shinkoku.config.yaml
-```
-
-| フィールド | 説明 |
-|-----------|------|
-| `tax_year` | 対象年度（例: `2025`） |
-| `invoices_dir` | 売上データ（請求書PDF等）が格納されたディレクトリ |
-| `withholding_slips_dir` | 源泉徴収票が格納されたディレクトリ |
-| `past_returns_dir` | 過去の確定申告データ（参考用） |
-
-`shinkoku.config.yaml` は `.gitignore` に含まれるため、リポジトリにはコミットされません。
-
-## 使い方
-
-プラグインとして Claude Code を起動します。
-
-```bash
+# プラグインモードで起動
+claude --plugin-dir /path/to/shinkoku
+# または
 make dev
 ```
 
-起動後、以下の順序でスキルを利用して確定申告を進めます。
+### 方法 2: スキルのみインストール（35+ エージェント対応）
 
-1. `/assess` — 申告の種類を判定
-2. `/gather` — 必要書類を収集
-3. `/journal` — 仕訳を入力・帳簿管理
-4. `/settlement` — 決算整理・決算書作成
-5. `/income-tax` — 所得税計算・確定申告書PDF生成
-6. `/consumption-tax` — 消費税計算・申告書PDF生成（課税事業者のみ）
-7. `/submit` — 提出準備・チェックリスト
+`shinkoku` CLI をインストールし、スキルファイルを配置することで、Claude Code 以外のエージェントでも利用できます。
 
-税務に関する質問は `/tax-advisor` でいつでも相談できます。
+```bash
+# CLI のインストール
+uv tool install shinkoku
+# または
+pip install shinkoku
+
+# スキルのインストール（npx skills を使う場合）
+npx skills add shinkoku
+```
+
+手動でスキルを配置する場合は、`skills/` ディレクトリの各 `SKILL.md` をエージェントが認識できるパスにコピーしてください。
+
+### 環境別の補足
+
+| 環境 | 設定方法 |
+|------|---------|
+| Claude Code / Cowork | `--plugin-dir` でリポジトリを指定。フル機能（OCR デュアル検証を含む） |
+| Cursor | プロジェクトルートにスキルを配置。Rules で `SKILL.md` を参照 |
+| Windsurf | プロジェクトルートにスキルを配置。Rules で `SKILL.md` を参照 |
+| GitHub Copilot | `.github/copilot-instructions.md` からスキルを参照 |
+| Gemini CLI | プロジェクトにスキルを追加。`GEMINI.md` から参照 |
+| その他（Cline, Roo Code, Codex 等） | 各エージェントのスキル読み込み機能を使用 |
+
+## 使い方の流れ
+
+確定申告の作業は、以下のスキルを順番に進めていきます。AI エージェントに `/スキル名` と入力して開始します。
+
+### メインワークフロー
+
+```
+/setup             設定ファイル生成・DB 初期化
+  |
+/assess            申告要否・種類の判定
+  |
+/gather            必要書類の収集ナビゲーション
+  |
+/journal           仕訳入力・帳簿管理（CSV / レシート / 請求書の取込）
+  |
+/settlement        決算整理・決算書作成（減価償却・PL・BS）
+  |
+/income-tax        所得税計算・確定申告書 PDF 生成
+  |
+/consumption-tax   消費税計算・申告書 PDF 生成（課税事業者のみ）
+  |
+/submit            提出準備・最終チェックリスト
+```
+
+### 補助スキル（必要に応じて）
+
+- `/tax-advisor` --- 税務に関する質問にいつでも回答
+- `/furusato` --- ふるさと納税の寄附金管理・控除計算
+- `/e-tax` --- xtx（e-Tax XML）ファイルの生成・電子申告の案内
+- `/document` --- PDF 帳票を個別に生成
+- `/capabilities` --- shinkoku の対応範囲・機能の確認
 
 ## スキル一覧
 
-| スキル | 説明 | 使うタイミング |
-|-------|------|---------------|
-| `/assess` | 申告要否・種類の判定 | 最初に実行。確定申告が必要かどうか、所得税・消費税・住民税の申告要否を判定 |
-| `/gather` | 書類収集ナビゲーション | assess の後。必要書類のチェックリストと取得先を案内 |
-| `/journal` | 仕訳入力・帳簿管理 | 書類が揃った後。CSV/レシート/請求書を取り込み、仕訳を登録 |
-| `/settlement` | 決算整理・決算書作成 | 日常仕訳の入力完了後。減価償却・決算整理仕訳の登録、試算表・PL・BSの生成 |
-| `/income-tax` | 所得税計算・確定申告書作成 | 決算書の完成後。所得税額を計算し、確定申告書BのPDFを生成 |
-| `/consumption-tax` | 消費税計算・申告書作成 | 課税事業者のみ。消費税額を計算し、消費税申告書PDFを生成 |
-| `/submit` | 提出準備・チェックリスト | 申告書の完成後。最終確認と提出方法（e-Tax/郵送/持参）の案内 |
-| `/tax-advisor` | 税務アドバイザー | いつでも。控除・節税・税制についての質問に回答 |
+### メインワークフロー
 
-## 開発
+| スキル | 説明 |
+|-------|------|
+| `/setup` | 初回セットアップ。設定ファイル（`shinkoku.config.yaml`）の生成とデータベースの初期化 |
+| `/assess` | 確定申告が必要かどうか、所得税・消費税の申告要否を判定 |
+| `/gather` | 必要書類のチェックリストと取得先を案内 |
+| `/journal` | CSV・レシート・請求書・源泉徴収票を取り込み、複式簿記の仕訳を登録 |
+| `/settlement` | 減価償却・決算整理仕訳の登録、残高試算表・損益計算書・貸借対照表の生成 |
+| `/income-tax` | 所得税額を計算し、確定申告書 B（第一表・第二表）の PDF を生成 |
+| `/consumption-tax` | 消費税額を計算し（2割特例・簡易課税・本則課税）、消費税申告書 PDF を生成 |
+| `/submit` | 最終確認チェックリストと提出方法（e-Tax / 郵送 / 持参）の案内 |
+
+### 補助スキル
+
+| スキル | 説明 |
+|-------|------|
+| `/tax-advisor` | 控除・節税・税制についての質問に回答する税務アドバイザー |
+| `/furusato` | ふるさと納税の寄附金登録・一覧・削除・集計と控除限度額推定 |
+| `/e-tax` | xtx（e-Tax XML）ファイルの生成と電子申告の手順案内 |
+| `/document` | 確定申告書・青色申告決算書・消費税申告書等の PDF を個別に生成 |
+| `/filling-pdf` | PDF 帳票テンプレートへの記入ワークフロー（内部利用） |
+| `/invoice-system` | インボイス制度関連の参照情報 |
+| `/capabilities` | shinkoku の対応範囲・対応ペルソナ・既知の制限事項を表示 |
+
+### OCR 読取スキル
+
+| スキル | 読取対象 |
+|-------|---------|
+| `/reading-receipt` | レシート・領収書・ふるさと納税受領証明書 |
+| `/reading-withholding` | 源泉徴収票 |
+| `/reading-invoice` | 請求書 |
+| `/reading-deduction-cert` | 控除証明書（生命保険料・地震保険料等） |
+| `/reading-payment-statement` | 支払調書 |
+
+## 対応エージェント
+
+利用する AI エージェントによって、使える機能の範囲が異なります。
+
+| 互換性レベル | 対応エージェント | 利用可能な機能 |
+|------------|----------------|---------------|
+| フル機能 | Claude Code, Cowork | 全スキル + OCR デュアル検証（2つの読取結果をクロスチェック） + サブエージェント委任 |
+| OCR フォールバック | Cursor, Windsurf, GitHub Copilot, Gemini CLI 等（マルチモーダル LLM 対応） | 全スキル + OCR 単一読取 + ユーザー確認 |
+| コア機能のみ | 非マルチモーダル LLM エージェント | CLI + スキル。画像読取は手動入力が必要 |
+
+## 開発者向け情報
+
+### テスト
 
 ```bash
-# テスト
-make test
-uv run pytest tests/unit/ -v       # ユニットテスト
-uv run pytest tests/integration/ -v # 統合テスト
-uv run pytest tests/e2e/ -v         # E2Eテスト
-
-# Lint
-make lint
-uv run ruff format --check src/ tests/
-
-# 型チェック
-uv run mypy src/shinkoku/ --ignore-missing-imports
+make test                              # 全テスト実行
+uv run pytest tests/unit/ -v           # ユニットテスト
+uv run pytest tests/scripts/ -v        # CLI テスト
+uv run pytest tests/visual/ -v         # PDF ビジュアルリグレッションテスト
 ```
 
-テスト構成:
-- `tests/unit/` — 個別関数・モジュールの単体テスト
-- `tests/integration/` — モジュール間連携のテスト
-- `tests/e2e/` — YAMLシナリオデータによるエンドツーエンドテスト
+### Lint / 型チェック
 
-## プロジェクト構成
+```bash
+make lint                                            # Ruff lint + format + mypy
+uv run ruff format --check src/ tests/               # フォーマットチェック
+uv run mypy src/shinkoku/ --ignore-missing-imports   # 型チェック
+```
+
+### プロジェクト構成
 
 ```
 shinkoku/
 ├── .claude-plugin/
-│   └── plugin.json          # プラグインマニフェスト
+│   └── plugin.json              # Claude Code プラグインマニフェスト
 ├── .github/
 │   └── workflows/
-│       └── test.yml         # CI パイプライン
-├── skills/                  # 対話型ワークフロー定義
-│   ├── assess/SKILL.md      # 申告要否判定
-│   ├── gather/SKILL.md      # 書類収集
-│   ├── journal/SKILL.md     # 仕訳入力
-│   ├── settlement/SKILL.md  # 決算整理
-│   ├── income-tax/SKILL.md  # 所得税計算
-│   ├── consumption-tax/SKILL.md  # 消費税計算
-│   ├── submit/SKILL.md      # 提出準備
-│   └── tax-advisor/SKILL.md # 税務アドバイザー
+│       └── test.yml             # CI パイプライン
+├── skills/                      # Agent Skills（SKILL.md オープン標準）
+│   ├── setup/SKILL.md           #   初回セットアップ
+│   ├── assess/SKILL.md          #   申告要否判定
+│   ├── gather/SKILL.md          #   書類収集
+│   ├── journal/SKILL.md         #   仕訳入力・帳簿管理
+│   ├── settlement/SKILL.md      #   決算整理・決算書作成
+│   ├── income-tax/SKILL.md      #   所得税計算
+│   ├── consumption-tax/SKILL.md #   消費税計算
+│   ├── submit/SKILL.md          #   提出準備
+│   ├── tax-advisor/SKILL.md     #   税務アドバイザー
+│   ├── furusato/SKILL.md        #   ふるさと納税
+│   ├── e-tax/SKILL.md           #   e-Tax 電子申告
+│   ├── document/SKILL.md        #   PDF 帳票生成
+│   ├── filling-pdf/SKILL.md     #   PDF 記入ワークフロー
+│   ├── capabilities/SKILL.md    #   機能確認
+│   ├── reading-receipt/SKILL.md          # OCR: レシート
+│   ├── reading-withholding/SKILL.md      # OCR: 源泉徴収票
+│   ├── reading-invoice/SKILL.md          # OCR: 請求書
+│   ├── reading-deduction-cert/SKILL.md   # OCR: 控除証明書
+│   └── reading-payment-statement/SKILL.md # OCR: 支払調書
 ├── src/shinkoku/
-│   ├── server.py            # MCP Server エントリーポイント
-│   ├── models.py            # Pydantic モデル定義
-│   ├── db.py                # SQLite DB 管理
-│   ├── master_accounts.py   # 勘定科目マスタ
-│   └── tools/               # MCP ツール
-│       ├── ledger.py        # 帳簿管理（仕訳CRUD・財務諸表）
-│       ├── tax_calc.py      # 税額計算（所得税・消費税・控除・減価償却）
-│       ├── import_data.py   # データ取り込み（CSV・レシート・請求書）
-│       ├── document.py      # PDF帳票生成
-│       ├── pdf_utils.py     # PDF生成ユーティリティ
-│       └── pdf_coordinates.py  # PDF座標定義
+│   ├── cli/                     # CLI エントリーポイント（shinkoku コマンド）
+│   │   ├── __init__.py          #   main() + サブコマンド登録
+│   │   ├── ledger.py            #   帳簿管理 CLI
+│   │   ├── tax_calc.py          #   税額計算 CLI
+│   │   ├── doc_generate.py      #   PDF 帳票生成 CLI
+│   │   ├── import_data.py       #   データ取込 CLI
+│   │   ├── furusato.py          #   ふるさと納税 CLI
+│   │   ├── profile.py           #   プロファイル CLI
+│   │   └── xtx.py               #   xtx 生成 CLI
+│   ├── tools/                   # ビジネスロジック（純粋関数）
+│   │   ├── ledger.py            #   帳簿管理
+│   │   ├── tax_calc.py          #   税額計算
+│   │   ├── document.py          #   PDF 帳票生成
+│   │   ├── import_data.py       #   データ取り込み
+│   │   ├── furusato.py          #   ふるさと納税
+│   │   ├── profile.py           #   プロファイル取得
+│   │   ├── pdf_utils.py         #   PDF ユーティリティ
+│   │   └── pdf_coordinates.py   #   PDF 座標定義
+│   ├── xtx/                     # e-Tax XML 生成
+│   │   ├── generator.py         #   xtx 生成エンジン
+│   │   ├── field_codes.py       #   ABB コード定数辞書
+│   │   ├── income_tax.py        #   所得税申告書 xtx ビルダー
+│   │   ├── blue_return.py       #   青色申告決算書 xtx ビルダー
+│   │   ├── consumption_tax.py   #   消費税申告書 xtx ビルダー
+│   │   ├── attachments.py       #   医療費・住宅ローン控除明細書
+│   │   └── generate_xtx.py      #   xtx 生成オーケストレーション
+│   ├── models.py                # Pydantic モデル定義
+│   ├── db.py                    # SQLite DB 管理
+│   ├── master_accounts.py       # 勘定科目マスタ
+│   └── tax_constants.py         # 税制定数
 ├── tests/
-│   ├── unit/                # ユニットテスト
-│   ├── integration/         # 統合テスト
-│   └── e2e/                 # E2Eテスト
-├── shinkoku.config.example.yaml  # 設定ファイルテンプレート
-├── pyproject.toml           # プロジェクト設定
-├── Makefile                 # 開発コマンド
-└── uv.lock                  # 依存関係ロックファイル
+│   ├── unit/                    # ユニットテスト
+│   ├── scripts/                 # CLI テスト
+│   └── visual/                  # PDF ビジュアルリグレッションテスト
+├── shinkoku.config.example.yaml # 設定ファイルテンプレート
+├── pyproject.toml
+├── Makefile
+└── uv.lock
 ```
+
+### 技術スタック
+
+- Python 3.11+
+- SQLite（WAL モード）
+- Pydantic（モデル定義・バリデーション）
+- ReportLab / pypdf / pdfplumber（PDF 生成・読取）
+- Ruff（lint / format）
+- mypy（型チェック）
+- pytest（テスト）
 
 ## ライセンス
 
-MIT
+MIT License -- 詳細は [LICENSE](./LICENSE) を参照してください。
 
-## 免責事項
+## コントリビュート
 
-本ツールは確定申告の作業を支援する目的で提供されています。生成された申告書の内容については、提出前に必ず税理士等の専門家に確認を取ることを推奨します。本ツールの利用によって生じたいかなる損害についても、開発者は責任を負いません。
+Issue や Pull Request を歓迎します。日本語での報告・提案で構いません。
+
+- バグ報告: Issue を作成してください。再現手順があると助かります
+- 機能提案: Issue で議論した上で PR を作成してください
+- PR: `main` ブランチに対して作成してください。CI（lint + テスト）が通ることを確認してください

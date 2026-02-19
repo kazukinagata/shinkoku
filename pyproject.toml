@@ -21,6 +21,9 @@ dev = [
     "mypy>=1.10",
 ]
 
+[project.scripts]
+shinkoku = "shinkoku.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

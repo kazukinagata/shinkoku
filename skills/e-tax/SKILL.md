@@ -23,7 +23,7 @@ e-Tax Web にアップロードして電子申告するためのスキル。
 ## CLI リファレンス
 
 ```bash
-uv run python scripts/generate_xtx.py \
+shinkoku xtx \
     --config <config_path>      # 必須: shinkoku.config.yaml のパス
     --output-dir <output_dir>   # 必須: xtx ファイルの出力先ディレクトリ
     --db-path <db_path>         # 任意: DB パス（省略時は config の db_path を使用）
@@ -105,7 +105,7 @@ xtx に含まれる帳票を確認する。対応帳票の一覧は `/capabiliti
 以下の Bash コマンドで所得税の xtx ファイルを生成する:
 
 ```bash
-uv run python scripts/generate_xtx.py \
+shinkoku xtx \
     --config shinkoku.config.yaml \
     --db-path {db_path} \
     --output-dir {output_dir} \
@@ -128,7 +128,7 @@ uv run python scripts/generate_xtx.py \
 消費税の申告が必要な場合、以下のコマンドで消費税の xtx ファイルを生成する:
 
 ```bash
-uv run python scripts/generate_xtx.py \
+shinkoku xtx \
     --config shinkoku.config.yaml \
     --db-path {db_path} \
     --output-dir {output_dir} \

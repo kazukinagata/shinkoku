@@ -14,3 +14,6 @@ playground/
 templates/
 specs/
 .playwright-cli/
+
+# Planning docs
+docs/plans/

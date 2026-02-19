@@ -1,33 +1,41 @@
 ---
-name: withholding-reader
+name: reading-withholding
 description: >
   源泉徴収票の画像を読み取り構造化データを返す。
-  メインコンテキストでの Vision トークン消費を避けるため、画像 OCR は必ずこのエージェントに委任する。
-  Use this agent when processing withholding slip images that need OCR extraction.
-
-  <example>
-  Context: User wants to import a withholding slip image
-  user: "この源泉徴収票を読み取って"
-  assistant: "withholding-reader エージェントに画像読み取りを委任します"
-  <commentary>Withholding slip image OCR should be delegated to this agent.</commentary>
-  </example>
-
-  <example>
-  Context: Withholding slip is an image file, not PDF
-  user: "源泉徴収票の写真を取り込みたい"
-  assistant: "withholding-reader エージェントで源泉徴収票を読み取ります"
-  <commentary>Image-based withholding slips should be delegated to this agent.</commentary>
-  </example>
-model: sonnet
-color: cyan
-tools:
-  - Read
-  - Glob
+  他のスキルから呼び出されるほか、直接ユーザーが呼び出すことも可能。
 ---
 
-# 源泉徴収票 OCR エージェント
+# 源泉徴収票 画像読み取り
 
-源泉徴収票の画像を Claude Vision で読み取り、構造化データとして返すエージェント。
+源泉徴収票の画像を読み取り、構造化データとして返すスキル。
+
+## 画像読み取り方法
+
+### 推奨: デュアル検証（並列2コンテキスト）
+
+精度を高めるため、同じ画像を2つの独立したコンテキストで並列に読み取り、結果を照合する。
+
+1. **2つの独立した読み取りを実行する:**
+   サブエージェントが使える環境では、2つのサブエージェントを並列で起動し、それぞれ独立に画像を読み取る。
+   各サブエージェントには以下の「基本ルール」と「出力フォーマット」をプロンプトとして渡し、画像ファイルパスを指定する。
+
+2. **結果照合:** 両方の読み取り結果から主要フィールド（金額等）を比較する。
+
+3. **一致の場合:** そのまま採用。「2つの独立した読み取りで結果が一致しました」と報告する。
+
+4. **不一致の場合:** ユーザーに元画像パスと両方の結果を提示し、正しい方を選択してもらう:
+   - 差異のあるフィールドを明示する
+   - A を採用 / B を採用 / 手動入力 の3択を提示する
+
+### フォールバック（サブエージェント非対応の場合）
+
+サブエージェントが利用できない環境では、以下の手順で読み取る:
+
+1. 画像ファイルを直接 Read ツールで読み取る
+2. 以下の「基本ルール」と「出力フォーマット」に従ってデータを抽出する
+3. 抽出結果をユーザーに提示し、**必ず目視確認を依頼する**
+
+⚠ デュアル検証が利用できないため、必ずユーザーに目視確認を依頼してください。
 
 ## 基本ルール
 
@@ -38,7 +46,7 @@ tools:
 - 読み取れないフィールドは UNKNOWN（文字列）または 0（金額）とする
 - 複数ファイルを渡された場合は全て順に処理してまとめて返す
 
-## 出力形式
+## 出力フォーマット
 
 画像を読み取り、以下の形式で返す:
 

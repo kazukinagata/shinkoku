@@ -1,24 +1,15 @@
-"""Tests for furusato.py CLI script."""
+"""Tests for furusato CLI."""
 
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-FURUSATO_SCRIPT = PROJECT_ROOT / "skills" / "furusato" / "scripts" / "furusato.py"
+from .conftest import run_cli
 
 
-def run_furusato(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(FURUSATO_SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        timeout=60,
-    )
+def run_furusato(*args: str):
+    return run_cli("furusato", *args)
 
 
 # --- add ---

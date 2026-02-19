@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""ふるさと納税 CLI スクリプト."""
+"""ふるさと納税 CLI."""
 
 from __future__ import annotations
 
@@ -8,12 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-_project_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(_project_root / "src") not in sys.path:
-    sys.path.insert(0, str(_project_root / "src"))
-
-from shinkoku.db import get_connection  # noqa: E402
-from shinkoku.tools.furusato import (  # noqa: E402
+from shinkoku.db import get_connection
+from shinkoku.tools.furusato import (
     add_furusato_donation,
     delete_furusato_donation,
     list_furusato_donations,
@@ -21,7 +16,14 @@ from shinkoku.tools.furusato import (  # noqa: E402
 )
 
 
-def cmd_add(args: argparse.Namespace) -> dict:
+def _output(result: dict) -> None:
+    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
+    print()
+    if result.get("status") == "error":
+        sys.exit(1)
+
+
+def cmd_add(args: argparse.Namespace) -> None:
     params = json.loads(Path(args.input).read_text(encoding="utf-8"))
     conn = get_connection(args.db_path)
     try:
@@ -36,51 +38,59 @@ def cmd_add(args: argparse.Namespace) -> dict:
             one_stop_applied=params.get("one_stop_applied", False),
             source_file=params.get("source_file"),
         )
-        return {"status": "ok", "donation_id": donation_id}
+        _output({"status": "ok", "donation_id": donation_id})
     except ValueError as e:
-        return {"status": "error", "message": str(e)}
+        _output({"status": "error", "message": str(e)})
     finally:
         conn.close()
 
 
-def cmd_list(args: argparse.Namespace) -> dict:
+def cmd_list(args: argparse.Namespace) -> None:
     conn = get_connection(args.db_path)
     try:
         donations = list_furusato_donations(conn, args.fiscal_year)
-        return {
-            "status": "ok",
-            "donations": [d.model_dump() for d in donations],
-            "count": len(donations),
-        }
+        _output(
+            {
+                "status": "ok",
+                "donations": [d.model_dump() for d in donations],
+                "count": len(donations),
+            }
+        )
     finally:
         conn.close()
 
 
-def cmd_delete(args: argparse.Namespace) -> dict:
+def cmd_delete(args: argparse.Namespace) -> None:
     conn = get_connection(args.db_path)
     try:
         deleted = delete_furusato_donation(conn, args.donation_id)
         if not deleted:
-            return {"status": "error", "message": f"Donation {args.donation_id} not found"}
-        return {"status": "ok", "donation_id": args.donation_id}
+            _output({"status": "error", "message": f"Donation {args.donation_id} not found"})
+            return
+        _output({"status": "ok", "donation_id": args.donation_id})
     finally:
         conn.close()
 
 
-def cmd_summary(args: argparse.Namespace) -> dict:
+def cmd_summary(args: argparse.Namespace) -> None:
     conn = get_connection(args.db_path)
     try:
         summary = summarize_furusato_donations(
             conn, args.fiscal_year, estimated_limit=args.estimated_limit
         )
-        return {"status": "ok", **summary.model_dump()}
+        _output({"status": "ok", **summary.model_dump()})
     finally:
         conn.close()
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="ふるさと納税 CLI")
-    sub = parser.add_subparsers(dest="command")
+def register(parent_subparsers: argparse._SubParsersAction) -> None:
+    """furusato サブコマンドを親パーサーに登録する。"""
+    parser = parent_subparsers.add_parser(
+        "furusato",
+        description="ふるさと納税 CLI",
+        help="ふるさと納税",
+    )
+    sub = parser.add_subparsers(dest="subcommand")
 
     # add
     p = sub.add_parser("add", help="寄附を登録")
@@ -107,28 +117,4 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--estimated-limit", type=int, default=None)
     p.set_defaults(func=cmd_summary)
 
-    return parser
-
-
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
-
-    try:
-        result = args.func(args)
-    except Exception as e:
-        result = {"status": "error", "message": str(e)}
-
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    print()
-
-    if result.get("status") == "error":
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+    parser.set_defaults(func=lambda args: parser.print_help() or sys.exit(1))

@@ -79,7 +79,7 @@ config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD �
 ### `ledger.py trial-balance` の呼び出し
 
 ```bash
-python skills/journal/scripts/ledger.py trial-balance --db-path DB_PATH --input query.json
+shinkoku ledger trial-balance --db-path DB_PATH --input query.json
 ```
 入力 JSON:
 ```json
@@ -112,7 +112,7 @@ python skills/journal/scripts/ledger.py trial-balance --db-path DB_PATH --input 
 **計算ツールの呼び出し:**
 
 ```bash
-python skills/income-tax/scripts/tax_calc.py calc-depreciation --input depreciation_input.json
+shinkoku tax calc-depreciation --input depreciation_input.json
 ```
 
 定額法の場合:
@@ -228,7 +228,7 @@ python skills/income-tax/scripts/tax_calc.py calc-depreciation --input depreciat
 ### `ledger.py add-rent-detail` の呼び出し
 
 ```bash
-python skills/journal/scripts/ledger.py add-rent-detail --db-path DB_PATH --input rent.json
+shinkoku ledger add-rent-detail --db-path DB_PATH --input rent.json
 ```
 入力 JSON:
 ```json
@@ -261,7 +261,7 @@ python skills/journal/scripts/ledger.py add-rent-detail --db-path DB_PATH --inpu
 ### 3-1. 損益計算書の確認（`ledger.py pl`）
 
 ```bash
-python skills/journal/scripts/ledger.py pl --db-path DB_PATH --input query.json
+shinkoku ledger pl --db-path DB_PATH --input query.json
 ```
 入力 JSON:
 ```json
@@ -282,7 +282,7 @@ python skills/journal/scripts/ledger.py pl --db-path DB_PATH --input query.json
 ### 3-2. 貸借対照表の確認（`ledger.py bs`）
 
 ```bash
-python skills/journal/scripts/ledger.py bs --db-path DB_PATH --input query.json
+shinkoku ledger bs --db-path DB_PATH --input query.json
 ```
 入力 JSON:
 ```json
@@ -310,7 +310,7 @@ python skills/journal/scripts/ledger.py bs --db-path DB_PATH --input query.json
 #### 青色申告決算書: `doc_generate.py bs-pl`
 
 ```bash
-python skills/document/scripts/doc_generate.py bs-pl --input bs_pl_input.json --output-path output/bs_pl_2025.pdf
+shinkoku doc bs-pl --input bs_pl_input.json --output-path output/bs_pl_2025.pdf
 ```
 入力 JSON には `fiscal_year`, `pl_revenues`, `pl_expenses`, `bs_assets`, `bs_liabilities`, `bs_equity` を含める。
 

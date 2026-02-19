@@ -35,17 +35,17 @@ Full = 計算・帳票・xtx すべて対応、Partial = 計算は可能だが�
 ## アーキテクチャ
 
 ```
-agents/ (*.md)              ← サブエージェント定義（OCR等の委任先）
-skills/ (SKILL.md)          ← 対話フロー定義（9スキル、setup 含む）
-skills/*/scripts/*.py       ← CLI スクリプト（Bash 経由で呼び出し）
+skills/ (SKILL.md)          ← 対話フロー定義（オープン標準 Agent Skills 仕様）
+  skills/reading-*/SKILL.md ← OCR 画像読取スキル（旧 agents/ の後継）
+src/shinkoku/cli/           ← CLI エントリーポイント（shinkoku コマンド）
   ↓
 src/shinkoku/tools/         ← ビジネスロジック（純粋関数）
   ↓
 src/shinkoku/               ← コア（models, db, master_accounts）
 ```
 
-- ツール呼び出し: `skills/*/scripts/*.py` を `uv run python` で実行（argparse サブコマンド + JSON 入出力）
-- ビジネスロジック: `src/shinkoku/tools/*.py` に純粋関数として定義（CLI スクリプトから呼び出し）
+- ツール呼び出し: `shinkoku <command> <subcommand>` で実行（argparse サブコマンド + JSON 入出力）
+- ビジネスロジック: `src/shinkoku/tools/*.py` に純粋関数として定義（CLI から呼び出し）
 
 ## コマンド
 
@@ -62,28 +62,31 @@ uv run mypy src/shinkoku/ --ignore-missing-imports  # 型チェック
 uv run ruff format --check src/ tests/              # フォーマットチェック
 ```
 
-### CLI スクリプト呼び出し例
+### CLI 呼び出し例
 
 ```bash
 # 帳簿 CRUD
-uv run python skills/journal/scripts/ledger.py init --db-path shinkoku.db --fiscal-year 2025
-uv run python skills/journal/scripts/ledger.py journal-add --db-path shinkoku.db --input journal.json
-uv run python skills/journal/scripts/ledger.py trial-balance --db-path shinkoku.db --fiscal-year 2025
+uv run shinkoku ledger init --db-path shinkoku.db --fiscal-year 2025
+uv run shinkoku ledger journal-add --db-path shinkoku.db --input journal.json
+uv run shinkoku ledger trial-balance --db-path shinkoku.db --fiscal-year 2025
 
 # 税額計算
-uv run python skills/income-tax/scripts/tax_calc.py calc-income --input income_params.json
+uv run shinkoku tax calc-income --input income_params.json
 
 # PDF 帳票生成
-uv run python skills/document/scripts/doc_generate.py income-tax --input tax_result.json --output-path output/
+uv run shinkoku doc income-tax --input tax_result.json --output-path output/
 
 # データ取込
-uv run python skills/journal/scripts/import_data.py csv --file-path transactions.csv
+uv run shinkoku import csv --file-path transactions.csv
 
 # ふるさと納税
-uv run python skills/furusato/scripts/furusato.py summary --db-path shinkoku.db --fiscal-year 2025
+uv run shinkoku furusato summary --db-path shinkoku.db --fiscal-year 2025
 
 # プロファイル
-uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
+uv run shinkoku profile --config shinkoku.config.yaml
+
+# xtx（e-Tax XML）生成
+uv run shinkoku xtx generate --db-path shinkoku.db --config shinkoku.config.yaml --output-dir output/
 ```
 
 ## コーディング規約
@@ -138,9 +141,10 @@ uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
 - `*Record` — DBレコード（例: `JournalRecord`）
 - 定義は `src/shinkoku/models.py` に集約する
 
-### CLI スクリプト規約
+### CLI モジュール規約
 
-- 各スクリプトは argparse サブコマンド方式
+- エントリーポイント: `src/shinkoku/cli/__init__.py` の `main()` で全サブコマンドを登録
+- 各モジュール（`src/shinkoku/cli/*.py`）は `register(subparsers)` 関数を公開し、サブコマンドを登録する
 - 入力: 複雑なパラメータは `--input <json_file>` で JSON ファイル受け取り。単純パラメータは CLI 引数
 - 出力: JSON を stdout に出力。PDF 生成系は `--output-path` でファイル出力 + メタ情報を stdout
 - エラー: `{"status": "error", "message": "..."}` を stdout + exit code 1
@@ -176,7 +180,7 @@ uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
 ## テスト規約
 
 - 構成: `tests/unit/` / `tests/scripts/` / `tests/visual/`
-- `tests/scripts/`: CLI スクリプトの統合テスト（subprocess でスクリプトを呼び出し、JSON 出力を検証）
+- `tests/scripts/`: CLI の統合テスト（subprocess で `shinkoku` コマンドを呼び出し、JSON 出力を検証）
 - `tests/unit/`: DB・config・xtx 等のコアモジュールのユニットテスト
 - `tests/visual/`: PDF ビジュアルリグレッションテスト
 - 共有フィクスチャ: `in_memory_db`, `in_memory_db_with_accounts`, `sample_journals`
@@ -206,16 +210,19 @@ uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
 | `src/shinkoku/tools/pdf_utils.py` | PDF生成ユーティリティ |
 | `src/shinkoku/tools/pdf_coordinates.py` | PDF帳票の座標定義 |
 
-### CLI スクリプト（skills/*/scripts/）
+### CLI モジュール（src/shinkoku/cli/）
 
 | ファイルパス | サブコマンド数 | 役割 |
 |------------|-------------|------|
-| `skills/journal/scripts/ledger.py` | 67 | 帳簿管理 CLI（init, journal-add, search, trial-balance 等） |
-| `skills/income-tax/scripts/tax_calc.py` | 9 | 税額計算 CLI（calc-income, calc-deductions 等） |
-| `skills/document/scripts/doc_generate.py` | 11 | PDF帳票生成 CLI（income-tax, bs-pl, full-set 等） |
-| `skills/journal/scripts/import_data.py` | 9 | データ取込 CLI（csv, receipt, invoice 等） |
-| `skills/furusato/scripts/furusato.py` | 4 | ふるさと納税 CLI（add, list, delete, summary） |
-| `skills/setup/scripts/profile.py` | 1 | プロファイル取得 CLI |
+| `src/shinkoku/cli/__init__.py` | — | CLI エントリーポイント（`main()` + サブコマンド登録） |
+| `src/shinkoku/cli/__main__.py` | — | `python -m shinkoku.cli` 実行用 |
+| `src/shinkoku/cli/ledger.py` | 71 | 帳簿管理 CLI（init, journal-add, search, trial-balance 等） |
+| `src/shinkoku/cli/tax_calc.py` | 8 | 税額計算 CLI（calc-income, calc-deductions 等） |
+| `src/shinkoku/cli/doc_generate.py` | 9 | PDF帳票生成 CLI（income-tax, bs-pl, full-set, preview 等） |
+| `src/shinkoku/cli/import_data.py` | 9 | データ取込 CLI（csv, receipt, invoice 等） |
+| `src/shinkoku/cli/furusato.py` | 4 | ふるさと納税 CLI（add, list, delete, summary） |
+| `src/shinkoku/cli/profile.py` | 1 | プロファイル取得 CLI |
+| `src/shinkoku/cli/xtx.py` | 1 | xtx（e-Tax XML）生成 CLI |
 
 ### xtx（e-Tax XML）
 
@@ -228,15 +235,18 @@ uv run python skills/setup/scripts/profile.py --config shinkoku.config.yaml
 | `src/shinkoku/xtx/consumption_tax.py` | 消費税申告書 xtx ビルダー |
 | `src/shinkoku/xtx/attachments.py` | 医療費・住宅ローン控除明細書 xtx ビルダー |
 | `src/shinkoku/xtx/generate_xtx.py` | xtx 生成オーケストレーション（DB→計算→XML出力） |
-| `scripts/generate_xtx.py` | xtx 生成 CLI エントリーポイント |
 
-### スキル・エージェント
+### スキル（skills/）
 
 | ファイルパス | 役割 |
 |------------|------|
 | `skills/e-tax/SKILL.md` | e-Tax 電子申告スキル（xtx 生成→アップロード案内） |
 | `skills/setup/SKILL.md` | セットアップウィザード（設定ファイル生成・DB初期化） |
-| `agents/receipt-reader.md` | レシート画像OCRサブエージェント（Vision トークン分離） |
+| `skills/reading-receipt/SKILL.md` | レシート画像 OCR スキル |
+| `skills/reading-withholding/SKILL.md` | 源泉徴収票 OCR スキル |
+| `skills/reading-invoice/SKILL.md` | 請求書 OCR スキル |
+| `skills/reading-deduction-cert/SKILL.md` | 控除証明書 OCR スキル |
+| `skills/reading-payment-statement/SKILL.md` | 支払調書 OCR スキル |
 
 ## 注意事項
 

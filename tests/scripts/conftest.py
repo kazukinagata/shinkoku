@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-LEDGER_SCRIPT = PROJECT_ROOT / "skills" / "journal" / "scripts" / "ledger.py"
 
 
 @pytest.fixture
@@ -39,10 +38,10 @@ def db_path(tmp_path: Path) -> str:
     return db
 
 
-def run_script(script_path: str | Path, *args: str) -> subprocess.CompletedProcess[str]:
-    """Run a CLI script and return the CompletedProcess."""
+def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run the unified shinkoku CLI and return the CompletedProcess."""
     return subprocess.run(
-        [sys.executable, str(script_path), *args],
+        [sys.executable, "-m", "shinkoku.cli", *args],
         capture_output=True,
         text=True,
         cwd=str(PROJECT_ROOT),

@@ -1,24 +1,15 @@
-"""Tests for import_data.py CLI script."""
+"""Tests for import CLI."""
 
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-IMPORT_SCRIPT = PROJECT_ROOT / "skills" / "journal" / "scripts" / "import_data.py"
+from .conftest import run_cli
 
 
-def run_import(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(IMPORT_SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        timeout=60,
-    )
+def run_import(*args: str):
+    return run_cli("import", *args)
 
 
 # --- csv ---

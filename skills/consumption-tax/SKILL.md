@@ -101,7 +101,7 @@ Q3. 簡易課税制度選択届出書を提出済みで、
 ### `tax_calc.py calc-consumption` の呼び出し
 
 ```bash
-python skills/income-tax/scripts/tax_calc.py calc-consumption --input consumption_input.json
+shinkoku tax calc-consumption --input consumption_input.json
 ```
 入力 JSON (ConsumptionTaxInput):
 ```json
@@ -207,6 +207,7 @@ python skills/income-tax/scripts/tax_calc.py calc-consumption --input consumptio
 - 課税仕入の集計には適格請求書（インボイス）の保存が必要
 - 帳簿の消費税区分（references/tax-classification.md）に基づいて集計する
 - 課税売上割合が95%以上かつ課税売上高が5億円以下の場合、全額控除可能
+- インボイス制度における仕入税額控除の詳細要件は `skills/invoice-system/references/input-tax-credit-rules.md` を参照
 
 ## ステップ3: 申告方法の比較（任意）
 
@@ -236,7 +237,7 @@ python skills/income-tax/scripts/tax_calc.py calc-consumption --input consumptio
 ### `doc_generate.py consumption-tax` の呼び出し
 
 ```bash
-python skills/document/scripts/doc_generate.py consumption-tax --input consumption_result.json --output-path output/consumption_tax_2025.pdf
+shinkoku doc consumption-tax --input consumption_result.json --output-path output/consumption_tax_2025.pdf
 ```
 入力 JSON には ConsumptionTaxResult の全フィールドを含める。
 

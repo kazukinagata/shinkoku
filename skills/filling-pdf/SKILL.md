@@ -84,7 +84,7 @@ spawn 元から渡された以下のデータを確認する:
 CLI スクリプトを Bash ツールで実行する:
 
 ```bash
-python skills/document/scripts/doc_generate.py income-tax \
+shinkoku doc income-tax \
   --input income_tax_result.json \
   --output-path output/income_tax_p1_2025.pdf \
   --config-path shinkoku.config.yaml
@@ -93,7 +93,7 @@ python skills/document/scripts/doc_generate.py income-tax \
 全帳票を一括生成する場合:
 
 ```bash
-python skills/document/scripts/doc_generate.py full-set \
+shinkoku doc full-set \
   --input full_set_input.json \
   --output-path output/full_set_2025.pdf \
   --config-path shinkoku.config.yaml
@@ -103,7 +103,7 @@ python skills/document/scripts/doc_generate.py full-set \
 
 1. `doc_generate.py preview` で PDF を PNG 画像に変換する:
    ```bash
-   python skills/document/scripts/doc_generate.py preview --pdf-path output/income_tax_p1_2025.pdf --output-dir output/preview
+   shinkoku doc preview --pdf-path output/income_tax_p1_2025.pdf --output-dir output/preview
    ```
 2. 生成された画像を Read ツールで確認する
 3. 記入内容が正しい位置に表示されているか検証する

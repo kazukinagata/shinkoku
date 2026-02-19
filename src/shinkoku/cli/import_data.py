@@ -1,18 +1,12 @@
-#!/usr/bin/env python3
-"""データ取込 CLI スクリプト."""
+"""データ取込 CLI."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import sys
-from pathlib import Path
 
-_project_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(_project_root / "src") not in sys.path:
-    sys.path.insert(0, str(_project_root / "src"))
-
-from shinkoku.tools.import_data import (  # noqa: E402
+from shinkoku.tools.import_data import (
     import_check_csv_imported,
     import_csv,
     import_deduction_certificate,
@@ -25,54 +19,70 @@ from shinkoku.tools.import_data import (  # noqa: E402
 )
 
 
-def cmd_csv(args: argparse.Namespace) -> dict:
-    return import_csv(file_path=args.file_path)
+def _output(result: dict) -> None:
+    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
+    print()
+    if result.get("status") == "error":
+        sys.exit(1)
 
 
-def cmd_receipt(args: argparse.Namespace) -> dict:
-    return import_receipt(file_path=args.file_path)
+def cmd_csv(args: argparse.Namespace) -> None:
+    _output(import_csv(file_path=args.file_path))
 
 
-def cmd_invoice(args: argparse.Namespace) -> dict:
-    return import_invoice(file_path=args.file_path)
+def cmd_receipt(args: argparse.Namespace) -> None:
+    _output(import_receipt(file_path=args.file_path))
 
 
-def cmd_withholding(args: argparse.Namespace) -> dict:
-    return import_withholding(file_path=args.file_path)
+def cmd_invoice(args: argparse.Namespace) -> None:
+    _output(import_invoice(file_path=args.file_path))
 
 
-def cmd_furusato_receipt(args: argparse.Namespace) -> dict:
-    return import_furusato_receipt(file_path=args.file_path)
+def cmd_withholding(args: argparse.Namespace) -> None:
+    _output(import_withholding(file_path=args.file_path))
 
 
-def cmd_payment_statement(args: argparse.Namespace) -> dict:
-    return import_payment_statement(file_path=args.file_path)
+def cmd_furusato_receipt(args: argparse.Namespace) -> None:
+    _output(import_furusato_receipt(file_path=args.file_path))
 
 
-def cmd_deduction_certificate(args: argparse.Namespace) -> dict:
-    return import_deduction_certificate(file_path=args.file_path)
+def cmd_payment_statement(args: argparse.Namespace) -> None:
+    _output(import_payment_statement(file_path=args.file_path))
 
 
-def cmd_check_imported(args: argparse.Namespace) -> dict:
-    return import_check_csv_imported(
-        db_path=args.db_path,
-        fiscal_year=args.fiscal_year,
-        file_path=args.file_path,
+def cmd_deduction_certificate(args: argparse.Namespace) -> None:
+    _output(import_deduction_certificate(file_path=args.file_path))
+
+
+def cmd_check_imported(args: argparse.Namespace) -> None:
+    _output(
+        import_check_csv_imported(
+            db_path=args.db_path,
+            fiscal_year=args.fiscal_year,
+            file_path=args.file_path,
+        )
     )
 
 
-def cmd_record_source(args: argparse.Namespace) -> dict:
-    return import_record_source(
-        db_path=args.db_path,
-        fiscal_year=args.fiscal_year,
-        file_path=args.file_path,
-        row_count=args.row_count,
+def cmd_record_source(args: argparse.Namespace) -> None:
+    _output(
+        import_record_source(
+            db_path=args.db_path,
+            fiscal_year=args.fiscal_year,
+            file_path=args.file_path,
+            row_count=args.row_count,
+        )
     )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="データ取込 CLI")
-    sub = parser.add_subparsers(dest="command")
+def register(parent_subparsers: argparse._SubParsersAction) -> None:
+    """import サブコマンドを親パーサーに登録する。"""
+    parser = parent_subparsers.add_parser(
+        "import",
+        description="データ取込 CLI",
+        help="データ取込",
+    )
+    sub = parser.add_subparsers(dest="subcommand")
 
     # csv
     p = sub.add_parser("csv", help="CSV ファイルをパースして仕訳候補を返す")
@@ -124,28 +134,4 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--row-count", type=int, default=0)
     p.set_defaults(func=cmd_record_source)
 
-    return parser
-
-
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
-
-    try:
-        result = args.func(args)
-    except Exception as e:
-        result = {"status": "error", "message": str(e)}
-
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    print()
-
-    if result.get("status") == "error":
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+    parser.set_defaults(func=lambda args: parser.print_help() or sys.exit(1))
