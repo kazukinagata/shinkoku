@@ -17,9 +17,6 @@
 | 医療費控除 | Full | 明細集計＋控除額計算 |
 | 仮想通貨トレーダー | Full | 雑所得（総合課税）として申告書に自動反映 |
 
-- **Full** = 計算＋確定申告書等作成コーナーへの入力代行
-- **Out** = 対象外
-
 ## 非対応
 
 以下のケースには対応していません。
@@ -68,11 +65,6 @@
 /plugin install shinkoku@shinkoku
 ```
 
-開発・テスト用にローカルから直接読み込む場合:
-```bash
-claude --plugin-dir /path/to/shinkoku
-```
-
 ### 方法 2: スキルのみインストール（40+ エージェント対応）
 
 [skills](https://github.com/vercel-labs/skills) CLI でスキルをインストールできます。
@@ -89,27 +81,13 @@ npx skills add kazukinagata/shinkoku --list
 
 ```
 
-その他の skills コマンド:
-
-```bash
-npx skills list              # インストール済みスキルの一覧
-npx skills check             # アップデートの確認
-npx skills update            # スキルの更新
-npx skills remove -s e-tax   # 特定スキルの削除
-```
-
 ### 環境別の補足
 
 | 環境 | 設定方法 |
 |------|---------|
 | Claude Code | `/plugin marketplace add kazukinagata/shinkoku` → `/plugin install shinkoku@shinkoku` |
 | Cowork | GUI でこのリポジトリの URL をマーケットプレイスに追加し、プラグインをインストール |
-| Cursor | プロジェクトルートにスキルを配置。Rules で `SKILL.md` を参照 |
-| Windsurf | プロジェクトルートにスキルを配置。Rules で `SKILL.md` を参照 |
-| GitHub Copilot | `.github/copilot-instructions.md` からスキルを参照 |
-| Gemini CLI | プロジェクトにスキルを追加。`GEMINI.md` から参照 |
-| Antigravity | プロジェクトにスキルを配置。Browser Sub-Agent でブラウザ操作も可能 |
-| その他（Cline, Roo Code, Codex 等） | 各エージェントのスキル読み込み機能を使用 |
+| その他 | `npx skills add kazukinagata/shinkoku` でインストール（方法 2 を参照） |
 
 ### ブラウザ自動化（e-Tax に必要）
 
@@ -119,9 +97,9 @@ npx skills remove -s e-tax   # 特定スキルの削除
 |------|---------|------|
 | Claude in Chrome（推奨） | Windows / macOS のネイティブ Chrome | Claude in Chrome 拡張機能が必要 |
 | Antigravity Browser Sub-Agent | Windows / macOS / Linux | Antigravity IDE のブラウザ操作機能を利用 |
-| Playwright CLI（フォールバック） | WSL / Linux 等 | `@playwright/cli` のインストールが必要 |
+| Playwright CLI（β版） | WSL / Linux 等 | `@playwright/cli` のインストールが必要 |
 
-Claude in Chrome が利用できない環境では、Antigravity の Browser Sub-Agent または Playwright CLI を使用してください。
+Claude in Chrome が利用できる環境では、Playwright のインストールは不要です。
 
 #### Playwright CLI のインストール
 
@@ -137,40 +115,6 @@ npx playwright install chromium
 ```
 
 WSL の場合、GUI 表示が必要です（headed モードで Chrome を操作するため）。Windows 11 では WSLg が標準搭載されており追加設定は不要です。Windows 10 では X Server（VcXsrv 等）が必要です。
-
-## 使い方の流れ
-
-確定申告の作業は、以下のステップを順番に進めていきます。AI エージェントに自然言語で依頼してください。
-
-例: 「確定申告のセットアップをして」「所得税を計算して」「e-Taxで申告して」
-
-### メインワークフロー
-
-```
-セットアップ        設定ファイル生成・DB 初期化（AI エージェントに `/setup` と入力）
-  |
-申告要否判定        申告要否・種類の判定
-  |
-書類収集            必要書類の収集ナビゲーション
-  |
-仕訳入力            帳簿管理（CSV / レシート / 請求書の取込）
-  |
-決算整理            決算書作成（減価償却・PL・BS）
-  |
-所得税計算          所得税計算
-  |
-消費税計算          消費税計算（課税事業者のみ）
-  |
-提出準備            最終チェックリスト
-  |
-e-Tax 電子申告      確定申告書等作成コーナーへの入力代行（e-Tax 利用者のみ）
-```
-
-### 補助スキル（必要に応じて）
-
-- 税務相談 --- 税務に関する質問にいつでも回答
-- ふるさと納税 --- 寄附金管理・控除計算
-- 機能確認 --- shinkoku の対応範囲・機能の確認
 
 ## スキル一覧
 
