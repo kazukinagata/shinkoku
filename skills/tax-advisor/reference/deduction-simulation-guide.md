@@ -10,7 +10,7 @@
 ### 基本的な使い方
 
 ```bash
-uv run shinkoku tax calc-deductions --input deductions.json
+shinkoku tax calc-deductions --input deductions.json
 ```
 
 入力は JSON ファイルで指定する。出力は控除項目の一覧と合計額が JSON で返る。
@@ -75,7 +75,7 @@ uv run shinkoku tax calc-deductions --input deductions.json
 ```
 
 ```bash
-uv run shinkoku tax calc-deductions --input step1.json
+shinkoku tax calc-deductions --input step1.json
 ```
 
 → 基礎控除 + 社会保険料控除の基本控除額を確認。
@@ -136,7 +136,7 @@ uv run shinkoku tax calc-deductions --input step1.json
 控除額が確定したら、`calc-income` コマンドで所得税を計算する。
 
 ```bash
-uv run shinkoku tax calc-income --input income_params.json
+shinkoku tax calc-income --input income_params.json
 ```
 
 ## よくある相談パターン別の操作手順
@@ -145,10 +145,10 @@ uv run shinkoku tax calc-income --input income_params.json
 
 ```bash
 # 1. まず控除額を計算
-uv run shinkoku tax calc-deductions --input my_deductions.json
+shinkoku tax calc-deductions --input my_deductions.json
 
 # 2. 上限額を計算（total_income_deductions の値を使用）
-uv run shinkoku tax calc-furusato-limit --input furusato_params.json
+shinkoku tax calc-furusato-limit --input furusato_params.json
 ```
 
 `calc-furusato-limit` の入力:
@@ -166,12 +166,12 @@ uv run shinkoku tax calc-furusato-limit --input furusato_params.json
 
 ```bash
 # iDeCoなしで計算
-uv run shinkoku tax calc-deductions --input without_ideco.json
-uv run shinkoku tax calc-income --input income_without_ideco.json
+shinkoku tax calc-deductions --input without_ideco.json
+shinkoku tax calc-income --input income_without_ideco.json
 
 # iDeCoありで計算
-uv run shinkoku tax calc-deductions --input with_ideco.json
-uv run shinkoku tax calc-income --input income_with_ideco.json
+shinkoku tax calc-deductions --input with_ideco.json
+shinkoku tax calc-income --input income_with_ideco.json
 
 # 2つの結果を比較して節税効果を算出
 ```
@@ -238,10 +238,10 @@ Q3. 差引後の金額が10万円（or 所得の5%）を超えるか？
 
 ```bash
 # 副業なし（給与所得のみ）
-uv run shinkoku tax calc-income --input salary_only.json
+shinkoku tax calc-income --input salary_only.json
 
 # 副業あり（給与所得 + 事業所得）
-uv run shinkoku tax calc-income --input salary_plus_business.json
+shinkoku tax calc-income --input salary_plus_business.json
 ```
 
 副業開始時に追加で検討すべき項目:

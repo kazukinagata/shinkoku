@@ -13,6 +13,14 @@ description: >
 shinkoku の初回セットアップを対話的に行うスキル。
 設定ファイル（`shinkoku.config.yaml`）の生成とデータベースの初期化を実施する。
 
+## ステップ0: CLI のインストール確認
+
+`shinkoku` コマンドが利用可能か確認する。
+
+1. `shinkoku --version` を実行する
+2. **コマンドが存在しない場合**: `uv tool install git+https://github.com/kazukinagata/shinkoku` を実行してインストールする
+3. **コマンドが存在する場合**: `uv tool upgrade shinkoku` を実行して最新版に更新する
+
 ## ステップ1: 既存設定の確認
 
 CWD の `shinkoku.config.yaml` を Read ツールで読み込む。

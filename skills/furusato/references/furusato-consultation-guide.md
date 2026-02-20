@@ -276,10 +276,10 @@ iDeCoの掛金は全額所得控除（小規模企業共済等掛金控除）の
 
 ```bash
 # ふるさと納税の年間寄附サマリーと控除額計算
-uv run shinkoku furusato summary --db-path shinkoku.db --fiscal-year 2025
+shinkoku furusato summary --db-path shinkoku.db --fiscal-year 2025
 
 # 所得税の計算（ふるさと納税の寄附金控除を含む）
-uv run shinkoku tax calc-income --input income_params.json
+shinkoku tax calc-income --input income_params.json
 ```
 
 ## 参照条文

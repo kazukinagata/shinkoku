@@ -53,6 +53,18 @@
 - Python 3.11 以上
 - [uv](https://docs.astral.sh/uv/) パッケージマネージャ
 
+### CLI のインストール
+
+スキルが内部で `shinkoku` コマンドを呼び出します。通常は `/setup` スキルが自動でインストールしますが、手動で行う場合は以下を実行してください。
+
+```bash
+# インストール
+uv tool install git+https://github.com/kazukinagata/shinkoku
+
+# 更新
+uv tool upgrade shinkoku
+```
+
 ### 方法 1: Claude Code プラグイン（フル機能）
 
 プラグイン機能を使い、OCR 画像読取を含む全機能を利用できます。
@@ -86,7 +98,7 @@ npx skills add kazukinagata/shinkoku --list
 | 環境 | 設定方法 |
 |------|---------|
 | Claude Code | `/plugin marketplace add kazukinagata/shinkoku` → `/plugin install shinkoku@shinkoku` |
-| Cowork | GUI でこのリポジトリの URL をマーケットプレイスに追加し、プラグインをインストール |
+| Cowork | プラグイン > 個人用 > GitHub からマーケットプレイスを追加 > `kazukinagata/shinkoku` を入力してマーケットプレイスを追加し、その後表示される shinkoku プラグインをインストール |
 | その他 | `npx skills add kazukinagata/shinkoku` でインストール（方法 2 を参照） |
 
 ### ブラウザ自動化（e-Tax に必要）
@@ -99,9 +111,9 @@ npx skills add kazukinagata/shinkoku --list
 | Antigravity Browser Sub-Agent | Windows / macOS / Linux | Antigravity IDE のブラウザ操作機能を利用 |
 | Playwright CLI（β版） | WSL / Linux 等 | `@playwright/cli` のインストールが必要 |
 
-Claude in Chrome が利用できる環境では、Playwright のインストールは不要です。
-
 #### Playwright CLI のインストール
+
+Claude in Chrome, Antigravity を利用する場合このステップは不要です。
 
 ```bash
 # パッケージインストール
