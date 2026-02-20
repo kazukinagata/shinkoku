@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "shinkoku",
+  "owner": {
+    "name": "Kazuki Nagata"
+  },
+  "metadata": {
+    "description": "確定申告自動化 Claude Code Plugin"
+  },
+  "plugins": [
+    {
+      "name": "shinkoku",
+      "source": ".",
+      "description": "確定申告自動化 Claude Code Plugin。帳簿管理から e-Tax 入力代行まで。",
+      "version": "0.1.0",
+      "license": "MIT"
+    }
+  ]
+}
