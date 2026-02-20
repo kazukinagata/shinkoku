@@ -65,6 +65,8 @@ uv tool install git+https://github.com/kazukinagata/shinkoku
 uv tool upgrade shinkoku
 ```
 
+> Cowork の場合は、チャットで Claude にインストールを依頼してください。
+
 ### 方法 1: Claude Code プラグイン（フル機能）
 
 プラグイン機能を使い、OCR 画像読取を含む全機能を利用できます。
@@ -170,7 +172,7 @@ WSL の場合、GUI 表示が必要です（headed モードで Chrome を操作
 
 レシート・源泉徴収票等の画像読取（`/reading-*` スキル）は、利用する LLM がマルチモーダル（画像認識）に対応している必要があります。これはエージェントプラットフォームではなく、接続先の LLM の能力に依存します。
 
-- **マルチモーダル LLM**（Claude 3.5+, GPT-4o, Gemini 等）: OCR 読取可能
+- **マルチモーダル LLM**（Claude Opus 4.6, GPT-5.2, Gemini 3.1 等）: OCR 読取可能
 - **テキスト専用 LLM**: 手動入力が必要
 
 ### OCR デュアル検証（サブエージェント利用）
