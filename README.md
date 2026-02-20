@@ -2,7 +2,7 @@
 
 確定申告を自動化する AI コーディングエージェント向けプラグイン。個人事業主・会社員の所得税・消費税の確定申告を、帳簿の記帳から確定申告書等作成コーナーへの入力代行までエンドツーエンドで支援します。
 
-**Claude Code Plugin** として動作するほか、**SKILL.md オープン標準** に準拠した Agent Skills パッケージとして、Claude Code / Cursor / Windsurf / GitHub Copilot / Gemini CLI / Codex / Cline / Roo Code など 35 以上の AI コーディングエージェントで利用できます。
+**Claude Code Plugin** として動作するほか、**SKILL.md オープン標準** に準拠した Agent Skills パッケージとして、Claude Code / Cursor / Windsurf / GitHub Copilot / Gemini CLI / Codex / Cline / Roo Code など 40 以上の AI コーディングエージェントで利用できます。
 
 ## 想定ユーザー
 
@@ -59,125 +59,112 @@
 
 インストール後、AI エージェントに `/setup` と入力するだけで、設定ファイルの生成・データベースの初期化を対話的に進められます。
 
-### 方法 1: Claude Code / Cowork プラグイン（フル機能）
+### 方法 1: Claude Code プラグイン（フル機能）
 
-Claude Code のプラグイン機能を使い、OCR 画像読取を含む全機能を利用できます。
+プラグイン機能を使い、OCR 画像読取を含む全機能を利用できます。
 
 ```bash
-git clone https://github.com/kazukinagata/shinkoku.git
-cd shinkoku
-uv sync --all-extras
+# マーケットプレイスを追加
+/plugin marketplace add kazukinagata/shinkoku
 
-# プラグインモードで起動
+# プラグインをインストール
+/plugin install shinkoku@shinkoku
+```
+
+開発・テスト用にローカルから直接読み込む場合:
+```bash
 claude --plugin-dir /path/to/shinkoku
-# または
-make dev
 ```
 
-### 方法 2: スキルのみインストール（35+ エージェント対応）
+### 方法 2: スキルのみインストール（40+ エージェント対応）
 
-`shinkoku` CLI をインストールし、スキルファイルを配置することで、Claude Code 以外のエージェントでも利用できます。
+[skills](https://github.com/vercel-labs/skills) CLI でスキルをインストールし、CLI は GitHub から直接実行できます。
 
 ```bash
-# CLI のインストール
-uv tool install shinkoku
-# または
-pip install shinkoku
+# スキルのインストール（インストール先エージェントを対話的に選択）
+npx skills add kazukinagata/shinkoku
 
-# スキルのインストール（npx skills を使う場合）
-npx skills add shinkoku
+# 特定のエージェントにグローバルインストール
+npx skills add kazukinagata/shinkoku -g -a claude-code -a cursor
+
+# インストール可能なスキル一覧を確認
+npx skills add kazukinagata/shinkoku --list
+
+# CLI の実行（GitHub から直接）
+uvx --from git+https://github.com/kazukinagata/shinkoku shinkoku <command>
 ```
 
-手動でスキルを配置する場合は、`skills/` ディレクトリの各 `SKILL.md` をエージェントが認識できるパスにコピーしてください。
+その他の skills コマンド:
+
+```bash
+npx skills list              # インストール済みスキルの一覧
+npx skills check             # アップデートの確認
+npx skills update            # スキルの更新
+npx skills remove -s e-tax   # 特定スキルの削除
+```
 
 ### 環境別の補足
 
 | 環境 | 設定方法 |
 |------|---------|
-| Claude Code / Cowork | `--plugin-dir` でリポジトリを指定。フル機能（OCR デュアル検証を含む） |
+| Claude Code | `/plugin marketplace add kazukinagata/shinkoku` → `/plugin install shinkoku@shinkoku` |
+| Cowork | GUI でこのリポジトリの URL をマーケットプレイスに追加し、プラグインをインストール |
 | Cursor | プロジェクトルートにスキルを配置。Rules で `SKILL.md` を参照 |
 | Windsurf | プロジェクトルートにスキルを配置。Rules で `SKILL.md` を参照 |
 | GitHub Copilot | `.github/copilot-instructions.md` からスキルを参照 |
 | Gemini CLI | プロジェクトにスキルを追加。`GEMINI.md` から参照 |
 | その他（Cline, Roo Code, Codex 等） | 各エージェントのスキル読み込み機能を使用 |
 
-### Playwright フォールバック（WSL / Linux 環境）
+### Playwright CLI（e-Tax ブラウザ操作に必要）
 
-Claude in Chrome が利用できない環境（WSL / Linux 等）では、Playwright MCP をフォールバックとして使用できます。
-
-#### 前提条件
-
-- Node.js 18 以上
-- Chromium（`npx playwright install chromium` でインストール可能）
-- **headed モード必須**（QR コード認証でスマートフォンによる物理操作が必要なため）
-- WSL の場合: WSLg（Windows 11 標準）または X Server（VcXsrv 等）が必要
-
-#### セットアップ
+Claude in Chrome が利用できない環境（WSL / Linux 等）で `/e-tax` スキルを使うには、
+[Playwright CLI](https://github.com/microsoft/playwright-cli) のインストールが必要です。
 
 ```bash
-# Playwright MCP をステルススクリプト付きで起動
-npx @playwright/mcp@latest \
-  --init-script skills/e-tax/scripts/etax-stealth.js \
-  --headed
+# パッケージインストール
+npm install -g @playwright/cli@latest
+
+# スキルインストール（エージェントがコマンドを認識するために必要）
+playwright-cli install --skills
+
+# Chromium インストール
+npx playwright install chromium
 ```
 
-#### `.mcp.json` 設定例
-
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "@playwright/mcp@latest",
-        "--init-script",
-        "skills/e-tax/scripts/etax-stealth.js",
-        "--headed"
-      ]
-    }
-  }
-}
-```
-
-#### 制限事項
-
-| 制限 | 理由 |
-|------|------|
-| headed モード必須 | QR コード認証（CC-AA-440）でスマートフォンの物理操作が必要 |
-| OS 偽装スクリプト必須 | Linux 環境では `termnalInfomationCheckOS_myNumberLinkage()` が遷移をブロックする |
-| 一部手動操作あり | QR コード読み取り・マイナンバーカード認証はユーザーが実施 |
-| 検証未完了 | OS 偽装による環境チェック通過は未検証。詳細は `docs/wsl-os-detection-workaround.md` 参照 |
+WSL の場合、WSLg（Windows 11 標準）または X Server（VcXsrv 等）が必要です。
 
 ## 使い方の流れ
 
-確定申告の作業は、以下のスキルを順番に進めていきます。AI エージェントに `/スキル名` と入力して開始します。
+確定申告の作業は、以下のステップを順番に進めていきます。AI エージェントに自然言語で依頼してください。
+
+例: 「確定申告のセットアップをして」「所得税を計算して」「e-Taxで申告して」
 
 ### メインワークフロー
 
 ```
-/setup             設定ファイル生成・DB 初期化
+セットアップ        設定ファイル生成・DB 初期化
   |
-/assess            申告要否・種類の判定
+申告要否判定        申告要否・種類の判定
   |
-/gather            必要書類の収集ナビゲーション
+書類収集            必要書類の収集ナビゲーション
   |
-/journal           仕訳入力・帳簿管理（CSV / レシート / 請求書の取込）
+仕訳入力            帳簿管理（CSV / レシート / 請求書の取込）
   |
-/settlement        決算整理・決算書作成（減価償却・PL・BS）
+決算整理            決算書作成（減価償却・PL・BS）
   |
-/income-tax        所得税計算
+所得税計算          所得税計算
   |
-/consumption-tax   消費税計算（課税事業者のみ）
+消費税計算          消費税計算（課税事業者のみ）
   |
-/submit            提出準備・最終チェックリスト
+提出準備            最終チェックリスト
 ```
 
 ### 補助スキル（必要に応じて）
 
-- `/tax-advisor` --- 税務に関する質問にいつでも回答
-- `/furusato` --- ふるさと納税の寄附金管理・控除計算
-- `/e-tax` --- Claude in Chrome による確定申告書等作成コーナーへの入力代行
-- `/capabilities` --- shinkoku の対応範囲・機能の確認
+- 税務相談 --- 税務に関する質問にいつでも回答
+- ふるさと納税 --- 寄附金管理・控除計算
+- e-Tax 電子申告 --- Claude in Chrome による確定申告書等作成コーナーへの入力代行
+- 機能確認 --- shinkoku の対応範囲・機能の確認
 
 ## スキル一覧
 
@@ -203,6 +190,7 @@ npx @playwright/mcp@latest \
 | `/e-tax` | Claude in Chrome による確定申告書等作成コーナーへの入力代行 |
 | `/invoice-system` | インボイス制度関連の参照情報 |
 | `/capabilities` | shinkoku の対応範囲・対応ペルソナ・既知の制限事項を表示 |
+| `/incorporation` | 法人成り（個人事業主から法人への移行）の税額比較・設立手続き相談 |
 
 ### OCR 読取スキル
 
@@ -216,13 +204,22 @@ npx @playwright/mcp@latest \
 
 ## 対応エージェント
 
-利用する AI エージェントによって、使える機能の範囲が異なります。
+OCR 画像読取とサブエージェント（デュアル検証）の対応状況で機能差があります。
 
-| 互換性レベル | 対応エージェント | 利用可能な機能 |
-|------------|----------------|---------------|
-| フル機能 | Claude Code, Cowork | 全スキル + OCR デュアル検証（2つの読取結果をクロスチェック） + サブエージェント委任 |
-| OCR フォールバック | Cursor, Windsurf, GitHub Copilot, Gemini CLI 等（マルチモーダル LLM 対応） | 全スキル + OCR 単一読取 + ユーザー確認 |
-| コア機能のみ | 非マルチモーダル LLM エージェント | CLI + スキル。画像読取は手動入力が必要 |
+| エージェント | Vision (OCR) | サブエージェント | OCR デュアル検証 |
+|-------------|:---:|:---:|:---:|
+| Claude Code | ✓ | ✓ | ✓ |
+| Cowork | ✓ | ✓ | ✓ |
+| Cursor 2.5+ | ✓ | ✓ | ✓ |
+| GitHub Copilot | ✓ | ✓ | ✓ |
+| Cline | ✓ | ✓ | ✓ |
+| Windsurf | ✓ | — | 単一読取 + ユーザー確認 |
+| Gemini CLI | ✓ | △ | 単一読取 + ユーザー確認 |
+| Roo Code | ✓ | △ | 単一読取 + ユーザー確認 |
+| 非マルチモーダル LLM | — | — | 手動入力が必要 |
+
+- **OCR デュアル検証**: 2つのサブエージェントが独立に画像を読み取り、結果をクロスチェック
+- **△**: サブエージェント機能はあるが並列実行が制限的
 
 ## 開発者向け情報
 
@@ -233,6 +230,7 @@ make test                              # 全テスト実行
 uv run pytest tests/unit/ -v           # ユニットテスト
 uv run pytest tests/scripts/ -v        # CLI テスト
 uv run pytest tests/integration/ -v    # 統合テスト
+uv run pytest tests/e2e/ -v           # E2E テスト
 ```
 
 ### Lint / 型チェック
@@ -265,6 +263,7 @@ shinkoku/
 │   ├── furusato/SKILL.md        #   ふるさと納税
 │   ├── e-tax/SKILL.md           #   e-Tax 電子申告（Claude in Chrome）
 │   ├── capabilities/SKILL.md    #   機能確認
+│   ├── incorporation/SKILL.md   #   法人成り相談
 │   ├── reading-receipt/SKILL.md          # OCR: レシート
 │   ├── reading-withholding/SKILL.md      # OCR: 源泉徴収票
 │   ├── reading-invoice/SKILL.md          # OCR: 請求書
@@ -287,11 +286,17 @@ shinkoku/
 │   ├── models.py                # Pydantic モデル定義
 │   ├── db.py                    # SQLite DB 管理
 │   ├── master_accounts.py       # 勘定科目マスタ
-│   └── tax_constants.py         # 税制定数
+│   ├── tax_constants.py         # 税制定数
+│   ├── config.py                # 設定ファイル読み込み
+│   ├── hashing.py               # ハッシュユーティリティ
+│   └── duplicate_detection.py   # 重複検出ロジック
 ├── tests/
 │   ├── unit/                    # ユニットテスト
 │   ├── scripts/                 # CLI テスト
-│   └── integration/             # 統合テスト
+│   ├── integration/             # 統合テスト
+│   ├── e2e/                     # E2E テスト
+│   ├── fixtures/                # テストフィクスチャ
+│   └── helpers/                 # テストヘルパー
 ├── shinkoku.config.example.yaml # 設定ファイルテンプレート
 ├── pyproject.toml
 ├── Makefile
@@ -304,7 +309,8 @@ shinkoku/
 - SQLite（WAL モード）
 - Pydantic（モデル定義・バリデーション）
 - pdfplumber（PDF 読取）
-- Playwright（ブラウザ自動化フォールバック — `@playwright/mcp` 経由）
+- Playwright（ブラウザ自動化フォールバック — Python `playwright` + npm `@playwright/cli`）
+- PyYAML（設定ファイル読み込み）
 - Ruff（lint / format）
 - mypy（型チェック）
 - pytest（テスト）

@@ -191,6 +191,9 @@ uv run shinkoku profile --config shinkoku.config.yaml
 | `src/shinkoku/db.py` | SQLite 接続管理・マイグレーション |
 | `src/shinkoku/master_accounts.py` | 勘定科目マスタ（1xxx〜5xxx） |
 | `src/shinkoku/tax_constants.py` | 税制定数の一元管理（税率・控除額・速算表等） |
+| `src/shinkoku/config.py` | 設定ファイル（YAML）読み込み |
+| `src/shinkoku/hashing.py` | ハッシュユーティリティ |
+| `src/shinkoku/duplicate_detection.py` | 重複検出ロジック |
 
 ### ビジネスロジック（純粋関数）
 
@@ -212,7 +215,7 @@ uv run shinkoku profile --config shinkoku.config.yaml
 | `src/shinkoku/cli/tax_calc.py` | 8 | 税額計算 CLI（calc-income, calc-deductions 等） |
 | `src/shinkoku/cli/import_data.py` | 9 | データ取込 CLI（csv, receipt, invoice 等） |
 | `src/shinkoku/cli/furusato.py` | 4 | ふるさと納税 CLI（add, list, delete, summary） |
-| `src/shinkoku/cli/profile.py` | 1 | プロファイル取得 CLI |
+| `src/shinkoku/cli/profile.py` | — | プロファイル取得 CLI（直接コマンド） |
 
 ### スキル（skills/）
 

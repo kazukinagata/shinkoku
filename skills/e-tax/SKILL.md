@@ -3,7 +3,7 @@ name: e-tax
 description: >
   This skill should be used when the user wants to file their tax return
   electronically via the 確定申告書等作成コーナー (NTA Tax Return Preparation
-  Corner) using Claude in Chrome or Playwright MCP (fallback). It guides the
+  Corner) using Claude in Chrome or Playwright CLI (fallback). It guides the
   browser-based input of calculated tax data. Trigger phrases include:
   "e-Tax提出", "電子申告", "e-Taxで申告", "作成コーナーに入力",
   "確定申告書等作成コーナー", "作成コーナー", "申告書を提出".
@@ -34,12 +34,12 @@ Claude in Chrome を使ってブラウザ上で入力・提出するためのス
 | 前提 | Claude in Chrome 拡張機能がインストール済み |
 | 利点 | OS 検出の問題なし。追加設定不要 |
 
-### 方式 B: Playwright MCP（フォールバック）
+### 方式 B: Playwright CLI（フォールバック）
 
 | 項目 | 内容 |
 |-----|------|
 | 対象環境 | WSL / Linux、または Claude in Chrome が利用できない環境 |
-| 前提 | `@playwright/mcp` + `etax-stealth.js`（OS 偽装スクリプト） |
+| 前提 | `@playwright/cli` + Playwright CLI スキル + `etax-stealth.js`（OS 偽装スクリプト） |
 | 制限 | headed モード必須（QR コード認証に物理操作が必要） |
 
 ### 判定ロジック
@@ -49,15 +49,23 @@ Claude in Chrome を使ってブラウザ上で入力・提出するためのス
    → はい: 方式 A を使用
    → いいえ: 次へ
 
-2. Playwright MCP のツール（browser_navigate 等）が利用可能か？
-   → はい: 方式 B を使用（headed モードで起動されているか確認）
+2. Bash ツールで `playwright-cli` コマンドが利用可能か？
+   → はい: 方式 B を使用（headed モードで起動）
    → いいえ: エラー表示
 
    エラーメッセージ:
    「確定申告書等作成コーナーへの入力には、Claude in Chrome または
-    Playwright MCP が必要です。セットアップ方法は README.md の
-    『Playwright フォールバック』セクションを参照してください。」
+    Playwright CLI が必要です。セットアップ方法は README.md の
+    『Playwright CLI』セクションを参照してください。」
 ```
+
+### 方式 B 使用時のセッション開始手順
+
+Playwright CLI でブラウザを開く際の手順:
+
+1. 環境変数を設定: `PLAYWRIGHT_MCP_INIT_SCRIPT=skills/e-tax/scripts/etax-stealth.js`
+2. ブラウザ起動: `playwright-cli -s=etax open <url> --headed --browser=chrome`
+3. 以降のコマンドは `-s=etax` セッション指定で実行
 
 ## 設定の読み込み（最初に実行）
 
@@ -247,9 +255,9 @@ QRコード認証画面が表示されました。
 
 認証完了後、自動的に次の画面に遷移する。
 
-**⚠️ Playwright MCP 使用時の注意**: `etax-stealth.js` によるサーバーベイク関数パッチが自動適用されるが、
-QR コードが表示されない場合はコンソールで `getClientOS()` の戻り値を確認し、`'Windows'` でなければ
-以下を手動実行する:
+**⚠️ Playwright CLI 使用時の注意**: `PLAYWRIGHT_MCP_INIT_SCRIPT` 環境変数で `etax-stealth.js` を指定することで
+サーバーベイク関数パッチが自動適用されるが、QR コードが表示されない場合はコンソールで `getClientOS()` の
+戻り値を確認し、`'Windows'` でなければ以下を手動実行する:
 ```javascript
 window.getClientOS = function() { return 'Windows'; };
 displayQrcode();
@@ -948,12 +956,11 @@ Linux は公式非対応。OS 検出は **2層** で行われるため、回避�
 
 #### `etax-stealth.js` の2層偽装
 
-`@playwright/mcp` の `--init-script` オプションで `etax-stealth.js` を読み込むことで回避可能:
+`PLAYWRIGHT_MCP_INIT_SCRIPT` 環境変数で `etax-stealth.js` を指定して回避可能:
 
 ```bash
-npx @playwright/mcp@latest \
-  --init-script skills/e-tax/scripts/etax-stealth.js \
-  --headed
+PLAYWRIGHT_MCP_INIT_SCRIPT=skills/e-tax/scripts/etax-stealth.js \
+  playwright-cli -s=etax open https://www.keisan.nta.go.jp/ --headed --browser=chrome
 ```
 
 **層 1: navigator プロパティ偽装**（`addInitScript` で実行、ページ読み込み前）
@@ -983,10 +990,9 @@ CC-AA-440 で QR コードが表示されない場合、`displayQrcode()` 内で
 
 **確認方法**: ブラウザコンソールで `getClientOS()` の戻り値を確認。`'Windows'` でなければパッチが適用されていない。
 
-**手動対処**（Playwright MCP の場合）:
-```javascript
-window.getClientOS = function() { return 'Windows'; };
-displayQrcode();
+**手動対処**（Playwright CLI の場合）:
+```bash
+playwright-cli -s=etax run-code 'window.getClientOS = function() { return "Windows"; }; displayQrcode();'
 ```
 
 #### 検証済み画面遷移フロー
