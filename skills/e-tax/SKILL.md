@@ -3,10 +3,10 @@ name: e-tax
 description: >
   This skill should be used when the user wants to file their tax return
   electronically via the 確定申告書等作成コーナー (NTA Tax Return Preparation
-  Corner) using Claude in Chrome. It guides the browser-based input of
-  calculated tax data. Trigger phrases include: "e-Tax提出", "電子申告",
-  "e-Taxで申告", "作成コーナーに入力", "確定申告書等作成コーナー",
-  "作成コーナー", "申告書を提出".
+  Corner) using Claude in Chrome or Playwright MCP (fallback). It guides the
+  browser-based input of calculated tax data. Trigger phrases include:
+  "e-Tax提出", "電子申告", "e-Taxで申告", "作成コーナーに入力",
+  "確定申告書等作成コーナー", "作成コーナー", "申告書を提出".
 ---
 
 # e-Tax 電子申告 — Claude in Chrome による確定申告書等作成コーナー入力
@@ -20,7 +20,44 @@ Claude in Chrome を使ってブラウザ上で入力・提出するためのス
 - `/settlement` スキルで決算書（PL/BS）の作成が完了していること
 - `/consumption-tax` スキルで消費税の計算が完了していること（該当者のみ）
 - `shinkoku.config.yaml` が設定済みであること
-- **Claude in Chrome 拡張機能**がインストール済みであること
+- **ブラウザ自動化ツール**がいずれか利用可能であること（下記「ブラウザ自動化方式の選択」参照）
+
+## ブラウザ自動化方式の選択
+
+確定申告書等作成コーナーへの入力には、以下の2つの方式がある。
+
+### 方式 A: Claude in Chrome（推奨）
+
+| 項目 | 内容 |
+|-----|------|
+| 対象環境 | Windows / macOS のネイティブ Chrome |
+| 前提 | Claude in Chrome 拡張機能がインストール済み |
+| 利点 | OS 検出の問題なし。追加設定不要 |
+
+### 方式 B: Playwright MCP（フォールバック）
+
+| 項目 | 内容 |
+|-----|------|
+| 対象環境 | WSL / Linux、または Claude in Chrome が利用できない環境 |
+| 前提 | `@playwright/mcp` + `etax-stealth.js`（OS 偽装スクリプト） |
+| 制限 | headed モード必須（QR コード認証に物理操作が必要） |
+
+### 判定ロジック
+
+```
+1. Claude in Chrome のツール（browser_navigate 等）が利用可能か？
+   → はい: 方式 A を使用
+   → いいえ: 次へ
+
+2. Playwright MCP のツール（browser_navigate 等）が利用可能か？
+   → はい: 方式 B を使用（headed モードで起動されているか確認）
+   → いいえ: エラー表示
+
+   エラーメッセージ:
+   「確定申告書等作成コーナーへの入力には、Claude in Chrome または
+    Playwright MCP が必要です。セットアップ方法は README.md の
+    『Playwright フォールバック』セクションを参照してください。」
+```
 
 ## 設定の読み込み（最初に実行）
 
@@ -209,6 +246,14 @@ QRコード認証画面が表示されました。
 ```
 
 認証完了後、自動的に次の画面に遷移する。
+
+**⚠️ Playwright MCP 使用時の注意**: `etax-stealth.js` によるサーバーベイク関数パッチが自動適用されるが、
+QR コードが表示されない場合はコンソールで `getClientOS()` の戻り値を確認し、`'Windows'` でなければ
+以下を手動実行する:
+```javascript
+window.getClientOS = function() { return 'Windows'; };
+displayQrcode();
+```
 
 ---
 
@@ -889,7 +934,65 @@ URL パターン（ルートごとに異なる）:
 - Windows 11 + Chrome / Edge
 - macOS + Safari
 
-Linux は公式非対応。WSL 環境からの調査時は User-Agent 偽装が必要。
+Linux は公式非対応。OS 検出は **2層** で行われるため、回避にも2層の偽装が必要:
+
+1. **クライアントサイド検出**: CC-AA-024 の画面遷移時に `termnalInfomationCheckOS_myNumberLinkage()` が
+   `navigator.platform` / `navigator.userAgent` を検査し、Linux 環境では `isTransition=false` となり
+   QR コード認証画面（CC-AA-440）への遷移がブロックされる。
+
+2. **サーバーサイド OS ベイク**: サーバーが HTTP リクエストの `User-Agent` / `sec-ch-ua-platform` ヘッダ
+   から OS を判定し、レスポンス内の `getClientOS()` 関数に `const os = "Linux"` のようにハードコードする
+   （サーバーサイドレンダリング）。`addInitScript` による navigator プロパティ偽装ではこのベイク値は変わらない。
+   CC-AA-440 の `displayQrcode()` でも `getClientOS()` が呼ばれ、`oStUseType` を決定する
+   （Win=`'3'`, Mac=`'4'`）。Linux だと `undefined` になり QR コードが描画されない。
+
+#### `etax-stealth.js` の2層偽装
+
+`@playwright/mcp` の `--init-script` オプションで `etax-stealth.js` を読み込むことで回避可能:
+
+```bash
+npx @playwright/mcp@latest \
+  --init-script skills/e-tax/scripts/etax-stealth.js \
+  --headed
+```
+
+**層 1: navigator プロパティ偽装**（`addInitScript` で実行、ページ読み込み前）
+
+| プロパティ | 偽装値 |
+|-----------|--------|
+| `navigator.platform` | `'Win32'` |
+| `navigator.userAgent` | Windows Chrome 131 UA |
+| `navigator.userAgentData` | Windows Chrome Client Hints |
+| `navigator.webdriver` | `false` |
+| `navigator.plugins` | Chrome 標準プラグイン |
+| `navigator.languages` | `['ja', 'en-US', 'en']` |
+
+**層 2: サーバーベイク関数のパッチ**（`DOMContentLoaded` で実行、ページスクリプト後）
+
+| パッチ対象 | 偽装値 | 目的 |
+|-----------|--------|------|
+| `getClientOS()` | `'Windows'` | サーバーベイク値の上書き |
+| `getClientOSVersionAsync()` | `'Windows 11'` | OS バージョン判定の回避 |
+| `isRecommendedOsAsEtaxAsync()` | `true` | 推奨 OS 判定の回避 |
+| `isRecommendedBrowserAsEtaxAsync()` | `'OK'` | 推奨ブラウザ判定の回避 |
+
+#### トラブルシューティング: QR コードが表示されない
+
+CC-AA-440 で QR コードが表示されない場合、`displayQrcode()` 内で `getClientOS()` が `'Linux'` 等を返し、
+`oStUseType` が `undefined` になっている可能性がある。
+
+**確認方法**: ブラウザコンソールで `getClientOS()` の戻り値を確認。`'Windows'` でなければパッチが適用されていない。
+
+**手動対処**（Playwright MCP の場合）:
+```javascript
+window.getClientOS = function() { return 'Windows'; };
+displayQrcode();
+```
+
+#### 検証済み画面遷移フロー
+
+CC-AA-010 → CC-AE-090 → CC-AE-600 → CC-AA-024 → CC-AA-440（QR 表示確認済み）
+
 詳細は `docs/wsl-os-detection-workaround.md` を参照。
 
 ---
