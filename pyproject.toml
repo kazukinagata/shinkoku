@@ -2,12 +2,45 @@
 name = "shinkoku"
 version = "0.1.0"
 description = "確定申告自動化 Claude Code Plugin"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
+authors = [
+    { name = "Kazuki Nagata" },
+]
+keywords = [
+    "確定申告",
+    "税金",
+    "青色申告",
+    "所得税",
+    "消費税",
+    "tax-filing",
+    "japan-tax",
+    "bookkeeping",
+    "claude-code-plugin",
+    "agent-skills",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Japanese",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Accounting",
+]
 dependencies = [
     "pydantic>=2.0",
     "pdfplumber>=0.10",
     "pyyaml>=6.0.3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kazukinagata/shinkoku"
+Repository = "https://github.com/kazukinagata/shinkoku"
+Issues = "https://github.com/kazukinagata/shinkoku/issues"
+Changelog = "https://github.com/kazukinagata/shinkoku/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

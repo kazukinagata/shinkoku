@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 質問・ディスカッション
+    url: https://github.com/kazukinagata/shinkoku/discussions
+    about: バグ報告や機能提案でない場合は Discussions をご利用ください

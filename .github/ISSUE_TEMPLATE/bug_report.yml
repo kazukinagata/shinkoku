@@ -1,0 +1,68 @@
+name: バグ報告
+description: バグや不具合を報告する
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: バグの内容
+      description: 何が起きたかを説明してください
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: バグを再現する手順を書いてください
+      placeholder: |
+        1. `shinkoku ledger init ...` を実行
+        2. `shinkoku ledger journal-add ...` を実行
+        3. エラーが発生
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する動作
+      description: 本来どう動くべきかを説明してください
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動作
+      description: 実際に何が起きたかを説明してください。エラーメッセージがあれば貼り付けてください
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: 使用エージェント
+      options:
+        - Claude Code
+        - Cursor
+        - Windsurf
+        - GitHub Copilot
+        - Gemini CLI
+        - その他（下記に記載）
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python バージョン
+      placeholder: "3.11.9"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 15.2 / Ubuntu 24.04 / Windows 11 (WSL2)"
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: 補足情報
+      description: スクリーンショット、ログ、設定ファイルの抜粋など

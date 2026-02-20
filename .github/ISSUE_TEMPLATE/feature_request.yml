@@ -1,0 +1,44 @@
+name: 機能提案
+description: 新機能や改善を提案する
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解決したい課題
+      description: どんな問題を解決したいですか？
+      placeholder: "〜をするときに、〜ができなくて困っている"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 提案する解決策
+      description: どのような機能があると良いですか？
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案
+      description: 他に検討した方法があれば記載してください
+  - type: dropdown
+    id: category
+    attributes:
+      label: カテゴリ
+      options:
+        - 帳簿管理（ledger）
+        - 税額計算（tax_calc）
+        - データ取込（import）
+        - ふるさと納税（furusato）
+        - e-Tax 申告
+        - スキル（SKILL.md）
+        - CLI
+        - その他
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: 補足情報
+      description: スクリーンショット、参考リンクなど

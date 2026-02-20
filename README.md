@@ -101,6 +101,53 @@ npx skills add shinkoku
 | Gemini CLI | プロジェクトにスキルを追加。`GEMINI.md` から参照 |
 | その他（Cline, Roo Code, Codex 等） | 各エージェントのスキル読み込み機能を使用 |
 
+### Playwright フォールバック（WSL / Linux 環境）
+
+Claude in Chrome が利用できない環境（WSL / Linux 等）では、Playwright MCP をフォールバックとして使用できます。
+
+#### 前提条件
+
+- Node.js 18 以上
+- Chromium（`npx playwright install chromium` でインストール可能）
+- **headed モード必須**（QR コード認証でスマートフォンによる物理操作が必要なため）
+- WSL の場合: WSLg（Windows 11 標準）または X Server（VcXsrv 等）が必要
+
+#### セットアップ
+
+```bash
+# Playwright MCP をステルススクリプト付きで起動
+npx @playwright/mcp@latest \
+  --init-script skills/e-tax/scripts/etax-stealth.js \
+  --headed
+```
+
+#### `.mcp.json` 設定例
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--init-script",
+        "skills/e-tax/scripts/etax-stealth.js",
+        "--headed"
+      ]
+    }
+  }
+}
+```
+
+#### 制限事項
+
+| 制限 | 理由 |
+|------|------|
+| headed モード必須 | QR コード認証（CC-AA-440）でスマートフォンの物理操作が必要 |
+| OS 偽装スクリプト必須 | Linux 環境では `termnalInfomationCheckOS_myNumberLinkage()` が遷移をブロックする |
+| 一部手動操作あり | QR コード読み取り・マイナンバーカード認証はユーザーが実施 |
+| 検証未完了 | OS 偽装による環境チェック通過は未検証。詳細は `docs/wsl-os-detection-workaround.md` 参照 |
+
 ## 使い方の流れ
 
 確定申告の作業は、以下のスキルを順番に進めていきます。AI エージェントに `/スキル名` と入力して開始します。
@@ -257,6 +304,7 @@ shinkoku/
 - SQLite（WAL モード）
 - Pydantic（モデル定義・バリデーション）
 - pdfplumber（PDF 読取）
+- Playwright（ブラウザ自動化フォールバック — `@playwright/mcp` 経由）
 - Ruff（lint / format）
 - mypy（型チェック）
 - pytest（テスト）
