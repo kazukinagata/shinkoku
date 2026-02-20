@@ -67,6 +67,8 @@ description: >
 | 仕入税額控除の要件・例外・保存ルール | `references/input-tax-credit-rules.md` |
 | 登録すべきか・計算方法の選択 | `references/decision-flowchart.md` |
 | 実務上のよくある間違い・注意点 | `references/common-pitfalls.md` |
+| 登録申請・取消手続き・基準期間 | `references/registration-procedures.md` |
+| BtoC事業者の判断・価格戦略 | `references/btoc-and-pricing-strategy.md` |
 | その他の質問・特定状況 | `references/faq.md` |
 
 ## 回答パターン

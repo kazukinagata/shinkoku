@@ -8,7 +8,8 @@ description: >
   "住宅ローン控除", "青色申告のメリット", "消費税はかかる？", "扶養に入れる？",
   "配偶者控除", "医療費控除", "法人成り", "経費になる？", "税率を教えて",
   "所得税の計算", "住民税", "社会保険料", "103万の壁", "130万の壁",
-  "インボイス", "簡易課税", "税制改正".
+  "インボイス", "簡易課税", "税制改正", "開業届", "副業バレ", "白色申告",
+  "税務調査", "特定支出控除", "予定納税", "中間納付".
 ---
 
 # 税務アドバイザー（Tax Advisor）
@@ -85,6 +86,8 @@ description: >
 | 配偶者控除・特別控除 | reference/spouse.md |
 | 扶養控除 | reference/dependents.md |
 | 住宅ローン控除 | reference/housing-loan.md |
+| 控除の最適化・組み合わせ | reference/deduction-optimizer.md |
+| 控除シミュレーションの手順 | reference/deduction-simulation-guide.md |
 
 ### 事業・経費に関する質問
 
@@ -94,6 +97,8 @@ description: >
 | 事業経費・家事按分 | reference/business-expenses.md |
 | 副業の事業所得vs雑所得判定 | reference/side-business-classification.md |
 | 電子帳簿保存法 | reference/electronic-bookkeeping.md |
+| 経費算入の可否判定（品目別） | reference/expense-deductibility-guide.md |
+| 業種別の経費ガイド | reference/industry-expense-guide.md |
 
 ### 制度・手続きに関する質問
 
@@ -102,6 +107,8 @@ description: >
 | 確定申告の手続き | reference/filing-procedure.md |
 | 社会保険（扶養判定含む） | reference/social-insurance.md |
 | ライフプラン（iDeCo/NISA等） | reference/life-planning.md |
+| 開業届・副業の始め方・青色vs白色 | reference/startup-guide.md |
+| 予定納税・中間納付の管理 | reference/prepayment-management.md |
 
 ### 横断的な質問
 

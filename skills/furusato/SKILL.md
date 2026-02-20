@@ -148,6 +148,13 @@ shinkoku tax furusato-limit --input FILE
 - 所得税からの控除 = (寄附合計 - 2,000) x 所得税率
 - 住民税からの控除は別途計算される（特例分含む）
 
+## リファレンスファイル参照ガイド
+
+| 質問カテゴリ | 参照ファイル |
+|-------------|-------------|
+| ふるさと納税の税制ルール・計算式 | `references/furusato-tax-rules.md` |
+| 上限額・返礼品・タイミング・相談全般 | `references/furusato-consultation-guide.md` |
+
 ## 次のステップの案内
 
 - `income-tax` スキルで所得税の計算に進む（寄附金控除が自動反映される）
