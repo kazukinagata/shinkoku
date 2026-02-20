@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import NoReturn
 
 from shinkoku.models import (
     ConsumptionTaxInput,
@@ -42,7 +44,7 @@ def _output_json(data: dict) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
 
-def _error_exit(message: str) -> None:
+def _error_exit(message: str) -> NoReturn:
     """エラーメッセージを JSON で stdout に出力して終了する。"""
     _output_json({"status": "error", "message": message})
     sys.exit(1)
@@ -234,7 +236,7 @@ def _handle_sanity_check(args: argparse.Namespace) -> None:
     _output_json(check_result.model_dump())
 
 
-_HANDLERS: dict[str, callable] = {
+_HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
     "calc-deductions": _handle_calc_deductions,
     "calc-income": _handle_calc_income,
     "calc-depreciation": _handle_calc_depreciation,
