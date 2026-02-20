@@ -33,6 +33,7 @@
 | 譲渡所得（不動産売却） | 長期/短期税率、3,000万円特別控除 |
 | 外国税額控除 | 外国税支払額の追跡・控除計算 |
 | 農業所得・山林所得 | 専用所得区分 |
+| 白色申告 | 青色申告のみ対応 |
 | 非居住者 | 日本居住者専用 |
 
 ---
@@ -55,10 +56,6 @@
 - Python 3.11 以上
 - [uv](https://docs.astral.sh/uv/) パッケージマネージャ
 
-### おすすめ: AI エージェントに `/setup` でセットアップを依頼
-
-インストール後、AI エージェントに `/setup` と入力するだけで、設定ファイルの生成・データベースの初期化を対話的に進められます。
-
 ### 方法 1: Claude Code プラグイン（フル機能）
 
 プラグイン機能を使い、OCR 画像読取を含む全機能を利用できます。
@@ -78,7 +75,7 @@ claude --plugin-dir /path/to/shinkoku
 
 ### 方法 2: スキルのみインストール（40+ エージェント対応）
 
-[skills](https://github.com/vercel-labs/skills) CLI でスキルをインストールし、CLI は GitHub から直接実行できます。
+[skills](https://github.com/vercel-labs/skills) CLI でスキルをインストールできます。
 
 ```bash
 # スキルのインストール（インストール先エージェントを対話的に選択）
@@ -90,8 +87,6 @@ npx skills add kazukinagata/shinkoku -g -a claude-code -a cursor
 # インストール可能なスキル一覧を確認
 npx skills add kazukinagata/shinkoku --list
 
-# CLI の実行（GitHub から直接）
-uvx --from git+https://github.com/kazukinagata/shinkoku shinkoku <command>
 ```
 
 その他の skills コマンド:
@@ -131,7 +126,7 @@ playwright-cli install --skills
 npx playwright install chromium
 ```
 
-WSL の場合、WSLg（Windows 11 標準）または X Server（VcXsrv 等）が必要です。
+WSL の場合、GUI 表示が必要です（headed モードで Chrome を操作するため）。Windows 11 では WSLg が標準搭載されており追加設定は不要です。Windows 10 では X Server（VcXsrv 等）が必要です。
 
 ## 使い方の流れ
 
@@ -142,7 +137,7 @@ WSL の場合、WSLg（Windows 11 標準）または X Server（VcXsrv 等）が
 ### メインワークフロー
 
 ```
-セットアップ        設定ファイル生成・DB 初期化
+セットアップ        設定ファイル生成・DB 初期化（AI エージェントに `/setup` と入力）
   |
 申告要否判定        申告要否・種類の判定
   |
