@@ -36,7 +36,17 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 
 - `tax_year`: 確定申告の対象年度（デフォルト: 2025）
 
-### 2-2. 適格請求書発行事業者の登録番号
+### 2-1b. 事業所得の有無
+
+- `has_business_income`: 事業所得（副業含む）の有無（true / false）
+
+事業所得がない場合、以下のステップをスキップする:
+- 2-2（インボイス登録番号）
+- 2.6-3（事業所住所）
+- 2.7（事業情報）
+- 2.8 の申告の種類（blue/white）・記帳方法の質問（給与所得のみなら不要）
+
+### 2-2. 適格請求書発行事業者の登録番号（事業所得がある場合のみ）
 
 - `invoice_registration_number`: T + 13桁の番号（任意、スキップ可）
 
@@ -82,7 +92,7 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 
 - `address.jan1_address`: 1/1 時点の住所（住民税の課税自治体判定に使用）
 
-### 2.6-3. 事業所住所（自宅と異なる場合のみ）
+### 2.6-3. 事業所住所（事業所得がある場合のみ。自宅と異なる場合のみ）
 
 - `business_address.postal_code` 〜 `business_address.building`
 
@@ -102,7 +112,13 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 ### ヒアリング項目
 
 - `filing.submission_method`: 提出方法（e-tax / mail / in-person）
-- `filing.return_type`: 申告の種類（blue / white）
+  - **mail / in-person を選択した場合**、選択直後に以下を伝える:
+    > このプラグインの帳簿管理・税額計算機能はご利用いただけますが、確定申告書等作成コーナーへの自動入力（`/e-tax` スキル）は e-Tax 提出専用のため利用できません。作成コーナーへの入力はご自身で行っていただく必要があります。
+  - e-tax を選択した場合は通知不要（フルサポート）
+- `filing.return_type`: 申告の種類（blue / white）— **事業所得がある場合のみ質問する**（事業所得がない場合はスキップ）
+  - **white を選択した場合**、選択直後に以下を伝える:
+    > 白色申告に対応しています。決算書コーナーでは収支内訳書を使用します。なお、帳簿機能は複式簿記ベースで設計されているため、白色申告に必要な水準以上の記帳が行われます。
+  - blue を選択した場合は通知不要
 - `filing.tax_office_name`: 所轄税務署名
 
 ### 青色申告特別控除の自動判定フロー
@@ -205,6 +221,9 @@ YAML の形式は以下のテンプレートに従う:
 
 # 対象年度
 tax_year: {tax_year}
+
+# 事業所得の有無（副業含む）
+has_business_income: {has_business_income}
 
 # データベースファイルのパス
 db_path: {db_path}

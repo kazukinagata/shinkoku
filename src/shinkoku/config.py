@@ -114,6 +114,7 @@ class ShinkokuConfig(BaseModel):
     """shinkoku 設定ファイル全体。"""
 
     tax_year: int = 2025
+    has_business_income: bool = False
     db_path: str = "./shinkoku.db"
     output_dir: str = "./output"
     invoice_registration_number: str | None = None
