@@ -2,7 +2,7 @@
 
 確定申告を自動化する AI コーディングエージェント向けプラグイン。個人事業主・会社員の所得税・消費税の確定申告を、帳簿の記帳から確定申告書等作成コーナーへの入力代行までエンドツーエンドで支援します。
 
-**Claude Code Plugin** として動作するほか、**SKILL.md オープン標準** に準拠した Agent Skills パッケージとして、Claude Code / Cursor / Windsurf / GitHub Copilot / Gemini CLI / Codex / Cline / Roo Code など 40 以上の AI コーディングエージェントで利用できます。
+**Claude Code Plugin** として動作するほか、**SKILL.md オープン標準** に準拠した Agent Skills パッケージとして、Claude Code / Cursor / Windsurf / GitHub Copilot / Gemini CLI / Codex / Cline / Roo Code / Antigravity など 40 以上の AI コーディングエージェントで利用できます。
 
 ## 想定ユーザー
 
@@ -108,12 +108,22 @@ npx skills remove -s e-tax   # 特定スキルの削除
 | Windsurf | プロジェクトルートにスキルを配置。Rules で `SKILL.md` を参照 |
 | GitHub Copilot | `.github/copilot-instructions.md` からスキルを参照 |
 | Gemini CLI | プロジェクトにスキルを追加。`GEMINI.md` から参照 |
+| Antigravity | プロジェクトにスキルを配置。Browser Sub-Agent でブラウザ操作も可能 |
 | その他（Cline, Roo Code, Codex 等） | 各エージェントのスキル読み込み機能を使用 |
 
-### Playwright CLI（e-Tax ブラウザ操作に必要）
+### ブラウザ自動化（e-Tax に必要）
 
-Claude in Chrome が利用できない環境（WSL / Linux 等）で `/e-tax` スキルを使うには、
-[Playwright CLI](https://github.com/microsoft/playwright-cli) のインストールが必要です。
+`/e-tax` スキルでは、確定申告書等作成コーナーへの入力にブラウザ自動化が必要です。以下の3方式に対応しています。
+
+| 方式 | 対象環境 | 備考 |
+|------|---------|------|
+| Claude in Chrome（推奨） | Windows / macOS のネイティブ Chrome | Claude in Chrome 拡張機能が必要 |
+| Antigravity Browser Sub-Agent | Windows / macOS / Linux | Antigravity IDE のブラウザ操作機能を利用 |
+| Playwright CLI（フォールバック） | WSL / Linux 等 | `@playwright/cli` のインストールが必要 |
+
+Claude in Chrome が利用できない環境では、Antigravity の Browser Sub-Agent または Playwright CLI を使用してください。
+
+#### Playwright CLI のインストール
 
 ```bash
 # パッケージインストール
@@ -152,13 +162,14 @@ WSL の場合、GUI 表示が必要です（headed モードで Chrome を操作
 消費税計算          消費税計算（課税事業者のみ）
   |
 提出準備            最終チェックリスト
+  |
+e-Tax 電子申告      確定申告書等作成コーナーへの入力代行（e-Tax 利用者のみ）
 ```
 
 ### 補助スキル（必要に応じて）
 
 - 税務相談 --- 税務に関する質問にいつでも回答
 - ふるさと納税 --- 寄附金管理・控除計算
-- e-Tax 電子申告 --- Claude in Chrome による確定申告書等作成コーナーへの入力代行
 - 機能確認 --- shinkoku の対応範囲・機能の確認
 
 ## スキル一覧
@@ -175,6 +186,7 @@ WSL の場合、GUI 表示が必要です（headed モードで Chrome を操作
 | `/income-tax` | 所得税額を計算（所得控除・税額控除・復興特別所得税） |
 | `/consumption-tax` | 消費税額を計算（2割特例・簡易課税・本則課税） |
 | `/submit` | 最終確認チェックリストと提出方法（e-Tax / 郵送 / 持参）の案内 |
+| `/e-tax` | 確定申告書等作成コーナーへの入力代行（Claude in Chrome / Playwright / Antigravity） |
 
 ### 補助スキル
 
@@ -182,7 +194,6 @@ WSL の場合、GUI 表示が必要です（headed モードで Chrome を操作
 |-------|------|
 | `/tax-advisor` | 控除・節税・税制についての質問に回答する税務アドバイザー |
 | `/furusato` | ふるさと納税の寄附金登録・一覧・削除・集計と控除限度額推定 |
-| `/e-tax` | Claude in Chrome による確定申告書等作成コーナーへの入力代行 |
 | `/invoice-system` | インボイス制度関連の参照情報 |
 | `/capabilities` | shinkoku の対応範囲・対応ペルソナ・既知の制限事項を表示 |
 | `/incorporation` | 法人成り（個人事業主から法人への移行）の税額比較・設立手続き相談 |
@@ -199,21 +210,29 @@ WSL の場合、GUI 表示が必要です（headed モードで Chrome を操作
 
 ## 対応エージェント
 
-OCR 画像読取とサブエージェント（デュアル検証）の対応状況で機能差があります。
+### OCR 画像読取
 
-| エージェント | Vision (OCR) | サブエージェント | OCR デュアル検証 |
-|-------------|:---:|:---:|:---:|
-| Claude Code | ✓ | ✓ | ✓ |
-| Cowork | ✓ | ✓ | ✓ |
-| Cursor 2.5+ | ✓ | ✓ | ✓ |
-| GitHub Copilot | ✓ | ✓ | ✓ |
-| Cline | ✓ | ✓ | ✓ |
-| Windsurf | ✓ | — | 単一読取 + ユーザー確認 |
-| Gemini CLI | ✓ | △ | 単一読取 + ユーザー確認 |
-| Roo Code | ✓ | △ | 単一読取 + ユーザー確認 |
-| 非マルチモーダル LLM | — | — | 手動入力が必要 |
+レシート・源泉徴収票等の画像読取（`/reading-*` スキル）は、利用する LLM がマルチモーダル（画像認識）に対応している必要があります。これはエージェントプラットフォームではなく、接続先の LLM の能力に依存します。
 
-- **OCR デュアル検証**: 2つのサブエージェントが独立に画像を読み取り、結果をクロスチェック
+- **マルチモーダル LLM**（Claude 3.5+, GPT-4o, Gemini 等）: OCR 読取可能
+- **テキスト専用 LLM**: 手動入力が必要
+
+### OCR デュアル検証（サブエージェント利用）
+
+2つのサブエージェントが独立に画像を読み取り、結果をクロスチェックする機能です。サブエージェントの並列実行に対応したプラットフォームで利用できます。非対応のプラットフォームでは、単一読取 + ユーザー確認にフォールバックします。
+
+| エージェント | デュアル検証 |
+|-------------|:---:|
+| Claude Code | ✓ |
+| Cowork | ✓ |
+| Cursor 2.5+ | ✓ |
+| GitHub Copilot | ✓ |
+| Cline | ✓ |
+| Antigravity | ✓ |
+| Windsurf | — |
+| Gemini CLI | △ |
+| Roo Code | △ |
+
 - **△**: サブエージェント機能はあるが並列実行が制限的
 
 ## 開発者向け情報
