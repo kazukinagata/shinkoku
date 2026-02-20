@@ -20,14 +20,14 @@ journal スキルで日常仕訳の入力が完了していることを前提と
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
    - `db_path`: CLI スクリプトの `--db-path` 引数に使用
-   - `output_dir`: PDF 生成時の `--output-path` 引数のベースディレクトリに使用
+   - `output_dir`: 進捗ファイル等の出力先ベースディレクトリ
    - 各ディレクトリ: ファイル参照時に使用
 
 ### パス解決の例
 
 config の `db_path` が `./shinkoku.db`、`output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
 - `ledger.py trial-balance --db-path /home/user/tax-2025/shinkoku.db --input query.json`
-- `doc_generate.py bs-pl --output-path /home/user/tax-2025/output/bs_pl_2025.pdf --input bs_pl_input.json`
+- `shinkoku ledger bs --db-path /home/user/tax-2025/shinkoku.db --input query.json`
 
 ## 進捗情報の読み込み
 

@@ -20,13 +20,13 @@ assess スキルで消費税の課税事業者と判定され、settlement ス�
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
    - `db_path`: CLI スクリプトの `--db-path` 引数に使用
-   - `output_dir`: PDF 生成時の `--output-path` 引数のベースディレクトリに使用
+   - `output_dir`: 進捗ファイル等の出力先ベースディレクトリ
    - 各ディレクトリ: ファイル参照時に使用
 
 ### パス解決の例
 
-config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
-- `doc_generate.py consumption-tax --output-path /home/user/tax-2025/output/consumption_tax_2025.pdf ...`
+config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の場合:
+- `shinkoku tax calc-consumption --input /home/user/tax-2025/output/consumption_input.json`
 
 ## 進捗情報の読み込み
 

@@ -1,6 +1,6 @@
 # shinkoku
 
-確定申告を自動化する AI コーディングエージェント向けプラグイン。個人事業主・会社員の所得税・消費税の確定申告を、帳簿の記帳から申告書の生成までエンドツーエンドで支援します。
+確定申告を自動化する AI コーディングエージェント向けプラグイン。個人事業主・会社員の所得税・消費税の確定申告を、帳簿の記帳から確定申告書等作成コーナーへの入力代行までエンドツーエンドで支援します。
 
 **Claude Code Plugin** として動作するほか、**SKILL.md オープン標準** に準拠した Agent Skills パッケージとして、Claude Code / Cursor / Windsurf / GitHub Copilot / Gemini CLI / Codex / Cline / Roo Code など 35 以上の AI コーディングエージェントで利用できます。
 
@@ -8,17 +8,16 @@
 
 | 対象 | 対応レベル | 備考 |
 |------|-----------|------|
-| 個人事業主（青色申告・一般用） | Full | メインターゲット。帳簿 → 決算書 → 申告書 → xtx 全自動 |
-| 会社員 + 副業（事業所得） | Full | 源泉徴収票 + 事業所得の申告書 → xtx |
-| 給与所得のみ（会社員） | Full | 還付申告・医療費控除等 → xtx |
+| 個人事業主（青色申告・一般用） | Full | メインターゲット。帳簿 → 決算書 → 税額計算 → 作成コーナー入力 |
+| 会社員 + 副業（事業所得） | Full | 源泉徴収票 + 事業所得の税額計算 → 作成コーナー入力 |
+| 給与所得のみ（会社員） | Full | 還付申告・医療費控除等 → 作成コーナー入力 |
 | 消費税課税事業者 | Full | 2割特例・簡易課税・本則課税すべて対応 |
 | ふるさと納税利用者 | Full | 寄附金 CRUD + 控除計算 + 限度額推定 |
-| 住宅ローン控除（初年度） | Full | 控除額計算 + xtx 対応（添付書類は別途必要） |
-| 医療費控除 | Full | 明細書 → xtx 対応 |
+| 住宅ローン控除（初年度） | Full | 控除額計算（添付書類は別途必要） |
+| 医療費控除 | Full | 明細集計＋控除額計算 |
 | 仮想通貨トレーダー | Full | 雑所得（総合課税）として申告書に自動反映 |
 
-- **Full** = 計算・PDF帳票・xtx（e-Tax XML）すべて対応
-- **Partial** = 計算は可能だが帳票・xtx の一部が未対応
+- **Full** = 計算＋確定申告書等作成コーナーへの入力代行
 - **Out** = 対象外
 
 ## 非対応
@@ -119,9 +118,9 @@ npx skills add shinkoku
   |
 /settlement        決算整理・決算書作成（減価償却・PL・BS）
   |
-/income-tax        所得税計算・確定申告書 PDF 生成
+/income-tax        所得税計算
   |
-/consumption-tax   消費税計算・申告書 PDF 生成（課税事業者のみ）
+/consumption-tax   消費税計算（課税事業者のみ）
   |
 /submit            提出準備・最終チェックリスト
 ```
@@ -130,8 +129,7 @@ npx skills add shinkoku
 
 - `/tax-advisor` --- 税務に関する質問にいつでも回答
 - `/furusato` --- ふるさと納税の寄附金管理・控除計算
-- `/e-tax` --- xtx（e-Tax XML）ファイルの生成・電子申告の案内
-- `/document` --- PDF 帳票を個別に生成
+- `/e-tax` --- Claude in Chrome による確定申告書等作成コーナーへの入力代行
 - `/capabilities` --- shinkoku の対応範囲・機能の確認
 
 ## スキル一覧
@@ -145,8 +143,8 @@ npx skills add shinkoku
 | `/gather` | 必要書類のチェックリストと取得先を案内 |
 | `/journal` | CSV・レシート・請求書・源泉徴収票を取り込み、複式簿記の仕訳を登録 |
 | `/settlement` | 減価償却・決算整理仕訳の登録、残高試算表・損益計算書・貸借対照表の生成 |
-| `/income-tax` | 所得税額を計算し、確定申告書 B（第一表・第二表）の PDF を生成 |
-| `/consumption-tax` | 消費税額を計算し（2割特例・簡易課税・本則課税）、消費税申告書 PDF を生成 |
+| `/income-tax` | 所得税額を計算（所得控除・税額控除・復興特別所得税） |
+| `/consumption-tax` | 消費税額を計算（2割特例・簡易課税・本則課税） |
 | `/submit` | 最終確認チェックリストと提出方法（e-Tax / 郵送 / 持参）の案内 |
 
 ### 補助スキル
@@ -155,9 +153,7 @@ npx skills add shinkoku
 |-------|------|
 | `/tax-advisor` | 控除・節税・税制についての質問に回答する税務アドバイザー |
 | `/furusato` | ふるさと納税の寄附金登録・一覧・削除・集計と控除限度額推定 |
-| `/e-tax` | xtx（e-Tax XML）ファイルの生成と電子申告の手順案内 |
-| `/document` | 確定申告書・青色申告決算書・消費税申告書等の PDF を個別に生成 |
-| `/filling-pdf` | PDF 帳票テンプレートへの記入ワークフロー（内部利用） |
+| `/e-tax` | Claude in Chrome による確定申告書等作成コーナーへの入力代行 |
 | `/invoice-system` | インボイス制度関連の参照情報 |
 | `/capabilities` | shinkoku の対応範囲・対応ペルソナ・既知の制限事項を表示 |
 
@@ -189,7 +185,7 @@ npx skills add shinkoku
 make test                              # 全テスト実行
 uv run pytest tests/unit/ -v           # ユニットテスト
 uv run pytest tests/scripts/ -v        # CLI テスト
-uv run pytest tests/visual/ -v         # PDF ビジュアルリグレッションテスト
+uv run pytest tests/integration/ -v    # 統合テスト
 ```
 
 ### Lint / 型チェック
@@ -220,9 +216,7 @@ shinkoku/
 │   ├── submit/SKILL.md          #   提出準備
 │   ├── tax-advisor/SKILL.md     #   税務アドバイザー
 │   ├── furusato/SKILL.md        #   ふるさと納税
-│   ├── e-tax/SKILL.md           #   e-Tax 電子申告
-│   ├── document/SKILL.md        #   PDF 帳票生成
-│   ├── filling-pdf/SKILL.md     #   PDF 記入ワークフロー
+│   ├── e-tax/SKILL.md           #   e-Tax 電子申告（Claude in Chrome）
 │   ├── capabilities/SKILL.md    #   機能確認
 │   ├── reading-receipt/SKILL.md          # OCR: レシート
 │   ├── reading-withholding/SKILL.md      # OCR: 源泉徴収票
@@ -234,28 +228,15 @@ shinkoku/
 │   │   ├── __init__.py          #   main() + サブコマンド登録
 │   │   ├── ledger.py            #   帳簿管理 CLI
 │   │   ├── tax_calc.py          #   税額計算 CLI
-│   │   ├── doc_generate.py      #   PDF 帳票生成 CLI
 │   │   ├── import_data.py       #   データ取込 CLI
 │   │   ├── furusato.py          #   ふるさと納税 CLI
-│   │   ├── profile.py           #   プロファイル CLI
-│   │   └── xtx.py               #   xtx 生成 CLI
+│   │   └── profile.py           #   プロファイル CLI
 │   ├── tools/                   # ビジネスロジック（純粋関数）
 │   │   ├── ledger.py            #   帳簿管理
 │   │   ├── tax_calc.py          #   税額計算
-│   │   ├── document.py          #   PDF 帳票生成
 │   │   ├── import_data.py       #   データ取り込み
 │   │   ├── furusato.py          #   ふるさと納税
-│   │   ├── profile.py           #   プロファイル取得
-│   │   ├── pdf_utils.py         #   PDF ユーティリティ
-│   │   └── pdf_coordinates.py   #   PDF 座標定義
-│   ├── xtx/                     # e-Tax XML 生成
-│   │   ├── generator.py         #   xtx 生成エンジン
-│   │   ├── field_codes.py       #   ABB コード定数辞書
-│   │   ├── income_tax.py        #   所得税申告書 xtx ビルダー
-│   │   ├── blue_return.py       #   青色申告決算書 xtx ビルダー
-│   │   ├── consumption_tax.py   #   消費税申告書 xtx ビルダー
-│   │   ├── attachments.py       #   医療費・住宅ローン控除明細書
-│   │   └── generate_xtx.py      #   xtx 生成オーケストレーション
+│   │   └── profile.py           #   プロファイル取得
 │   ├── models.py                # Pydantic モデル定義
 │   ├── db.py                    # SQLite DB 管理
 │   ├── master_accounts.py       # 勘定科目マスタ
@@ -263,7 +244,7 @@ shinkoku/
 ├── tests/
 │   ├── unit/                    # ユニットテスト
 │   ├── scripts/                 # CLI テスト
-│   └── visual/                  # PDF ビジュアルリグレッションテスト
+│   └── integration/             # 統合テスト
 ├── shinkoku.config.example.yaml # 設定ファイルテンプレート
 ├── pyproject.toml
 ├── Makefile
@@ -275,7 +256,7 @@ shinkoku/
 - Python 3.11+
 - SQLite（WAL モード）
 - Pydantic（モデル定義・バリデーション）
-- ReportLab / pypdf / pdfplumber（PDF 生成・読取）
+- pdfplumber（PDF 読取）
 - Ruff（lint / format）
 - mypy（型チェック）
 - pytest（テスト）

@@ -34,7 +34,7 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 
 ## ステップ2.5: 納税者情報のヒアリング
 
-以下の項目を AskUserQuestion で段階的に確認する。すべて任意（スキップ可能）だが、PDF 帳票への自動記入や人的控除の判定に使用される。
+以下の項目を AskUserQuestion で段階的に確認する。すべて任意（スキップ可能）だが、確定申告書等作成コーナーへの入力や人的控除の判定に使用される。
 
 ### 2.5-1. 氏名
 
@@ -169,7 +169,7 @@ CWD の `shinkoku.config.yaml` を Read ツールで読み込む。
 以下のパスを確認する。デフォルト値を提示し、変更がなければそのまま採用する。
 
 - `db_path`: データベースファイルのパス（デフォルト: `./shinkoku.db`）
-- `output_dir`: PDF帳票の出力先ディレクトリ（デフォルト: `./output`）
+- `output_dir`: 進捗ファイル等の出力先ディレクトリ（デフォルト: `./output`）
 
 ## ステップ4: 書類ディレクトリの設定（任意）
 
@@ -201,7 +201,7 @@ tax_year: {tax_year}
 # データベースファイルのパス
 db_path: {db_path}
 
-# PDF帳票の出力先ディレクトリ
+# 進捗ファイル等の出力先ディレクトリ
 output_dir: {output_dir}
 
 # 適格請求書発行事業者の登録番号（T + 13桁）
@@ -283,7 +283,7 @@ credit_card_statements_dir: {credit_card_statements_dir}
 
 未設定の項目は値を空にする（`key:` のみ）。
 
-**`my_number` の取扱い**: マイナンバーは config YAML に保存するが、`profile.py` の出力では `has_my_number: true/false` のみ返す。ログ・会話には出力しない。PDF 生成時のみ config から直接読み取る。
+**`my_number` の取扱い**: マイナンバーは config YAML に保存するが、`profile.py` の出力では `has_my_number: true/false` のみ返す。ログ・会話には出力しない。確定申告書等作成コーナーへの入力時のみ config から直接読み取る。
 
 ```bash
 shinkoku profile --config PATH

@@ -7,7 +7,7 @@ tax_year: 2025
 # データベースファイルのパス
 db_path: ./shinkoku.db
 
-# PDF帳票の出力先ディレクトリ
+# 進捗ファイル等の出力先ディレクトリ
 output_dir: ./output
 
 # 適格請求書発行事業者の登録番号（T + 13桁）

@@ -20,13 +20,13 @@ settlement スキルで決算書の作成が完了していることを前提と
 2. ファイルが存在しない場合は `/setup` スキルの実行を案内して終了する
 3. 設定値を把握し、相対パスは CWD を基準に絶対パスに変換する:
    - `db_path`: CLI スクリプトの `--db-path` 引数に使用
-   - `output_dir`: PDF 生成時の `--output-path` 引数のベースディレクトリに使用
+   - `output_dir`: 進捗ファイル等の出力先ベースディレクトリ
    - 各ディレクトリ: ファイル参照時に使用
 
 ### パス解決の例
 
-config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場合:
-- `doc_generate.py income-tax --output-path /home/user/tax-2025/output/income_tax_2025.pdf ...`
+config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の場合:
+- `shinkoku tax calc-income --input /home/user/tax-2025/output/income_input.json`
 
 ## 進捗情報の読み込み
 
@@ -43,7 +43,7 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 ## 基本方針
 
 - settlement スキルで青色申告決算書が完成しているか確認してから開始する
-- 所得の計算 → 控除の計算 → 税額の計算 → PDF生成 の順序で進める
+- 所得の計算 → 控除の計算 → 税額の計算 の順序で進める
 - 各ステップの計算結果をユーザーに提示し、確認を得る
 - references/form-b-fields.md の各欄に正しく値を設定する
 - 端数処理ルール（課税所得: 1,000円未満切り捨て、税額: 100円未満切り捨て）を厳守する
@@ -54,7 +54,7 @@ config の `output_dir` が `./output` で CWD が `/home/user/tax-2025/` の場
 
 1. **青色申告決算書が完成しているか**: settlement スキルの出力を確認する
 2. **納税者プロファイルの読み込み**: `skills/setup/scripts/profile.py get-taxpayer` で config から納税者情報を取得する
-   - 氏名・住所・税務署名 → PDF 帳票の自動記入に使用
+   - 氏名・住所・税務署名 → 確定申告書等作成コーナーへの入力に使用
    - 寡婦/ひとり親・障害者・勤労学生の状態 → 人的控除の計算に使用
 3. **事業所得以外の所得**: 給与所得・雑所得・配当所得・一時所得等がある場合は情報を収集する
 4. **源泉徴収票**: 給与所得がある場合は取り込みを案内する
