@@ -55,7 +55,7 @@ jobs:
         run: uv run pytest tests/unit/ -v --tb=short
 
       - name: Integration tests
-        run: uv run pytest tests/integration/ -v --tb=short
+        run: uv run pytest tests/integration/ -v --tb=short || test $? -eq 5
 
       - name: E2E tests
         run: uv run pytest tests/e2e/ -v --tb=short || test $? -eq 5
