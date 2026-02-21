@@ -113,6 +113,18 @@ npx skills add kazukinagata/shinkoku --list
 | Antigravity Browser Sub-Agent | Windows / macOS / Linux | Antigravity IDE のブラウザ操作機能を利用 |
 | Playwright CLI（β版） | WSL / Linux 等 | `@playwright/cli` のインストールが必要 |
 
+#### Claude in Chrome の有効化（Claude Code）
+
+Claude in Chrome を利用するには、Claude Code 起動時にフラグを付けるか、セッション内でコマンドを実行します。
+
+```bash
+# 起動時に有効化
+claude --chrome
+
+# セッション内で有効化
+/chrome
+```
+
 #### Playwright CLI のインストール
 
 Claude in Chrome, Antigravity を利用する場合このステップは不要です。
