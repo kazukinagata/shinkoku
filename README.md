@@ -214,7 +214,6 @@ make test                              # 全テスト実行
 uv run pytest tests/unit/ -v           # ユニットテスト
 uv run pytest tests/scripts/ -v        # CLI テスト
 uv run pytest tests/integration/ -v    # 統合テスト
-uv run pytest tests/e2e/ -v           # E2E テスト
 ```
 
 ### Lint / 型チェック
@@ -278,7 +277,6 @@ shinkoku/
 │   ├── unit/                    # ユニットテスト
 │   ├── scripts/                 # CLI テスト
 │   ├── integration/             # 統合テスト
-│   ├── e2e/                     # E2E テスト
 │   ├── fixtures/                # テストフィクスチャ
 │   └── helpers/                 # テストヘルパー
 ├── shinkoku.config.example.yaml # 設定ファイルテンプレート
