@@ -46,7 +46,12 @@ config の `db_path` が `./shinkoku.db` で CWD が `/home/user/tax-2025/` の�
 - 所得の計算 → 控除の計算 → 税額の計算 の順序で進める
 - 各ステップの計算結果をユーザーに提示し、確認を得る
 - references/form-b-fields.md の各欄に正しく値を設定する
-- 端数処理ルール（課税所得: 1,000円未満切り捨て、税額: 100円未満切り捨て）を厳守する
+- 端数処理ルールを厳守する:
+  - 課税所得: 1,000円未満切捨て（国税通則法118条）
+  - 復興特別所得税: 1円未満切捨て（復興財源確保法13条）
+  - ㊺ 所得税及び復興特別所得税の額: 端数処理なし
+  - 申告納税額（納付の場合のみ）: 100円未満切捨て（国税通則法119条）
+  - 還付金: 1円単位・切捨てなし（国税通則法120条）
 
 ## 前提条件の確認
 
@@ -616,7 +621,7 @@ shinkoku tax calc-income --input income_input.json
 - `total_tax_credits`: 税額控除合計
 - `income_tax_after_credits`: 税額控除後
 - `reconstruction_tax`: 復興特別所得税（基準所得税額 x 2.1%）
-- `total_tax`: 所得税及び復興特別所得税の額（100円未満切り捨て）
+- `total_tax`: 所得税及び復興特別所得税の額（端数処理なし）
 - `withheld_tax`: 源泉徴収税額（給与分）
 - `business_withheld_tax`: 事業所得の源泉徴収税額
 - `estimated_tax_payment`: 予定納税額
