@@ -83,25 +83,25 @@ jobs:
           echo "Source/skill changes detected:"
           echo "$CHANGED"
 
-          # marketplace.json のバージョンがベースから更新されているか
-          BASE_MKT_VER=$(git show "$BASE_SHA":.claude-plugin/marketplace.json | python3 -c "
+          # plugin.json のバージョンがベースから更新されているか
+          BASE_MKT_VER=$(git show "$BASE_SHA":.claude-plugin/plugin.json | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
-          print(data['plugins'][0]['version'])
+          print(data['version'])
           ")
           HEAD_MKT_VER=$(python3 -c "
           import json
-          with open('.claude-plugin/marketplace.json') as f:
+          with open('.claude-plugin/plugin.json') as f:
               data = json.load(f)
-          print(data['plugins'][0]['version'])
+          print(data['version'])
           ")
 
           if [ "$BASE_MKT_VER" = "$HEAD_MKT_VER" ]; then
-            echo "::error::marketplace.json version ($HEAD_MKT_VER) was not updated. Bump the version when changing src/ or skills/."
+            echo "::error::plugin.json version ($HEAD_MKT_VER) was not updated. Bump the version when changing src/ or skills/."
             exit 1
           fi
 
-          # pyproject.toml と marketplace.json のバージョンが一致するか
+          # pyproject.toml と plugin.json のバージョンが一致するか
           PYPROJECT_VER=$(python3 -c "
           import re
           with open('pyproject.toml') as f:
@@ -113,7 +113,7 @@ jobs:
           ")
 
           if [ "$PYPROJECT_VER" != "$HEAD_MKT_VER" ]; then
-            echo "::error::Version mismatch: pyproject.toml=$PYPROJECT_VER, marketplace.json=$HEAD_MKT_VER. Keep them in sync."
+            echo "::error::Version mismatch: pyproject.toml=$PYPROJECT_VER, plugin.json=$HEAD_MKT_VER. Keep them in sync."
             exit 1
           fi
 

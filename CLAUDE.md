@@ -178,15 +178,15 @@ uv run shinkoku profile --config shinkoku.config.yaml
 **更新が必要なファイル（2箇所を同期）:**
 
 - `pyproject.toml` — `version` フィールド
-- `.claude-plugin/marketplace.json` — `plugins[0].version` フィールド
+- `.claude-plugin/plugin.json` — `version` フィールド
 
 **更新不要なファイル:**
 
-- `.claude-plugin/plugin.json` — version フィールドなし（marketplace.json に一元化）
+- `.claude-plugin/marketplace.json` — version フィールドなし（plugin.json に一元化）
 
 **CI による検証:**
 
-- PR で `src/shinkoku/` または `skills/` に変更がある場合、`marketplace.json` のバージョンがベースブランチから更新されていること、`pyproject.toml` と一致することを自動チェックする
+- PR で `src/shinkoku/` または `skills/` に変更がある場合、`plugin.json` のバージョンがベースブランチから更新されていること、`pyproject.toml` と一致することを自動チェックする
 - `tests/`・`.github/`・`*.md`・`Makefile` のみの変更ではバージョン更新不要
 
 ## DB 規約
