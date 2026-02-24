@@ -316,6 +316,35 @@ credit_card_statements_dir: {credit_card_statements_dir}
 shinkoku profile --config PATH
 ```
 
+## ステップ5.5: Git セーフティ設定
+
+ユーザーの個人情報・財務データが誤って git にコミットされないよう、`.gitignore` を設定する。
+
+### 手順
+
+1. `git rev-parse --is-inside-work-tree` を実行し、CWD が git リポジトリかどうか確認する
+
+2. **git リポジトリでない場合** → 以下のメッセージを表示してスキップする:
+   > 現在のディレクトリは git リポジトリではありません。今後 git リポジトリ化する場合は、`.gitignore` に shinkoku 関連ファイルを追加して個人情報の漏洩を防いでください。
+
+3. **git リポジトリの場合**:
+   a. CWD の `.gitignore` を Read ツールで読み込む（存在しなければ新規作成前提で進める）
+   b. 以下の必須エントリが `.gitignore` に含まれているか確認する:
+      ```
+      # shinkoku 確定申告データ（個人情報を含む — 削除しないこと）
+      shinkoku.config.yaml
+      shinkoku.db
+      shinkoku.db-wal
+      shinkoku.db-shm
+      .shinkoku/
+      output/
+      ```
+   c. ステップ4で設定された書類ディレクトリ（`invoices_dir`, `receipts_dir` 等）があれば、それも追加対象にする
+   d. 不足しているエントリがある場合:
+      - 追加するエントリの一覧をユーザーに提示する
+      - ユーザーの確認を得てから `.gitignore` に追記する（既存の内容は保持し、末尾に追加する）
+   e. 既に全エントリが含まれている場合 → 「`.gitignore` は設定済みです」と表示してスキップする
+
 ## ステップ6: データベースの初期化
 
 1. `db_path` の値を確認し、相対パスの場合は CWD を基準に絶対パスに変換する
