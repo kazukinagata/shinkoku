@@ -258,12 +258,14 @@ shinkoku/
 │   │   ├── ledger.py            #   帳簿管理 CLI
 │   │   ├── tax_calc.py          #   税額計算 CLI
 │   │   ├── import_data.py       #   データ取込 CLI
+│   │   ├── pdf.py               #   PDF ユーティリティ CLI
 │   │   ├── furusato.py          #   ふるさと納税 CLI
 │   │   └── profile.py           #   プロファイル CLI
 │   ├── tools/                   # ビジネスロジック（純粋関数）
 │   │   ├── ledger.py            #   帳簿管理
 │   │   ├── tax_calc.py          #   税額計算
 │   │   ├── import_data.py       #   データ取り込み
+│   │   ├── pdf.py               #   PDF ユーティリティ
 │   │   ├── furusato.py          #   ふるさと納税
 │   │   └── profile.py           #   プロファイル取得
 │   ├── models.py                # Pydantic モデル定義

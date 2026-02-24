@@ -80,6 +80,10 @@ uv run shinkoku import csv --file-path transactions.csv
 # ふるさと納税
 uv run shinkoku furusato summary --db-path shinkoku.db --fiscal-year 2025
 
+# PDF ユーティリティ
+uv run shinkoku pdf extract-text --file-path document.pdf
+uv run shinkoku pdf to-image --file-path document.pdf --output-dir output/images
+
 # プロファイル
 uv run shinkoku profile --config shinkoku.config.yaml
 ```
@@ -202,6 +206,7 @@ uv run shinkoku profile --config shinkoku.config.yaml
 | `src/shinkoku/tools/ledger.py` | 帳簿管理（仕訳CRUD・財務諸表） |
 | `src/shinkoku/tools/tax_calc.py` | 税額計算（所得税・消費税・控除・減価償却） |
 | `src/shinkoku/tools/import_data.py` | データ取り込み（CSV・レシート・請求書） |
+| `src/shinkoku/tools/pdf.py` | PDF ユーティリティ（テキスト抽出・画像変換） |
 | `src/shinkoku/tools/furusato.py` | ふるさと納税 CRUD・集計 |
 | `src/shinkoku/tools/profile.py` | 納税者プロファイル取得 |
 
@@ -214,6 +219,7 @@ uv run shinkoku profile --config shinkoku.config.yaml
 | `src/shinkoku/cli/ledger.py` | 71 | 帳簿管理 CLI（init, journal-add, search, trial-balance 等） |
 | `src/shinkoku/cli/tax_calc.py` | 8 | 税額計算 CLI（calc-income, calc-deductions 等） |
 | `src/shinkoku/cli/import_data.py` | 9 | データ取込 CLI（csv, receipt, invoice 等） |
+| `src/shinkoku/cli/pdf.py` | 2 | PDF ユーティリティ CLI（extract-text, to-image） |
 | `src/shinkoku/cli/furusato.py` | 4 | ふるさと納税 CLI（add, list, delete, summary） |
 | `src/shinkoku/cli/profile.py` | — | プロファイル取得 CLI（直接コマンド） |
 
