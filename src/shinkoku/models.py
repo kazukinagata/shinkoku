@@ -23,6 +23,7 @@ class JournalEntry(BaseModel):
 
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     description: str | None = None
+    counterparty: str | None = None
     lines: list[JournalLine] = Field(min_length=2)
     source: str | None = None
     source_file: str | None = None
@@ -37,6 +38,9 @@ class JournalSearchParams(BaseModel):
     date_to: str | None = None
     account_code: str | None = None
     description_contains: str | None = None
+    counterparty_contains: str | None = None
+    amount_min: int | None = None
+    amount_max: int | None = None
     source: str | None = None
     limit: int = 100
     offset: int = 0
@@ -49,6 +53,7 @@ class JournalRecord(BaseModel):
     fiscal_year: int
     date: str
     description: str | None
+    counterparty: str | None = None
     source: str | None
     source_file: str | None
     is_adjustment: bool
@@ -71,6 +76,24 @@ class JournalSearchResult(BaseModel):
 
     journals: list[JournalRecord]
     total_count: int
+
+
+class AuditLogRecord(BaseModel):
+    """仕訳の訂正・削除履歴レコード。"""
+
+    id: int
+    journal_id: int
+    fiscal_year: int
+    operation: str
+    before_date: str
+    before_description: str | None
+    before_counterparty: str | None
+    before_lines_json: str
+    after_date: str | None = None
+    after_description: str | None = None
+    after_counterparty: str | None = None
+    after_lines_json: str | None = None
+    created_at: str
 
 
 # --- 財務諸表 ---

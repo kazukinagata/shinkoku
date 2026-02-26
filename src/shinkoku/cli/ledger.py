@@ -43,6 +43,7 @@ from shinkoku.tools.ledger import (
     ledger_add_insurance_policy,
     ledger_add_journal,
     ledger_add_journals_batch,
+    ledger_audit_log,
     ledger_add_loss_carryforward,
     ledger_add_medical_expense,
     ledger_add_other_income,
@@ -186,6 +187,18 @@ def cmd_journal_update(args: argparse.Namespace) -> None:
 
 def cmd_journal_delete(args: argparse.Namespace) -> None:
     _output(ledger_delete_journal(db_path=args.db_path, journal_id=args.journal_id))
+
+
+def cmd_audit_log(args: argparse.Namespace) -> None:
+    journal_id = getattr(args, "journal_id", None)
+    fiscal_year = getattr(args, "fiscal_year", None)
+    _output(
+        ledger_audit_log(
+            db_path=args.db_path,
+            journal_id=journal_id,
+            fiscal_year=fiscal_year,
+        )
+    )
 
 
 def cmd_trial_balance(args: argparse.Namespace) -> None:
@@ -731,6 +744,12 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:
     _add_db_arg(p)
     p.add_argument("--journal-id", required=True, type=int)
     p.set_defaults(func=cmd_journal_delete)
+
+    p = sub.add_parser("audit-log", help="仕訳の訂正・削除履歴")
+    _add_db_arg(p)
+    p.add_argument("--journal-id", type=int, help="特定の仕訳IDの履歴")
+    p.add_argument("--fiscal-year", type=int, help="年度で絞り込み")
+    p.set_defaults(func=cmd_audit_log)
 
     # --- 財務諸表 ---
     p = sub.add_parser("trial-balance", help="残高試算表")

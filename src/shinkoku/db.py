@@ -23,5 +23,14 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn = get_connection(db_path)
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
+    _migrate(conn)
     conn.commit()
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """既存DBに新しいカラム・テーブルを追加するマイグレーション。"""
+    # journals.counterparty カラム追加（電帳法 検索機能要件: 取引先検索）
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(journals)").fetchall()}
+    if "counterparty" not in cols:
+        conn.execute("ALTER TABLE journals ADD COLUMN counterparty TEXT")
