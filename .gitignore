@@ -20,3 +20,9 @@ skills/e-tax/research/*.png
 
 # Planning docs
 docs/plans/
+
+# User config & database (contain personal info)
+shinkoku.config.yaml
+shinkoku.db
+shinkoku.db-wal
+shinkoku.db-shm
