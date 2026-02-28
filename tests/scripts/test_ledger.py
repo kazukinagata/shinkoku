@@ -1332,3 +1332,443 @@ class TestErrorHandling:
         assert r.returncode == 1
         out = json.loads(r.stdout)
         assert out["status"] == "error"
+
+
+# ============================================================
+# Audit Log
+# ============================================================
+
+
+class TestAuditLog:
+    """監査ログのテスト。"""
+
+    def test_update_creates_audit_log(self, db_path, tmp_path):
+        """仕訳更新で監査ログが作成されること。"""
+        out = add_journal(db_path, tmp_path)
+        journal_id = out["journal_id"]
+        # Update the journal
+        f = write_json(
+            tmp_path,
+            {
+                "date": "2025-02-01",
+                "description": "Updated entry",
+                "lines": [
+                    {"side": "debit", "account_code": "5200", "amount": 2000},
+                    {"side": "credit", "account_code": "1100", "amount": 2000},
+                ],
+            },
+            "update.json",
+        )
+        run_ledger(
+            "journal-update",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--journal-id",
+            str(journal_id),
+            "--input",
+            f,
+        )
+        # Check audit log
+        log = run_ledger("audit-log", "--db-path", db_path, "--journal-id", str(journal_id))
+        assert log["status"] == "ok"
+        assert log["total_count"] == 1
+        assert log["audit_logs"][0]["operation"] == "update"
+        assert log["audit_logs"][0]["before_date"] == "2025-01-15"
+        assert log["audit_logs"][0]["after_date"] == "2025-02-01"
+
+    def test_delete_creates_audit_log(self, db_path, tmp_path):
+        """仕訳削除で監査ログが作成されること。"""
+        out = add_journal(db_path, tmp_path)
+        journal_id = out["journal_id"]
+        run_ledger("journal-delete", "--db-path", db_path, "--journal-id", str(journal_id))
+        log = run_ledger("audit-log", "--db-path", db_path, "--journal-id", str(journal_id))
+        assert log["status"] == "ok"
+        assert log["total_count"] == 1
+        assert log["audit_logs"][0]["operation"] == "delete"
+        assert log["audit_logs"][0]["before_date"] == "2025-01-15"
+        assert log["audit_logs"][0]["after_date"] is None
+
+    def test_audit_log_cli_by_journal_id(self, db_path, tmp_path):
+        """--journal-id フィルタで特定の仕訳の履歴のみ取得。"""
+        # Add two journals with different data to avoid duplicate detection
+        out1 = add_journal(db_path, tmp_path, "j1.json")
+        f2 = write_json(
+            tmp_path,
+            {
+                "date": "2025-02-10",
+                "description": "Second entry",
+                "lines": [
+                    {"side": "debit", "account_code": "5300", "amount": 2000},
+                    {"side": "credit", "account_code": "1100", "amount": 2000},
+                ],
+            },
+            "j2.json",
+        )
+        out2 = run_ledger(
+            "journal-add",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            f2,
+        )
+        # Delete both
+        run_ledger("journal-delete", "--db-path", db_path, "--journal-id", str(out1["journal_id"]))
+        run_ledger("journal-delete", "--db-path", db_path, "--journal-id", str(out2["journal_id"]))
+        # Filter by journal_id
+        log = run_ledger("audit-log", "--db-path", db_path, "--journal-id", str(out1["journal_id"]))
+        assert log["total_count"] == 1
+        assert log["audit_logs"][0]["journal_id"] == out1["journal_id"]
+
+    def test_audit_log_cli_by_fiscal_year(self, db_path, tmp_path):
+        """--fiscal-year フィルタで年度ごとの履歴取得。"""
+        out = add_journal(db_path, tmp_path)
+        run_ledger("journal-delete", "--db-path", db_path, "--journal-id", str(out["journal_id"]))
+        log = run_ledger("audit-log", "--db-path", db_path, "--fiscal-year", "2025")
+        assert log["status"] == "ok"
+        assert log["total_count"] >= 1
+        for entry in log["audit_logs"]:
+            assert entry["fiscal_year"] == 2025
+
+    def test_audit_log_cli_no_filter(self, db_path, tmp_path):
+        """フィルタなしで全件取得。"""
+        out = add_journal(db_path, tmp_path)
+        run_ledger("journal-delete", "--db-path", db_path, "--journal-id", str(out["journal_id"]))
+        log = run_ledger("audit-log", "--db-path", db_path)
+        assert log["status"] == "ok"
+        assert log["total_count"] >= 1
+
+
+# ============================================================
+# Search Advanced
+# ============================================================
+
+
+class TestSearchAdvanced:
+    """拡張検索のテスト。"""
+
+    def _add_journal_with_counterparty(
+        self, db_path, tmp_path, counterparty, amount=1000, name="j.json"
+    ):
+        f = write_json(
+            tmp_path,
+            {
+                "date": "2025-03-15",
+                "description": "Counterparty test",
+                "counterparty": counterparty,
+                "lines": [
+                    {"side": "debit", "account_code": "5200", "amount": amount},
+                    {"side": "credit", "account_code": "1100", "amount": amount},
+                ],
+            },
+            name,
+        )
+        return run_ledger(
+            "journal-add",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            f,
+        )
+
+    def test_search_by_counterparty(self, db_path, tmp_path):
+        """取引先名で検索できること。"""
+        self._add_journal_with_counterparty(db_path, tmp_path, "株式会社ABC", name="j1.json")
+        self._add_journal_with_counterparty(db_path, tmp_path, "株式会社XYZ", name="j2.json")
+        params = write_json(
+            tmp_path,
+            {"fiscal_year": 2025, "counterparty_contains": "ABC"},
+            "search.json",
+        )
+        out = run_ledger("search", "--db-path", db_path, "--input", params)
+        assert out["status"] == "ok"
+        assert out["total_count"] == 1
+        assert out["journals"][0]["counterparty"] == "株式会社ABC"
+
+    def test_search_by_amount_range(self, db_path, tmp_path):
+        """金額範囲で検索できること。"""
+        self._add_journal_with_counterparty(db_path, tmp_path, "A", amount=500, name="j1.json")
+        self._add_journal_with_counterparty(db_path, tmp_path, "B", amount=5000, name="j2.json")
+        self._add_journal_with_counterparty(db_path, tmp_path, "C", amount=50000, name="j3.json")
+        params = write_json(
+            tmp_path,
+            {"fiscal_year": 2025, "amount_min": 1000, "amount_max": 10000},
+            "search.json",
+        )
+        out = run_ledger("search", "--db-path", db_path, "--input", params)
+        assert out["status"] == "ok"
+        assert out["total_count"] == 1
+
+    def test_search_combined(self, db_path, tmp_path):
+        """日付+取引先+金額の組合せ検索。"""
+        self._add_journal_with_counterparty(
+            db_path, tmp_path, "株式会社ABC", amount=3000, name="j1.json"
+        )
+        params = write_json(
+            tmp_path,
+            {
+                "fiscal_year": 2025,
+                "date_from": "2025-01-01",
+                "date_to": "2025-12-31",
+                "counterparty_contains": "ABC",
+                "amount_min": 1000,
+                "amount_max": 5000,
+            },
+            "search.json",
+        )
+        out = run_ledger("search", "--db-path", db_path, "--input", params)
+        assert out["status"] == "ok"
+        assert out["total_count"] == 1
+
+
+# ============================================================
+# General Ledger
+# ============================================================
+
+
+class TestGeneralLedger:
+    """総勘定元帳のテスト。"""
+
+    def test_basic(self, db_path, tmp_path):
+        """基本的な仕訳の日付順取得と残高計算。"""
+        add_journal(db_path, tmp_path)
+        out = run_ledger(
+            "general-ledger",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--account-code",
+            "5200",
+        )
+        assert out["status"] == "ok"
+        assert out["account_code"] == "5200"
+        assert out["fiscal_year"] == 2025
+        assert out["opening_balance"] == 0
+        assert len(out["entries"]) == 1
+        entry = out["entries"][0]
+        assert entry["debit"] == 1000
+        assert entry["credit"] == 0
+        assert entry["balance"] == 1000
+        # 相手勘定は1100（普通預金）
+        assert entry["counter_account_code"] == "1100"
+        assert out["closing_balance"] == 1000
+
+    def test_empty_account(self, db_path, tmp_path):
+        """仕訳なしの科目は空 entries + 期首残高=残高。"""
+        out = run_ledger(
+            "general-ledger",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--account-code",
+            "5200",
+        )
+        assert out["status"] == "ok"
+        assert out["entries"] == []
+        assert out["opening_balance"] == 0
+        assert out["closing_balance"] == 0
+
+    def test_opening_balance(self, db_path, tmp_path):
+        """期首残高ありのケース。"""
+        # 期首残高を設定
+        ob = write_json(
+            tmp_path,
+            {"account_code": "1100", "amount": 50000},
+            "ob.json",
+        )
+        run_ledger(
+            "ob-set",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            ob,
+        )
+        add_journal(db_path, tmp_path)
+        out = run_ledger(
+            "general-ledger",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--account-code",
+            "1100",
+        )
+        assert out["status"] == "ok"
+        assert out["opening_balance"] == 50000
+        # 1100 は資産（debit normal）、credit 1000 → balance = 50000 - 1000 = 49000
+        assert out["entries"][0]["credit"] == 1000
+        assert out["closing_balance"] == 49000
+
+    def test_counter_account_shokuchi(self, db_path, tmp_path):
+        """複合仕訳で「諸口」表示。"""
+        f = write_json(
+            tmp_path,
+            {
+                "date": "2025-04-01",
+                "description": "複合仕訳",
+                "lines": [
+                    {"side": "debit", "account_code": "5200", "amount": 3000},
+                    {"side": "credit", "account_code": "1100", "amount": 2000},
+                    {"side": "credit", "account_code": "1101", "amount": 1000},
+                ],
+            },
+            "compound.json",
+        )
+        run_ledger(
+            "journal-add",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--input",
+            f,
+        )
+        out = run_ledger(
+            "general-ledger",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--account-code",
+            "5200",
+        )
+        assert out["status"] == "ok"
+        entry = out["entries"][0]
+        assert entry["counter_account_code"] == "*"
+        assert entry["counter_account_name"] == "諸口"
+
+    def test_invalid_account_code(self, db_path, tmp_path):
+        """存在しない科目コードでエラー。"""
+        out = run_ledger(
+            "general-ledger",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--account-code",
+            "9999",
+        )
+        assert out["status"] == "error"
+        assert "not found" in out["message"]
+
+
+# ============================================================
+# CSV Output
+# ============================================================
+
+
+class TestCsvOutput:
+    """CSV 出力のテスト。"""
+
+    def test_search_csv(self, db_path, tmp_path):
+        """--format csv で CSV 出力されること。"""
+        add_journal(db_path, tmp_path)
+        params = write_json(tmp_path, {"fiscal_year": 2025}, "search.json")
+        r = run_ledger_raw(
+            "search",
+            "--db-path",
+            db_path,
+            "--input",
+            params,
+            "--format",
+            "csv",
+        )
+        assert r.returncode == 0
+        lines = r.stdout.strip().split("\n")
+        assert len(lines) >= 2  # ヘッダ + データ行
+        assert "journal_id" in lines[0]
+        assert "account_code" in lines[0]
+
+    def test_trial_balance_csv(self, db_path, tmp_path):
+        """残高試算表の CSV 出力。"""
+        add_journal(db_path, tmp_path)
+        r = run_ledger_raw(
+            "trial-balance",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--format",
+            "csv",
+        )
+        assert r.returncode == 0
+        lines = r.stdout.strip().split("\n")
+        assert len(lines) >= 2
+        assert "account_code" in lines[0]
+        assert "debit_total" in lines[0]
+
+    def test_general_ledger_csv(self, db_path, tmp_path):
+        """総勘定元帳の CSV 出力。"""
+        add_journal(db_path, tmp_path)
+        r = run_ledger_raw(
+            "general-ledger",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--account-code",
+            "5200",
+            "--format",
+            "csv",
+        )
+        assert r.returncode == 0
+        lines = r.stdout.strip().split("\n")
+        assert len(lines) >= 2
+        assert "journal_id" in lines[0]
+        assert "balance" in lines[0]
+
+    def test_pl_csv(self, db_path, tmp_path):
+        """損益計算書の CSV 出力。"""
+        add_journal(db_path, tmp_path)
+        r = run_ledger_raw(
+            "pl",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--format",
+            "csv",
+        )
+        assert r.returncode == 0
+        lines = r.stdout.strip().split("\n")
+        assert len(lines) >= 2
+        assert "category" in lines[0]
+
+    def test_bs_csv(self, db_path, tmp_path):
+        """貸借対照表の CSV 出力。"""
+        add_journal(db_path, tmp_path)
+        r = run_ledger_raw(
+            "bs",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+            "--format",
+            "csv",
+        )
+        assert r.returncode == 0
+        lines = r.stdout.strip().split("\n")
+        assert len(lines) >= 1  # ヘッダは必ずある
+        assert "category" in lines[0]
+
+    def test_default_format_is_json(self, db_path, tmp_path):
+        """デフォルトは JSON 出力のまま。"""
+        add_journal(db_path, tmp_path)
+        out = run_ledger(
+            "trial-balance",
+            "--db-path",
+            db_path,
+            "--fiscal-year",
+            "2025",
+        )
+        assert out["status"] == "ok"
+        assert "accounts" in out

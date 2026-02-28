@@ -29,6 +29,7 @@ def insert_journal(
     description: str,
     lines: list[tuple[str, str, int]],
     source: str = "manual",
+    counterparty: str | None = None,
 ) -> int:
     """Insert a journal entry with lines.
 
@@ -39,13 +40,15 @@ def insert_journal(
         description: Journal description.
         lines: List of (side, account_code, amount) tuples.
         source: Source of the journal entry.
+        counterparty: Counterparty name.
 
     Returns:
         The journal ID.
     """
     conn.execute(
-        "INSERT INTO journals (fiscal_year, date, description, source) VALUES (?, ?, ?, ?)",
-        (fiscal_year, date, description, source),
+        "INSERT INTO journals (fiscal_year, date, description, source, counterparty) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (fiscal_year, date, description, source, counterparty),
     )
     journal_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     for side, account_code, amount in lines:

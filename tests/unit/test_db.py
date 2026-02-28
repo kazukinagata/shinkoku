@@ -22,6 +22,7 @@ def test_init_db_creates_all_tables(tmp_path):
         "accounts",
         "journals",
         "journal_lines",
+        "journal_audit_log",
         "fixed_assets",
         "deductions",
         "withholding_slips",

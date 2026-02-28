@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import sys
 from pathlib import Path
@@ -43,6 +45,7 @@ from shinkoku.tools.ledger import (
     ledger_add_insurance_policy,
     ledger_add_journal,
     ledger_add_journals_batch,
+    ledger_audit_log,
     ledger_add_loss_carryforward,
     ledger_add_medical_expense,
     ledger_add_other_income,
@@ -53,6 +56,7 @@ from shinkoku.tools.ledger import (
     ledger_add_stock_trading_account,
     ledger_bs,
     ledger_check_duplicates,
+    ledger_general_ledger,
     ledger_delete_business_withholding,
     ledger_delete_crypto_income,
     ledger_delete_dependent,
@@ -115,11 +119,158 @@ def _load_json(path: str) -> Any:
         _error(str(e))
 
 
-def _output(result: dict) -> None:
-    """結果を JSON で stdout に出力し、エラー時は exit(1)。"""
-    print(json.dumps(result, ensure_ascii=False))
+def _output(result: dict, fmt: str = "json") -> None:
+    """結果を指定形式で stdout に出力し、エラー時は exit(1)。"""
+    if fmt == "csv" and result.get("status") != "error":
+        _output_csv(result)
+    else:
+        print(json.dumps(result, ensure_ascii=False))
     if result.get("status") == "error":
         sys.exit(1)
+
+
+def _output_csv(result: dict) -> None:
+    """result の構造に応じて CSV を stdout に出力する。"""
+    out = io.StringIO()
+    writer = csv.writer(out)
+
+    if "journals" in result:
+        # 仕訳帳 CSV
+        writer.writerow(
+            [
+                "journal_id",
+                "date",
+                "description",
+                "counterparty",
+                "side",
+                "account_code",
+                "amount",
+                "tax_category",
+                "tax_amount",
+            ]
+        )
+        for j in result["journals"]:
+            for line in j.get("lines", []):
+                writer.writerow(
+                    [
+                        j["id"],
+                        j["date"],
+                        j.get("description", ""),
+                        j.get("counterparty", ""),
+                        line["side"],
+                        line["account_code"],
+                        line["amount"],
+                        line.get("tax_category", ""),
+                        line.get("tax_amount", 0),
+                    ]
+                )
+    elif "entries" in result:
+        # 総勘定元帳 CSV
+        writer.writerow(
+            [
+                "journal_id",
+                "date",
+                "description",
+                "counterparty",
+                "counter_account_code",
+                "counter_account_name",
+                "debit",
+                "credit",
+                "balance",
+            ]
+        )
+        for e in result["entries"]:
+            writer.writerow(
+                [
+                    e["journal_id"],
+                    e["date"],
+                    e.get("description", ""),
+                    e.get("counterparty", ""),
+                    e["counter_account_code"],
+                    e["counter_account_name"],
+                    e["debit"],
+                    e["credit"],
+                    e["balance"],
+                ]
+            )
+    elif "accounts" in result:
+        # 残高試算表 CSV
+        writer.writerow(
+            [
+                "account_code",
+                "account_name",
+                "category",
+                "debit_total",
+                "credit_total",
+                "balance",
+            ]
+        )
+        for a in result["accounts"]:
+            writer.writerow(
+                [
+                    a["account_code"],
+                    a["account_name"],
+                    a["category"],
+                    a["debit_total"],
+                    a["credit_total"],
+                    a["balance"],
+                ]
+            )
+    elif "revenues" in result and "expenses" in result:
+        # 損益計算書 CSV
+        writer.writerow(["category", "account_code", "account_name", "amount"])
+        for r in result["revenues"]:
+            writer.writerow(["revenue", r["account_code"], r["account_name"], r["amount"]])
+        for e in result["expenses"]:
+            writer.writerow(["expense", e["account_code"], e["account_name"], e["amount"]])
+    elif "assets" in result and "liabilities" in result:
+        # 貸借対照表 CSV
+        writer.writerow(["category", "account_code", "account_name", "amount"])
+        for a in result["assets"]:
+            writer.writerow(["asset", a["account_code"], a["account_name"], a["amount"]])
+        for li in result["liabilities"]:
+            writer.writerow(["liability", li["account_code"], li["account_name"], li["amount"]])
+        for e in result.get("equity", []):
+            writer.writerow(["equity", e["account_code"], e["account_name"], e["amount"]])
+    elif "audit_logs" in result:
+        # 監査ログ CSV
+        writer.writerow(
+            [
+                "id",
+                "journal_id",
+                "fiscal_year",
+                "operation",
+                "before_date",
+                "before_description",
+                "before_counterparty",
+                "after_date",
+                "after_description",
+                "after_counterparty",
+                "created_at",
+            ]
+        )
+        for log in result["audit_logs"]:
+            writer.writerow(
+                [
+                    log["id"],
+                    log["journal_id"],
+                    log["fiscal_year"],
+                    log["operation"],
+                    log["before_date"],
+                    log.get("before_description", ""),
+                    log.get("before_counterparty", ""),
+                    log.get("after_date", ""),
+                    log.get("after_description", ""),
+                    log.get("after_counterparty", ""),
+                    log["created_at"],
+                ]
+            )
+    else:
+        # フォールバック: JSON 出力
+        print(json.dumps(result, ensure_ascii=False))
+        return
+
+    print(out.getvalue(), end="")
 
 
 def _error(message: str) -> None:
@@ -168,7 +319,7 @@ def cmd_journal_batch_add(args: argparse.Namespace) -> None:
 def cmd_search(args: argparse.Namespace) -> None:
     data = _load_json(args.input)
     params = JournalSearchParams(**data)
-    _output(ledger_search(db_path=args.db_path, params=params))
+    _output(ledger_search(db_path=args.db_path, params=params), fmt=args.format)
 
 
 def cmd_journal_update(args: argparse.Namespace) -> None:
@@ -188,16 +339,42 @@ def cmd_journal_delete(args: argparse.Namespace) -> None:
     _output(ledger_delete_journal(db_path=args.db_path, journal_id=args.journal_id))
 
 
+def cmd_audit_log(args: argparse.Namespace) -> None:
+    journal_id = getattr(args, "journal_id", None)
+    fiscal_year = getattr(args, "fiscal_year", None)
+    _output(
+        ledger_audit_log(
+            db_path=args.db_path,
+            journal_id=journal_id,
+            fiscal_year=fiscal_year,
+        ),
+        fmt=args.format,
+    )
+
+
 def cmd_trial_balance(args: argparse.Namespace) -> None:
-    _output(ledger_trial_balance(db_path=args.db_path, fiscal_year=args.fiscal_year))
+    _output(
+        ledger_trial_balance(db_path=args.db_path, fiscal_year=args.fiscal_year), fmt=args.format
+    )
 
 
 def cmd_pl(args: argparse.Namespace) -> None:
-    _output(ledger_pl(db_path=args.db_path, fiscal_year=args.fiscal_year))
+    _output(ledger_pl(db_path=args.db_path, fiscal_year=args.fiscal_year), fmt=args.format)
 
 
 def cmd_bs(args: argparse.Namespace) -> None:
-    _output(ledger_bs(db_path=args.db_path, fiscal_year=args.fiscal_year))
+    _output(ledger_bs(db_path=args.db_path, fiscal_year=args.fiscal_year), fmt=args.format)
+
+
+def cmd_general_ledger(args: argparse.Namespace) -> None:
+    _output(
+        ledger_general_ledger(
+            db_path=args.db_path,
+            fiscal_year=args.fiscal_year,
+            account_code=args.account_code,
+        ),
+        fmt=args.format,
+    )
 
 
 def cmd_check_duplicates(args: argparse.Namespace) -> None:
@@ -685,6 +862,10 @@ def _add_input_arg(p: argparse.ArgumentParser) -> None:
     p.add_argument("--input", required=True, help="JSON ファイルパス")
 
 
+def _add_format_arg(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--format", choices=["json", "csv"], default="json", help="出力形式")
+
+
 def register(parent_subparsers: argparse._SubParsersAction) -> None:
     """ledger サブコマンドを親パーサーに登録する。"""
     parser = parent_subparsers.add_parser(
@@ -718,6 +899,7 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:
     p = sub.add_parser("search", help="仕訳検索")
     _add_db_arg(p)
     _add_input_arg(p)
+    _add_format_arg(p)
     p.set_defaults(func=cmd_search)
 
     p = sub.add_parser("journal-update", help="仕訳更新")
@@ -732,21 +914,38 @@ def register(parent_subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--journal-id", required=True, type=int)
     p.set_defaults(func=cmd_journal_delete)
 
+    p = sub.add_parser("audit-log", help="仕訳の訂正・削除履歴")
+    _add_db_arg(p)
+    p.add_argument("--journal-id", type=int, help="特定の仕訳IDの履歴")
+    p.add_argument("--fiscal-year", type=int, help="年度で絞り込み")
+    _add_format_arg(p)
+    p.set_defaults(func=cmd_audit_log)
+
     # --- 財務諸表 ---
     p = sub.add_parser("trial-balance", help="残高試算表")
     _add_db_arg(p)
     _add_fy_arg(p)
+    _add_format_arg(p)
     p.set_defaults(func=cmd_trial_balance)
 
     p = sub.add_parser("pl", help="損益計算書")
     _add_db_arg(p)
     _add_fy_arg(p)
+    _add_format_arg(p)
     p.set_defaults(func=cmd_pl)
 
     p = sub.add_parser("bs", help="貸借対照表")
     _add_db_arg(p)
     _add_fy_arg(p)
+    _add_format_arg(p)
     p.set_defaults(func=cmd_bs)
+
+    p = sub.add_parser("general-ledger", help="総勘定元帳")
+    _add_db_arg(p)
+    _add_fy_arg(p)
+    p.add_argument("--account-code", required=True, type=str, help="勘定科目コード")
+    _add_format_arg(p)
+    p.set_defaults(func=cmd_general_ledger)
 
     p = sub.add_parser("check-duplicates", help="重複チェック")
     _add_db_arg(p)

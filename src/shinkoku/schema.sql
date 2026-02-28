@@ -25,12 +25,32 @@ CREATE TABLE IF NOT EXISTS journals (
     fiscal_year INTEGER NOT NULL REFERENCES fiscal_years(year),
     date TEXT NOT NULL,
     description TEXT,
+    counterparty TEXT,
     content_hash TEXT,
     source TEXT CHECK (source IN ('csv_import', 'receipt_ocr', 'invoice_ocr', 'manual', 'adjustment')),
     source_file TEXT,
     is_adjustment INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 仕訳の訂正・削除履歴（電帳法施行規則5条5項1号イ準拠）
+CREATE TABLE IF NOT EXISTS journal_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    journal_id INTEGER NOT NULL,
+    fiscal_year INTEGER NOT NULL,
+    operation TEXT NOT NULL CHECK (operation IN ('update', 'delete')),
+    -- 変更前のデータ
+    before_date TEXT NOT NULL,
+    before_description TEXT,
+    before_counterparty TEXT,
+    before_lines_json TEXT NOT NULL,
+    -- 変更後のデータ（update の場合のみ）
+    after_date TEXT,
+    after_description TEXT,
+    after_counterparty TEXT,
+    after_lines_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- 仕訳明細（借方・貸方）
@@ -374,6 +394,7 @@ CREATE TABLE IF NOT EXISTS donation_records (
 CREATE INDEX IF NOT EXISTS idx_journals_fiscal_year ON journals(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_journals_date ON journals(date);
 CREATE INDEX IF NOT EXISTS idx_journals_source ON journals(source);
+CREATE INDEX IF NOT EXISTS idx_journals_counterparty ON journals(counterparty);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_journals_content_hash ON journals(fiscal_year, content_hash) WHERE content_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_journal_lines_journal_id ON journal_lines(journal_id);
 CREATE INDEX IF NOT EXISTS idx_journal_lines_account_code ON journal_lines(account_code);
@@ -403,3 +424,5 @@ CREATE INDEX IF NOT EXISTS idx_fx_loss_carryforward_fiscal_year ON fx_loss_carry
 CREATE INDEX IF NOT EXISTS idx_social_insurance_items_fiscal_year ON social_insurance_items(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_insurance_policies_fiscal_year ON insurance_policies(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_donation_records_fiscal_year ON donation_records(fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_journal_audit_log_journal_id ON journal_audit_log(journal_id);
+CREATE INDEX IF NOT EXISTS idx_journal_audit_log_fiscal_year ON journal_audit_log(fiscal_year);

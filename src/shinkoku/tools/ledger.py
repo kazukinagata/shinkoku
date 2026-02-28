@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
 from shinkoku.db import init_db, get_connection
@@ -155,12 +156,13 @@ def _insert_journal_in_transaction(
     """Insert a journal within an existing transaction. Returns journal_id."""
     cursor = conn.execute(
         "INSERT INTO journals "
-        "(fiscal_year, date, description, source, source_file, "
-        "is_adjustment, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "(fiscal_year, date, description, counterparty, source, source_file, "
+        "is_adjustment, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             fiscal_year,
             entry.date,
             entry.description,
+            entry.counterparty,
             entry.source,
             entry.source_file,
             1 if entry.is_adjustment else 0,
@@ -294,20 +296,37 @@ def ledger_search(*, db_path: str, params: JournalSearchParams) -> dict:
         if params.description_contains:
             conditions.append("j.description LIKE ?")
             bind_params.append(f"%{params.description_contains}%")
+        if params.counterparty_contains:
+            conditions.append("j.counterparty LIKE ?")
+            bind_params.append(f"%{params.counterparty_contains}%")
         if params.source:
             conditions.append("j.source = ?")
             bind_params.append(params.source)
 
         where_clause = " AND ".join(conditions)
 
-        # If filtering by account_code, join journal_lines
-        if params.account_code:
+        # 金額範囲検索・勘定科目検索には journal_lines の JOIN が必要
+        needs_join = bool(
+            params.account_code or params.amount_min is not None or params.amount_max is not None
+        )
+
+        if needs_join:
+            join_conditions = []
+            if params.account_code:
+                join_conditions.append("jl.account_code = ?")
+                bind_params.append(params.account_code)
+            if params.amount_min is not None:
+                join_conditions.append("jl.amount >= ?")
+                bind_params.append(params.amount_min)
+            if params.amount_max is not None:
+                join_conditions.append("jl.amount <= ?")
+                bind_params.append(params.amount_max)
+            join_where = " AND ".join(join_conditions)
             base_query = (
                 "FROM journals j "
                 "INNER JOIN journal_lines jl ON jl.journal_id = j.id "
-                f"WHERE {where_clause} AND jl.account_code = ?"
+                f"WHERE {where_clause} AND {join_where}"
             )
-            bind_params.append(params.account_code)
         else:
             base_query = f"FROM journals j WHERE {where_clause}"
 
@@ -318,7 +337,7 @@ def ledger_search(*, db_path: str, params: JournalSearchParams) -> dict:
         # Fetch journal IDs with pagination
         select_sql = (
             f"SELECT DISTINCT j.id, j.fiscal_year, j.date, "
-            f"j.description, j.source, j.source_file, j.is_adjustment "
+            f"j.description, j.counterparty, j.source, j.source_file, j.is_adjustment "
             f"{base_query} "
             f"ORDER BY j.date, j.id "
             f"LIMIT ? OFFSET ?"
@@ -341,9 +360,10 @@ def ledger_search(*, db_path: str, params: JournalSearchParams) -> dict:
                     "fiscal_year": row[1],
                     "date": row[2],
                     "description": row[3],
-                    "source": row[4],
-                    "source_file": row[5],
-                    "is_adjustment": bool(row[6]),
+                    "counterparty": row[4],
+                    "source": row[5],
+                    "source_file": row[6],
+                    "is_adjustment": bool(row[7]),
                     "lines": [
                         {
                             "id": li[0],
@@ -374,12 +394,18 @@ def ledger_update_journal(
     fiscal_year: int,
     entry: JournalEntry,
 ) -> dict:
-    """Update a journal entry (replace lines with re-validation)."""
+    """Update a journal entry (replace lines with re-validation).
+
+    訂正前のデータを journal_audit_log に記録する（電帳法施行規則5条5項1号イ）。
+    """
     conn = get_connection(db_path)
     try:
-        # Check journal exists
-        row = conn.execute("SELECT id FROM journals WHERE id = ?", (journal_id,)).fetchone()
-        if row is None:
+        # Check journal exists and fetch old data for audit
+        old_journal = conn.execute(
+            "SELECT id, fiscal_year, date, description, counterparty FROM journals WHERE id = ?",
+            (journal_id,),
+        ).fetchone()
+        if old_journal is None:
             return {
                 "status": "error",
                 "message": f"Journal {journal_id} not found",
@@ -402,14 +428,69 @@ def ledger_update_journal(
                 "message": f"更新後の内容が既存の仕訳 (ID: {collision[0]}) と一致します",
             }
 
+        # 変更前の仕訳明細を取得し、監査ログ用のJSONに変換
+        old_lines = conn.execute(
+            "SELECT side, account_code, amount, tax_category, tax_amount "
+            "FROM journal_lines WHERE journal_id = ?",
+            (journal_id,),
+        ).fetchall()
+        old_lines_json = json.dumps(
+            [
+                {
+                    "side": li[0],
+                    "account_code": li[1],
+                    "amount": li[2],
+                    "tax_category": li[3],
+                    "tax_amount": li[4],
+                }
+                for li in old_lines
+            ],
+            ensure_ascii=False,
+        )
+        new_lines_json = json.dumps(
+            [
+                {
+                    "side": li.side,
+                    "account_code": li.account_code,
+                    "amount": li.amount,
+                    "tax_category": li.tax_category,
+                    "tax_amount": li.tax_amount,
+                }
+                for li in entry.lines
+            ],
+            ensure_ascii=False,
+        )
+
+        # 監査ログに変更前後のデータを記録
+        conn.execute(
+            "INSERT INTO journal_audit_log "
+            "(journal_id, fiscal_year, operation, "
+            "before_date, before_description, before_counterparty, before_lines_json, "
+            "after_date, after_description, after_counterparty, after_lines_json) "
+            "VALUES (?, ?, 'update', ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                journal_id,
+                old_journal["fiscal_year"],
+                old_journal["date"],
+                old_journal["description"],
+                old_journal["counterparty"],
+                old_lines_json,
+                entry.date,
+                entry.description,
+                entry.counterparty,
+                new_lines_json,
+            ),
+        )
+
         # Update journal header
         conn.execute(
-            "UPDATE journals SET date=?, description=?, source=?, "
+            "UPDATE journals SET date=?, description=?, counterparty=?, source=?, "
             "source_file=?, is_adjustment=?, content_hash=?, "
             "updated_at=datetime('now') WHERE id=?",
             (
                 entry.date,
                 entry.description,
+                entry.counterparty,
                 entry.source,
                 entry.source_file,
                 1 if entry.is_adjustment else 0,
@@ -448,21 +529,111 @@ def ledger_update_journal(
 
 
 def ledger_delete_journal(*, db_path: str, journal_id: int) -> dict:
-    """Delete a journal entry and its lines (CASCADE)."""
+    """Delete a journal entry and its lines (CASCADE).
+
+    削除前のデータを journal_audit_log に記録する（電帳法施行規則5条5項1号イ）。
+    """
     conn = get_connection(db_path)
     try:
-        # Check journal exists
-        row = conn.execute("SELECT id FROM journals WHERE id = ?", (journal_id,)).fetchone()
-        if row is None:
+        # Check journal exists and fetch data for audit
+        old_journal = conn.execute(
+            "SELECT id, fiscal_year, date, description, counterparty FROM journals WHERE id = ?",
+            (journal_id,),
+        ).fetchone()
+        if old_journal is None:
             return {
                 "status": "error",
                 "message": f"Journal {journal_id} not found",
             }
 
+        # 削除前の仕訳明細を取得
+        old_lines = conn.execute(
+            "SELECT side, account_code, amount, tax_category, tax_amount "
+            "FROM journal_lines WHERE journal_id = ?",
+            (journal_id,),
+        ).fetchall()
+        old_lines_json = json.dumps(
+            [
+                {
+                    "side": li[0],
+                    "account_code": li[1],
+                    "amount": li[2],
+                    "tax_category": li[3],
+                    "tax_amount": li[4],
+                }
+                for li in old_lines
+            ],
+            ensure_ascii=False,
+        )
+
+        # 監査ログに削除前のデータを記録
+        conn.execute(
+            "INSERT INTO journal_audit_log "
+            "(journal_id, fiscal_year, operation, "
+            "before_date, before_description, before_counterparty, before_lines_json) "
+            "VALUES (?, ?, 'delete', ?, ?, ?, ?)",
+            (
+                journal_id,
+                old_journal["fiscal_year"],
+                old_journal["date"],
+                old_journal["description"],
+                old_journal["counterparty"],
+                old_lines_json,
+            ),
+        )
+
         # Delete (journal_lines will CASCADE)
         conn.execute("DELETE FROM journals WHERE id = ?", (journal_id,))
         conn.commit()
         return {"status": "ok", "journal_id": journal_id}
+    finally:
+        conn.close()
+
+
+def ledger_audit_log(
+    *, db_path: str, journal_id: int | None = None, fiscal_year: int | None = None
+) -> dict:
+    """仕訳の訂正・削除履歴を取得する。"""
+    conn = get_connection(db_path)
+    try:
+        conditions: list[str] = []
+        bind_params: list = []
+        if journal_id is not None:
+            conditions.append("journal_id = ?")
+            bind_params.append(journal_id)
+        if fiscal_year is not None:
+            conditions.append("fiscal_year = ?")
+            bind_params.append(fiscal_year)
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+        rows = conn.execute(
+            f"SELECT id, journal_id, fiscal_year, operation, "
+            f"before_date, before_description, before_counterparty, before_lines_json, "
+            f"after_date, after_description, after_counterparty, after_lines_json, "
+            f"created_at FROM journal_audit_log "
+            f"WHERE {where_clause} ORDER BY created_at DESC",
+            bind_params,
+        ).fetchall()
+
+        logs = [
+            {
+                "id": r[0],
+                "journal_id": r[1],
+                "fiscal_year": r[2],
+                "operation": r[3],
+                "before_date": r[4],
+                "before_description": r[5],
+                "before_counterparty": r[6],
+                "before_lines_json": r[7],
+                "after_date": r[8],
+                "after_description": r[9],
+                "after_counterparty": r[10],
+                "after_lines_json": r[11],
+                "created_at": r[12],
+            }
+            for r in rows
+        ]
+        return {"status": "ok", "audit_logs": logs, "total_count": len(logs)}
     finally:
         conn.close()
 
@@ -710,6 +881,114 @@ def ledger_bs(*, db_path: str, fiscal_year: int) -> dict:
             "opening_total_assets": sum(a["amount"] for a in opening_assets),
             "opening_total_liabilities": sum(li["amount"] for li in opening_liabilities),
             "opening_total_equity": sum(e["amount"] for e in opening_equity),
+        }
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 総勘定元帳 (General Ledger)
+# ============================================================
+
+
+def ledger_general_ledger(*, db_path: str, fiscal_year: int, account_code: str) -> dict:
+    """総勘定元帳: 指定勘定科目の全仕訳を日付順に表示し、累積残高を計算する。"""
+    conn = get_connection(db_path)
+    try:
+        # 科目情報を取得
+        account = conn.execute(
+            "SELECT code, name, category FROM accounts WHERE code = ?",
+            (account_code,),
+        ).fetchone()
+        if account is None:
+            return {
+                "status": "error",
+                "message": f"Account code not found: {account_code}",
+            }
+        account_name = account["name"]
+        category = account["category"]
+
+        # 正常残高方向を判定: 資産(1xxx)・費用(5xxx) = 借方, 負債(2xxx)・純資産(3xxx)・収益(4xxx) = 貸方
+        debit_normal = category in ("asset", "expense")
+
+        # 期首残高を取得
+        ob_row = conn.execute(
+            "SELECT amount FROM opening_balances WHERE fiscal_year = ? AND account_code = ?",
+            (fiscal_year, account_code),
+        ).fetchone()
+        opening_balance = ob_row["amount"] if ob_row else 0
+
+        # 当該科目の全仕訳行を日付順に取得
+        rows = conn.execute(
+            "SELECT jl.id AS line_id, j.id AS journal_id, j.date, j.description, "
+            "j.counterparty, jl.side, jl.amount "
+            "FROM journal_lines jl "
+            "INNER JOIN journals j ON j.id = jl.journal_id "
+            "WHERE jl.account_code = ? AND j.fiscal_year = ? "
+            "ORDER BY j.date, j.id, jl.id",
+            (account_code, fiscal_year),
+        ).fetchall()
+
+        # 各行の相手勘定を判定
+        entries = []
+        balance = opening_balance
+        for row in rows:
+            journal_id = row["journal_id"]
+            side = row["side"]
+            amount = row["amount"]
+
+            # 同一仕訳の他の行を取得して相手勘定を判定
+            other_lines = conn.execute(
+                "SELECT jl.account_code, a.name "
+                "FROM journal_lines jl "
+                "INNER JOIN accounts a ON a.code = jl.account_code "
+                "WHERE jl.journal_id = ? AND jl.account_code != ?",
+                (journal_id, account_code),
+            ).fetchall()
+
+            if len(other_lines) == 1:
+                counter_code = other_lines[0]["account_code"]
+                counter_name = other_lines[0]["name"]
+            elif len(other_lines) == 0:
+                # 同一科目間の振替（例: 現金→現金は通常ないが念のため）
+                counter_code = account_code
+                counter_name = account_name
+            else:
+                # 複合仕訳
+                counter_code = "*"
+                counter_name = "諸口"
+
+            debit = amount if side == "debit" else 0
+            credit = amount if side == "credit" else 0
+
+            # 累積残高を計算
+            if debit_normal:
+                balance += debit - credit
+            else:
+                balance += credit - debit
+
+            entries.append(
+                {
+                    "journal_id": journal_id,
+                    "date": row["date"],
+                    "description": row["description"],
+                    "counterparty": row["counterparty"],
+                    "counter_account_code": counter_code,
+                    "counter_account_name": counter_name,
+                    "debit": debit,
+                    "credit": credit,
+                    "balance": balance,
+                }
+            )
+
+        return {
+            "status": "ok",
+            "account_code": account_code,
+            "account_name": account_name,
+            "fiscal_year": fiscal_year,
+            "opening_balance": opening_balance,
+            "entries": entries,
+            "closing_balance": balance,
         }
     finally:
         conn.close()
