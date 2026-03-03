@@ -706,7 +706,7 @@ shinkoku tax sanity-check --input sanity_input.json
        "purchase_price": 40000000,
        "total_floor_area": 8000,
        "residential_floor_area": 8000,
-       "property_number": null,
+       "property_number": null,  // 不動産番号（13桁）を入力すると登記事項証明書の添付省略可（令和3年度改正）
        "application_submitted": false
      }
    }
