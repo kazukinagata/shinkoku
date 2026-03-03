@@ -184,6 +184,11 @@ uv run shinkoku profile --config shinkoku.config.yaml
 
 - `.claude-plugin/marketplace.json` — version フィールドなし（plugin.json に一元化）
 
+**PR 作成前の必須手順:**
+
+- `src/shinkoku/` または `skills/` に変更がある PR では、**コミット前に必ず** `pyproject.toml` と `.claude-plugin/plugin.json` のバージョンを同時にバンプすること
+- バンプ忘れは CI (Version Check) で即 fail する
+
 **CI による検証:**
 
 - PR で `src/shinkoku/` または `skills/` に変更がある場合、`plugin.json` のバージョンがベースブランチから更新されていること、`pyproject.toml` と一致することを自動チェックする
