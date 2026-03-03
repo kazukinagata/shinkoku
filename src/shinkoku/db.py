@@ -34,3 +34,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
     cols = {row[1] for row in conn.execute("PRAGMA table_info(journals)").fetchall()}
     if "counterparty" not in cols:
         conn.execute("ALTER TABLE journals ADD COLUMN counterparty TEXT")
+
+    # housing_loan_details: 重複適用（中古購入＋リフォーム同時）対応カラム追加
+    hl_cols = {row[1] for row in conn.execute("PRAGMA table_info(housing_loan_details)").fetchall()}
+    if "dual_application_group" not in hl_cols:
+        conn.execute("ALTER TABLE housing_loan_details ADD COLUMN dual_application_group TEXT")
+    if "cost_for_proration" not in hl_cols:
+        conn.execute(
+            "ALTER TABLE housing_loan_details "
+            "ADD COLUMN cost_for_proration INTEGER NOT NULL DEFAULT 0"
+        )

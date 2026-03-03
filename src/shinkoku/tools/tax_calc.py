@@ -15,6 +15,7 @@ from shinkoku.models import (
     DeductionsResult,
     DependentInfo,
     DonationRecordRecord,
+    HousingLoanCreditEntry,
     HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
@@ -545,6 +546,36 @@ def calc_furusato_deduction(donation: int, total_income: int | None = None) -> i
 # ============================================================
 
 
+def _get_balance_limit(detail: HousingLoanDetail) -> int:
+    """住宅ローン控除の借入限度額を取得する。
+
+    入居年・住宅区分・世帯区分に基づき、年末残高上限テーブルから限度額を返す。
+    """
+    move_in_year = int(detail.move_in_date[:4])
+    key = (detail.housing_category, detail.is_new_construction)
+
+    # 入居年に応じたテーブル選択
+    if move_in_year <= 2023:
+        limits = HOUSING_LOAN_LIMITS_R4_R5
+    elif detail.is_childcare_household:
+        limits = HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE
+    else:
+        limits = HOUSING_LOAN_LIMITS_R6_R7
+
+    limit = limits.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
+
+    # 一般住宅新築 R6-R7: R5確認済みなら特例上限（2,000万/控除期間10年）
+    if (
+        limit == 0
+        and detail.housing_category == "general"
+        and detail.is_new_construction
+        and detail.has_pre_r6_building_permit
+    ):
+        limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED
+
+    return limit
+
+
 def calc_housing_loan_credit(
     balance: int,
     detail: HousingLoanDetail | None = None,
@@ -566,28 +597,7 @@ def calc_housing_loan_credit(
         return 0
 
     if detail is not None:
-        move_in_year = int(detail.move_in_date[:4])
-        key = (detail.housing_category, detail.is_new_construction)
-
-        # 入居年に応じたテーブル選択
-        if move_in_year <= 2023:
-            limits = HOUSING_LOAN_LIMITS_R4_R5
-        elif detail.is_childcare_household:
-            limits = HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE
-        else:
-            limits = HOUSING_LOAN_LIMITS_R6_R7
-
-        limit = limits.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
-
-        # 一般住宅新築 R6-R7: R5確認済みなら特例上限（2,000万/控除期間10年）
-        if (
-            limit == 0
-            and detail.housing_category == "general"
-            and detail.is_new_construction
-            and detail.has_pre_r6_building_permit
-        ):
-            limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED
-
+        limit = _get_balance_limit(detail)
         capped = min(detail.year_end_balance, limit)
         # 住宅ローン控除額: 100円未満切捨（租税特別措置法第41条第2項）
         credit = capped * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR
@@ -596,6 +606,75 @@ def calc_housing_loan_credit(
     # 住宅ローン控除額: 100円未満切捨（租税特別措置法第41条第2項）
     credit = balance * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR
     return (credit // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+
+
+def calc_housing_loan_credit_dual(
+    details: list[HousingLoanDetail],
+) -> tuple[int, list[HousingLoanCreditEntry]]:
+    """重複適用（中古住宅購入＋リフォーム同時）の按分計算。
+
+    同一 dual_application_group に属する複数の明細を受け取り、
+    cost_for_proration の比率で年末残高を按分して各明細の控除額を計算する。
+
+    Args:
+        details: 同一グループの住宅ローン控除明細リスト（2件以上）
+
+    Returns:
+        (合計控除額, 個別明細の計算結果リスト)
+
+    Raises:
+        ValueError: cost_for_proration が 0 の明細がある場合
+    """
+    if len(details) < 2:
+        raise ValueError("重複適用には2件以上の明細が必要です")
+
+    # cost_for_proration の検証
+    for d in details:
+        if d.cost_for_proration <= 0:
+            raise ValueError(
+                f"cost_for_proration は正の整数が必要です（housing_type={d.housing_type}）"
+            )
+
+    # 共有年末残高（全明細で同一のはず）
+    shared_balance = details[0].year_end_balance
+    total_cost = sum(d.cost_for_proration for d in details)
+
+    entries: list[HousingLoanCreditEntry] = []
+    allocated_so_far = 0
+
+    for i, detail in enumerate(details):
+        # 按分後残高: 最後の明細は端数調整
+        if i < len(details) - 1:
+            prorated = shared_balance * detail.cost_for_proration // total_cost
+            allocated_so_far += prorated
+        else:
+            # 端数調整: 合計が元の年末残高と一致するようにする
+            prorated = shared_balance - allocated_so_far
+
+        # 限度額の取得と適用
+        limit = _get_balance_limit(detail)
+        capped = min(prorated, limit)
+
+        # 控除額: 100円未満切捨（租税特別措置法第41条第2項）
+        credit = capped * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR
+        credit = (credit // TAX_AMOUNT_ROUNDING) * TAX_AMOUNT_ROUNDING
+
+        # 按分比率（万分率）
+        ratio_pct = detail.cost_for_proration * 10000 // total_cost
+
+        entries.append(
+            HousingLoanCreditEntry(
+                housing_type=detail.housing_type,
+                prorated_balance=prorated,
+                balance_limit=limit,
+                capped_balance=capped,
+                credit=credit,
+                proration_ratio_pct=ratio_pct,
+            )
+        )
+
+    total_credit = sum(e.credit for e in entries)
+    return total_credit, entries
 
 
 # ============================================================
@@ -621,6 +700,7 @@ def calc_deductions(
     dependents: list[DependentInfo] | None = None,
     fiscal_year: int = 2025,
     housing_loan_detail: HousingLoanDetail | None = None,
+    housing_loan_details: list[HousingLoanDetail] | None = None,
     widow_status: str = "none",
     disability_status: str = "none",
     working_student: bool = False,
@@ -854,16 +934,36 @@ def calc_deductions(
             )
 
     # Tax credits
-    # Housing loan credit
-    hl_balance = housing_loan_balance
-    if housing_loan_detail is not None:
-        hl_balance = housing_loan_detail.year_end_balance
-    if hl_balance > 0:
-        hl_credit = calc_housing_loan_credit(hl_balance, detail=housing_loan_detail)
-        if hl_credit > 0:
-            tax_credits.append(
-                DeductionItem(type="housing_loan", name="住宅ローン控除", amount=hl_credit)
-            )
+    # Housing loan credit — 重複適用（dual application）対応
+    _hl_credit_total = 0
+    if housing_loan_details:
+        # dual_application_group でグループ化して按分計算
+        grouped: dict[str | None, list[HousingLoanDetail]] = {}
+        for d in housing_loan_details:
+            grouped.setdefault(d.dual_application_group, []).append(d)
+
+        for group_key, group_details in grouped.items():
+            if group_key is not None and len(group_details) >= 2:
+                # 重複適用グループ: 按分計算
+                credit, _entries = calc_housing_loan_credit_dual(group_details)
+                _hl_credit_total += credit
+            else:
+                # 単独明細: 従来の計算
+                for d in group_details:
+                    credit = calc_housing_loan_credit(d.year_end_balance, detail=d)
+                    _hl_credit_total += credit
+    else:
+        # 従来の単一明細パス（後方互換）
+        hl_balance = housing_loan_balance
+        if housing_loan_detail is not None:
+            hl_balance = housing_loan_detail.year_end_balance
+        if hl_balance > 0:
+            _hl_credit_total = calc_housing_loan_credit(hl_balance, detail=housing_loan_detail)
+
+    if _hl_credit_total > 0:
+        tax_credits.append(
+            DeductionItem(type="housing_loan", name="住宅ローン控除", amount=_hl_credit_total)
+        )
 
     # 配当控除（Phase 10）
     if dividend_income_comprehensive > 0 and taxable_income_for_dividend_credit > 0:
@@ -1023,6 +1123,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         dependents=input_data.dependents or None,
         fiscal_year=input_data.fiscal_year,
         housing_loan_detail=input_data.housing_loan_detail,
+        housing_loan_details=input_data.housing_loan_details or None,
         widow_status=input_data.widow_status,
         disability_status=input_data.disability_status,
         working_student=input_data.working_student,
