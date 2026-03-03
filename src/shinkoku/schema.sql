@@ -194,6 +194,8 @@ CREATE TABLE IF NOT EXISTS housing_loan_details (
     residential_floor_area INTEGER NOT NULL DEFAULT 0,
     property_number TEXT,
     application_submitted INTEGER NOT NULL DEFAULT 0,
+    dual_application_group TEXT,
+    cost_for_proration INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

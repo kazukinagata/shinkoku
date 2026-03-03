@@ -182,6 +182,86 @@ Q6. 初年度か2年目以降か？
 4. **繰上返済で10年未満に**: 繰上返済により返済期間が10年未満になると適用除外
 5. **中古住宅の築年数**: 新耐震基準（昭和57年以降建築）を満たす必要がある
 
+## 重複適用（中古住宅購入＋リフォーム同時）
+
+中古住宅の購入とリフォーム（増改築）を同時に行い、1本のローンで資金を賄う場合、
+住宅ローン控除は「重複適用」として処理する。
+
+### 概要
+
+- 計算明細書を**2枚**作成する（中古住宅取得分 + 増改築分）
+- 両方の明細書で「重複適用」に○をつける
+- 年末残高を取得対価の比率で按分する
+
+### 按分計算式
+
+```
+購入分残高 = 年末残高 × 購入価格 / (購入価格 + リフォーム費用)
+リフォーム分残高 = 年末残高 - 購入分残高
+```
+
+※ 端数は最後の明細で調整（合計が元の年末残高と一致するようにする）
+
+### 計算例
+
+```
+購入価格: 42,800,000円、リフォーム費用: 5,000,000円
+年末残高: 15,151,931円、住宅性能: 一般住宅
+
+按分（整数演算）:
+  購入分残高 = 15,151,931 × 42,800,000 // 47,800,000 = 13,567,000円
+  リフォーム分残高 = 15,151,931 - 13,567,000 = 1,584,931円
+
+限度額適用:
+  購入分: min(13,567,000, 20,000,000) = 13,567,000円
+  リフォーム分: min(1,584,931, 20,000,000) = 1,584,931円
+
+控除額:
+  購入分: 13,567,000 × 7 // 1000 = 94,969 → 94,900円（100円未満切捨）
+  リフォーム分: 1,584,931 × 7 // 1000 = 11,094 → 11,000円（100円未満切捨）
+
+合計: 94,900 + 11,000 = 105,900円
+```
+
+### CLI使用例
+
+```bash
+# 購入分登録
+uv run shinkoku ledger hl-add --db-path shinkoku.db --fiscal-year 2025 \
+  --input purchase.json
+
+# purchase.json:
+# {
+#   "housing_type": "used",
+#   "housing_category": "general",
+#   "move_in_date": "2025-04-01",
+#   "year_end_balance": 15151931,
+#   "is_new_construction": false,
+#   "dual_application_group": "loan-01",
+#   "cost_for_proration": 42800000
+# }
+
+# リフォーム分登録
+uv run shinkoku ledger hl-add --db-path shinkoku.db --fiscal-year 2025 \
+  --input renovation.json
+
+# renovation.json:
+# {
+#   "housing_type": "renovation",
+#   "housing_category": "general",
+#   "move_in_date": "2025-04-01",
+#   "year_end_balance": 15151931,
+#   "is_new_construction": false,
+#   "dual_application_group": "loan-01",
+#   "cost_for_proration": 5000000
+# }
+```
+
+### 参照
+
+- [国税庁 No.1211-3 中古住宅取得](https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1211-3.htm)
+- [国税庁 No.1211-4 増改築等](https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1211-4.htm)
+
 ## 【参考】令和8年度改正予定（R8大綱ベース）
 
 > **免責**: R8大綱（R7.12閣議決定）に基づく見通しであり、法案成立前の情報。
