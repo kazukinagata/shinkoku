@@ -591,40 +591,73 @@ URL: `https://www.keisan.nta.go.jp/r7/syotoku/taM010a40_doInitialDisplay#bbctrl`
 
 ### SS-CA-010: 給与所得の源泉徴収票の入力
 
+> **物理的な源泉徴収票との対応**: 年末調整済みと年末調整未済で**別フォーム・別ラベル体系**。
+> 年末調整済み = A〜L（12項目）、年末調整未済 = A〜E（5項目）。
+> 物理的な源泉徴収票の「給与所得控除後の金額」「所得控除の額の合計額」欄は、
+> 年末調整済みフォームでは入力不要だが、年末調整未済フォームでは B(自動)・C(入力) として存在する。
+
+#### 年末調整済みフォーム
+
 URL: `https://www.keisan.nta.go.jp/r7/syotoku/taS510a10_doAdd_nncyzm#bbctrl`
 
-#### 主要入力フィールド
+##### 主要入力フィールド
 
 | ラベル | name | 備考 |
 |--------|------|------|
 | A: 支払金額 | `inOutDto.shhraKngk` | 必須 |
-| D: 源泉徴収税額 | `inOutDto.gnsnTyosyuZegk` | |
-| 社会保険料等の金額 | `inOutDto.sykaHknryoToKngk` | |
-| G: 支払者の住所 | `inOutDto.shhrasyJysyKysyOrSyzach` | 28文字以内 |
-| H: 支払者の氏名又は名称 | `inOutDto.shhrasyNameOrMesyo` | 28文字以内 |
+| B: 源泉徴収税額 | `inOutDto.gnsnTyosyuZegk` | 2段記載時は下段 |
+| E: 社会保険料等の金額 | `inOutDto.sykaHknryoToKngk` | |
+| K: 支払者の住所 | `inOutDto.shhrasyJysyKysyOrSyzach` | 28文字以内 |
+| L: 支払者の氏名又は名称 | `inOutDto.shhrasyNameOrMesyo` | 28文字以内 |
 
-#### 条件付きフィールド（ラジオで「記載あり」選択時に表示）
+##### ラジオボタン（記載有無の選択）
+
+| フィールド | ラベル | name | 値 |
+|-----------|--------|------|-----|
+| 控除対象配偶者の記載 | C | `inOutDto.kojyTashoHagsyKsaUm` | 1(あり)/2(なし) |
+| 控除対象扶養親族の記載 | D | `inOutDto.kojyTashoFyoShnzkKsaUm` | 1(あり)/2(なし) |
+| 生命保険料控除額の記載 | F※ | `inOutDto.semeHknryoKojygkKsaUm` | 1(あり)/2(なし) |
+| 地震保険料控除額の記載 | G※ | `inOutDto.jshnHknryoKojygkKsaUm` | 1(あり)/2(なし) |
+| 住宅借入金等特別控除額の記載 | H※ | `inOutDto.jyutkKrirknToTkbtsKojyGkKsaUm` | 1(あり)/0(なし) |
+| 所得金額調整控除額の記載 | I※ | `inOutDto.sytkKngkTyoseKojygkKsaUm` | 1(あり)/0(なし) |
+| 本人が障害者・寡婦等 | J※ | `inOutDto.hnninSygsyKfHtriyKnroGkseKsaUm` | 1(あり)/2(なし) |
+
+> ※ F〜J のラベルはフォーム上の並び順からの推定（スクリーンショット未確認）
+
+##### 条件付きフィールド（ラジオ/チェックで「記載あり」選択時に表示）
 
 | ラベル | name | 表示条件 |
 |--------|------|----------|
-| 生命保険料控除額 | `inOutDto.semeHknryoKojygk` | `semeHknryoKojygkKsaUm=1` |
-| 新生命保険料金額 | `inOutDto.shnSemeHknryoKngk` | 上記あり |
-| 旧生命保険料金額 | `inOutDto.kyuSemeHknryoKngk` | 上記あり |
-| 介護医療保険料金額 | `inOutDto.kagIryoHknryoKngk` | 上記あり |
-| 新個人年金保険料金額 | `inOutDto.shnKjnNnknHknryoKngk` | 上記あり |
-| 旧個人年金保険料金額 | `inOutDto.kyuKjnNnknHknryoKngk` | 上記あり |
-| 地震保険料控除額 | `inOutDto.jshnHknryoKojygk` | `jshnHknryoKojygkKsaUm=1` |
-| 住宅借入金等特別控除額 | `inOutDto.jyutkKrirknToTkbtsKojyGk` | `jyutkKrirknToTkbtsKojyGkKsaUm=1` |
+| B': 源泉徴収税額（内書き） | `inOutDto.gnsnTyosyuZegkUchgk` | チェック時 |
+| 社会保険料等（内書き） | `inOutDto.sykaHknryoToUchgk` | チェック時 |
+| 生命保険料控除額 | `inOutDto.semeHknryoKojygk` | F「記載あり」時 |
+| 新生命保険料金額 | `inOutDto.shnSemeHknryoKngk` | F「記載あり」時 |
+| 旧生命保険料金額 | `inOutDto.kyuSemeHknryoKngk` | F「記載あり」時 |
+| 介護医療保険料金額 | `inOutDto.kagIryoHknryoKngk` | F「記載あり」時 |
+| 新個人年金保険料金額 | `inOutDto.shnKjnNnknHknryoKngk` | F「記載あり」時 |
+| 旧個人年金保険料金額 | `inOutDto.kyuKjnNnknHknryoKngk` | F「記載あり」時 |
+| 地震保険料控除額 | `inOutDto.jshnHknryoKojygk` | G「記載あり」時 |
+| 旧長期損害保険料金額 | `inOutDto.kyuCyokSngaHknryoKngk` | G「記載あり」時 |
+| H: 住宅借入金等特別控除額 | `inOutDto.jyutkKrirknToTkbtsKojyGk` | H「記載あり」時 |
+| H': 住宅借入金等特別控除可能額 | `inOutDto.jyutkKrirknToTkbtsKojyknoGk` | H「記載あり」時 |
+| H'': 住宅借入金年末残高1回目 | `inOutDto.jyutkKrirknToNnmtszndkIkkam` | H「記載あり」時 |
+| H''': 住宅借入金年末残高2回目 | `inOutDto.jyutkKrirknToNnmtszndkNkam` | チェック時 |
+| 寡婦チェック | `inOutDto.ksaArKforkf` | J「記載あり」時 |
+| 勤労学生チェック | `inOutDto.ksaArKnroGkse` | J「記載あり」時 |
 
-#### ラジオボタン（記載有無の選択）
+#### 年末調整未済フォーム
 
-| フィールド | name | 値 |
-|-----------|------|-----|
-| 控除対象配偶者の記載 | `inOutDto.kojyTashoHagsyKsaUm` | 1(あり)/2(なし) |
-| 控除対象扶養親族の記載 | `inOutDto.kojyTashoFyoShnzkKsaUm` | 1(あり)/2(なし) |
-| 生命保険料控除額の記載 | `inOutDto.semeHknryoKojygkKsaUm` | 1(あり)/2(なし) |
-| 地震保険料控除額の記載 | `inOutDto.jshnHknryoKojygkKsaUm` | 1(あり)/2(なし) |
-| 住宅借入金等特別控除額の記載 | `inOutDto.jyutkKrirknToTkbtsKojyGkKsaUm` | 1(あり)/0(なし) |
+URL: 要確認
+
+##### 入力フィールド
+
+| ラベル | name | 備考 |
+|--------|------|------|
+| A: 支払金額 | `inOutDto.shhraKngk` | 必須 |
+| B: 給与所得控除後の金額 | （自動計算） | 入力不可。A から自動算出 |
+| C: 所得控除の額の合計額 | 要確認 | **入力欄あり。源泉徴収票に記載があれば入力** |
+| D: 源泉徴収税額 | `inOutDto.gnsnTyosyuZegk` | |
+| E: 住宅借入金等特別控除額 | `inOutDto.jyutkKrirknToTkbtsKojyGk` | |
 
 ### SS-AA-070a: 控除の入力（1/2）— 支出系控除
 
