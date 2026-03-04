@@ -674,6 +674,17 @@ def calc_housing_loan_credit_dual(
         )
 
     total_credit = sum(e.credit for e in entries)
+
+    # ㉓欄の上限: 各取得等の控除限度額のうち最も高いもの
+    # 控除限度額 = 借入限度額 × 控除率（100円未満切捨）
+    max_annual_limit = max(
+        (e.balance_limit * HOUSING_LOAN_RATE // HOUSING_LOAN_RATE_DENOMINATOR)
+        // TAX_AMOUNT_ROUNDING
+        * TAX_AMOUNT_ROUNDING
+        for e in entries
+    )
+    total_credit = min(total_credit, max_annual_limit)
+
     return total_credit, entries
 
 

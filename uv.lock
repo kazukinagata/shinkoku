@@ -1186,7 +1186,7 @@ wheels = [
 
 [[package]]
 name = "shinkoku"
-version = "0.5.2"
+version = "0.6.2"
 source = { editable = "." }
 dependencies = [
     { name = "pdfplumber" },

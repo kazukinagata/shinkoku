@@ -111,6 +111,12 @@ class TestCalcHousingLoanCreditDual:
         assert entries[1].prorated_balance == 5_000_000
         assert entries[1].capped_balance == 5_000_000
 
+        # ㉓欄キャップ: 各控除限度額の最大 = 30,000,000 × 0.7% = 210,000
+        # 購入分 credit: 30,000,000 × 7 // 1000 = 210,000 → 210,000
+        # リフォーム分 credit: 5,000,000 × 7 // 1000 = 35,000 → 35,000
+        # 合計 245,000 → min(245,000, 210,000) = 210,000
+        assert total_credit == 210_000
+
     def test_rounding_sum_matches_original(self):
         """按分合計が元の年末残高と一致すること（端数調整の検証）。"""
         # 3で割り切れない年末残高
@@ -145,6 +151,69 @@ class TestCalcHousingLoanCreditDual:
 
         with pytest.raises(ValueError, match="2件以上の明細が必要です"):
             calc_housing_loan_credit_dual([single])
+
+    def test_total_credit_capped_by_max_annual_limit(self):
+        """合計控除額が㉓欄の上限（各控除限度額の最大）でキャップされること。
+
+        一般中古住宅: 借入限度額 2,000万、控除限度額 = 2,000万 × 0.7% = 140,000円
+        年末残高 50,000,000円（購入43,000,000 + リフォーム7,000,000）
+        購入分 credit: min(43,000,000, 20,000,000) × 0.7% = 140,000
+        リフォーム分 credit: min(7,000,000, 20,000,000) × 0.7% = 48,900 (100円未満切捨)
+        合計 188,900 → ㉓上限 140,000 でキャップ → 140,000
+        """
+        purchase = _make_detail(
+            housing_type="used",
+            housing_category="general",
+            year_end_balance=50_000_000,
+            cost_for_proration=43_000_000,
+        )
+        renovation = _make_detail(
+            housing_type="renovation",
+            housing_category="general",
+            year_end_balance=50_000_000,
+            cost_for_proration=7_000_000,
+        )
+
+        total_credit, entries = calc_housing_loan_credit_dual([purchase, renovation])
+
+        # 按分後残高: 購入分 = 50,000,000 × 43,000,000 // 50,000,000 = 43,000,000
+        assert entries[0].prorated_balance == 43_000_000
+        # → 限度額 20,000,000 でキャップ
+        assert entries[0].capped_balance == 20_000_000
+        assert entries[0].credit == 140_000
+
+        # リフォーム分: 50,000,000 - 43,000,000 = 7,000,000
+        assert entries[1].prorated_balance == 7_000_000
+        assert entries[1].capped_balance == 7_000_000
+        # 7,000,000 × 7 // 1000 = 49,000 → 48,900 ではなく 49,000
+        assert entries[1].credit == 49_000
+
+        # 合計 189,000 → ㉓上限 140,000 でキャップ
+        assert total_credit == 140_000
+
+    def test_total_credit_under_cap_no_change(self):
+        """合計が㉓上限以下の場合、キャップの影響がないこと。"""
+        purchase = _make_detail(
+            housing_type="used",
+            housing_category="general",
+            year_end_balance=15_151_931,
+            cost_for_proration=42_800_000,
+        )
+        renovation = _make_detail(
+            housing_type="renovation",
+            housing_category="general",
+            year_end_balance=15_151_931,
+            cost_for_proration=5_000_000,
+        )
+
+        total_credit, entries = calc_housing_loan_credit_dual([purchase, renovation])
+
+        # 個々のクレジット合計
+        raw_sum = sum(e.credit for e in entries)
+        # ㉓上限: 一般中古住宅の限度額 20,000,000 × 0.7% = 140,000
+        # raw_sum = 105,900 < 140,000 なのでキャップなし
+        assert total_credit == raw_sum
+        assert total_credit == 105_900
 
     def test_proration_ratio_pct(self):
         """万分率の按分比率が正しいこと。"""
