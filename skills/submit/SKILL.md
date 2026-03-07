@@ -323,4 +323,4 @@ fiscal_year: {tax_year}
 - この情報は令和7年分の確定申告に基づく
 - 提出期限は災害等の特例で延長される場合がある
 - 最終的な提出前に税務署や税理士に確認することを推奨する
-- 参照: skills/tax-advisor/reference/disclaimer.md
+- 免責事項の付記が必要な場合は /tax-legal-context を実行する

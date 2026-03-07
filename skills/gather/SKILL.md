@@ -337,4 +337,4 @@ fiscal_year: {tax_year}
 
 - 書類の要否は個別の状況により異なる場合がある
 - 不明な場合は税務署に確認することを推奨する
-- 参照: skills/tax-advisor/reference/disclaimer.md
+- 免責事項の付記が必要な場合は /tax-legal-context を実行する
