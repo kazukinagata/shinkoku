@@ -85,7 +85,7 @@ description: >
 | 医療費控除 | reference/medical-expenses.md |
 | 配偶者控除・特別控除 | reference/spouse.md |
 | 扶養控除 | reference/dependents.md |
-| 住宅ローン控除 | reference/housing-loan.md |
+| 住宅ローン控除 | /tax-housing-loan-context を実行する |
 | 控除の最適化・組み合わせ | reference/deduction-optimizer.md |
 | 控除シミュレーションの手順 | reference/deduction-simulation-guide.md |
 
@@ -96,7 +96,7 @@ description: >
 | 青色申告 | reference/blue-return.md |
 | 事業経費・家事按分 | reference/business-expenses.md |
 | 副業の事業所得vs雑所得判定 | reference/side-business-classification.md |
-| 電子帳簿保存法 | reference/electronic-bookkeeping.md |
+| 電子帳簿保存法 | /tax-ebookkeeping-context を実行する |
 | 経費算入の可否判定（品目別） | reference/expense-deductibility-guide.md |
 | 業種別の経費ガイド | reference/industry-expense-guide.md |
 
@@ -122,7 +122,7 @@ description: >
 | 翌年以降の改正予定 | reference/tax-reform/upcoming.md |
 | 暗号資産の課税 | reference/crypto-tax.md |
 | 新NISAと確定申告 | reference/nisa-and-filing.md |
-| 免責事項 | reference/disclaimer.md |
+| 免責事項 | /tax-legal-context を実行する |
 
 ## 回答パターン別ガイドライン
 
@@ -179,7 +179,7 @@ description: >
 1. reference/income-tax.md で所得税率を特定
 2. reference/resident-tax.md で住民税所得割を計算
 3. reference/life-planning.md のふるさと納税最適額計算式を適用
-4. reference/housing-loan.md で住宅ローン控除との相互影響を確認
+4. /tax-housing-loan-context で住宅ローン控除との相互影響を確認
 
 ### 「副業を始めたが何をすればいい？」
 
@@ -192,7 +192,7 @@ description: >
 
 ### 「住宅を購入した。控除を受けるには？」
 
-1. reference/housing-loan.md で住宅ローン控除の要件・手続きを案内
+1. /tax-housing-loan-context で住宅ローン控除の要件・手続きを案内
 2. reference/filing-procedure.md で初年度の確定申告手続きを説明
 3. reference/life-planning.md でふるさと納税上限への影響を説明
 4. reference/common-mistakes.md で初年度のよくある間違いを注意喚起
@@ -208,7 +208,7 @@ description: >
 情報は令和7年分（2025年課税年度）の税制に基づいています。
 ```
 
-免責事項の詳細は reference/disclaimer.md を参照する。
+免責事項の詳細は /tax-legal-context を実行する。
 
 ### 特に免責を強調すべきケース
 
