@@ -23,6 +23,7 @@ class JournalEntry(BaseModel):
 
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     description: str | None = None
+    counterparty: str | None = None
     lines: list[JournalLine] = Field(min_length=2)
     source: str | None = None
     source_file: str | None = None
@@ -37,6 +38,9 @@ class JournalSearchParams(BaseModel):
     date_to: str | None = None
     account_code: str | None = None
     description_contains: str | None = None
+    counterparty_contains: str | None = None
+    amount_min: int | None = None
+    amount_max: int | None = None
     source: str | None = None
     limit: int = 100
     offset: int = 0
@@ -49,6 +53,7 @@ class JournalRecord(BaseModel):
     fiscal_year: int
     date: str
     description: str | None
+    counterparty: str | None = None
     source: str | None
     source_file: str | None
     is_adjustment: bool
@@ -71,6 +76,52 @@ class JournalSearchResult(BaseModel):
 
     journals: list[JournalRecord]
     total_count: int
+
+
+class AuditLogRecord(BaseModel):
+    """仕訳の訂正・削除履歴レコード。"""
+
+    id: int
+    journal_id: int
+    fiscal_year: int
+    operation: str
+    before_date: str
+    before_description: str | None
+    before_counterparty: str | None
+    before_lines_json: str
+    after_date: str | None = None
+    after_description: str | None = None
+    after_counterparty: str | None = None
+    after_lines_json: str | None = None
+    created_at: str
+
+
+# --- 総勘定元帳 ---
+
+
+class GeneralLedgerLineRecord(BaseModel):
+    """総勘定元帳の1行。"""
+
+    journal_id: int
+    date: str
+    description: str | None
+    counterparty: str | None
+    counter_account_code: str  # 相手勘定科目コード（複合仕訳は「*」）
+    counter_account_name: str  # 相手勘定科目名（複合仕訳は「諸口」）
+    debit: int
+    credit: int
+    balance: int  # 累積残高
+
+
+class GeneralLedgerResult(BaseModel):
+    """総勘定元帳の出力。"""
+
+    account_code: str
+    account_name: str
+    fiscal_year: int
+    opening_balance: int
+    entries: list[GeneralLedgerLineRecord]
+    closing_balance: int
 
 
 # --- 財務諸表 ---
@@ -282,6 +333,8 @@ class HousingLoanDetail(BaseModel):
     is_new_construction: bool = True  # 新築=True, 中古=False
     is_childcare_household: bool = False  # 子育て世帯・若者夫婦世帯
     has_pre_r6_building_permit: bool = False  # R5以前の建築確認済み（一般住宅のみ関連）
+    dual_application_group: str | None = None  # 重複適用グループID
+    cost_for_proration: int = 0  # 按分用コスト（円）: 購入価格 or リフォーム費用
 
 
 class HousingLoanDetailInput(BaseModel):
@@ -304,6 +357,8 @@ class HousingLoanDetailInput(BaseModel):
     residential_floor_area: int = 0  # 居住用部分の面積（同上）
     property_number: str | None = None  # 不動産番号
     application_submitted: bool = False  # 適用申請書提出有無
+    dual_application_group: str | None = None  # 重複適用グループID
+    cost_for_proration: int = 0  # 按分用コスト（円）
 
 
 class HousingLoanDetailRecord(BaseModel):
@@ -324,6 +379,19 @@ class HousingLoanDetailRecord(BaseModel):
     residential_floor_area: int = 0
     property_number: str | None = None
     application_submitted: bool = False
+    dual_application_group: str | None = None
+    cost_for_proration: int = 0
+
+
+class HousingLoanCreditEntry(BaseModel):
+    """重複適用の個別明細の計算結果。"""
+
+    housing_type: str
+    prorated_balance: int  # 按分後の年末残高
+    balance_limit: int  # 適用される借入限度額
+    capped_balance: int  # min(按分後残高, 限度額)
+    credit: int  # 控除額（100円未満切捨）
+    proration_ratio_pct: int  # 按分比率（万分率: 6667 = 66.67%）
 
 
 class LifeInsurancePremiumInput(BaseModel):
@@ -368,6 +436,9 @@ class IncomeTaxInput(BaseModel):
     housing_loan_balance: int = 0
     housing_loan_year: int | None = None
     housing_loan_detail: HousingLoanDetail | None = None
+    housing_loan_details: list[HousingLoanDetail] = Field(
+        default_factory=list, description="複数明細（重複適用対応）"
+    )
     spouse_income: int | None = None
     dependents: list[DependentInfo] = Field(default_factory=list)
     ideco_contribution: int = 0  # iDeCo掛金（小規模企業共済等掛金控除）

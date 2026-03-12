@@ -174,7 +174,7 @@ FX取引がある場合、以下を確認する:
 - 中古の場合: 建築年（昭和57年/1982年以降か = 新耐震基準）
 - 省エネ性能区分（認定長期優良住宅・ZEH・省エネ基準適合・その他）
 
-→ 詳細な控除額の判定は skills/tax-advisor/reference/housing-loan.md を参照
+→ 詳細な控除額の判定は /tax-housing-loan-context を実行する
 
 ### ヒアリング完了チェックリスト
 
@@ -471,4 +471,4 @@ fiscal_year: {tax_year}
   - 外国税額控除 — 外国税の支払額追跡・控除計算なし
   - 農業所得・山林所得 — 専用の所得区分・特殊計算なし
   - 非居住者 — 日本居住者のみ対象
-- 参照: skills/tax-advisor/reference/disclaimer.md
+- 免責事項の付記が必要な場合は /tax-legal-context を実行する

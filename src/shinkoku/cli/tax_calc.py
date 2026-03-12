@@ -73,6 +73,12 @@ def _handle_calc_deductions(args: argparse.Namespace) -> None:
     else:
         params.pop("housing_loan_detail", None)
 
+    housing_loan_details = None
+    if "housing_loan_details" in params and params["housing_loan_details"]:
+        housing_loan_details = [HousingLoanDetail(**d) for d in params.pop("housing_loan_details")]
+    else:
+        params.pop("housing_loan_details", None)
+
     dependents = None
     if "dependents" in params and params["dependents"]:
         dependents = [DependentInfo(**d) for d in params.pop("dependents")]
@@ -89,6 +95,7 @@ def _handle_calc_deductions(args: argparse.Namespace) -> None:
         **params,
         life_insurance_detail=life_insurance_detail,
         housing_loan_detail=housing_loan_detail,
+        housing_loan_details=housing_loan_details,
         dependents=dependents,
         donations=donations,
     )
@@ -111,6 +118,13 @@ def _handle_calc_income(args: argparse.Namespace) -> None:
         params["housing_loan_detail"] = HousingLoanDetail(**params["housing_loan_detail"])
     else:
         params.pop("housing_loan_detail", None)
+
+    if "housing_loan_details" in params and params["housing_loan_details"]:
+        params["housing_loan_details"] = [
+            HousingLoanDetail(**d) for d in params["housing_loan_details"]
+        ]
+    else:
+        params.pop("housing_loan_details", None)
 
     if "dependents" in params and params["dependents"]:
         params["dependents"] = [DependentInfo(**d) for d in params["dependents"]]
@@ -223,6 +237,13 @@ def _handle_sanity_check(args: argparse.Namespace) -> None:
         input_raw["housing_loan_detail"] = HousingLoanDetail(**input_raw["housing_loan_detail"])
     else:
         input_raw.pop("housing_loan_detail", None)
+
+    if "housing_loan_details" in input_raw and input_raw["housing_loan_details"]:
+        input_raw["housing_loan_details"] = [
+            HousingLoanDetail(**d) for d in input_raw["housing_loan_details"]
+        ]
+    else:
+        input_raw.pop("housing_loan_details", None)
 
     if "dependents" in input_raw and input_raw["dependents"]:
         input_raw["dependents"] = [DependentInfo(**d) for d in input_raw["dependents"]]

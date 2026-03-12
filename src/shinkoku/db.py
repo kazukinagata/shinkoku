@@ -23,5 +23,24 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn = get_connection(db_path)
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
+    _migrate(conn)
     conn.commit()
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """既存DBに新しいカラム・テーブルを追加するマイグレーション。"""
+    # journals.counterparty カラム追加（電帳法 検索機能要件: 取引先検索）
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(journals)").fetchall()}
+    if "counterparty" not in cols:
+        conn.execute("ALTER TABLE journals ADD COLUMN counterparty TEXT")
+
+    # housing_loan_details: 重複適用（中古購入＋リフォーム同時）対応カラム追加
+    hl_cols = {row[1] for row in conn.execute("PRAGMA table_info(housing_loan_details)").fetchall()}
+    if "dual_application_group" not in hl_cols:
+        conn.execute("ALTER TABLE housing_loan_details ADD COLUMN dual_application_group TEXT")
+    if "cost_for_proration" not in hl_cols:
+        conn.execute(
+            "ALTER TABLE housing_loan_details "
+            "ADD COLUMN cost_for_proration INTEGER NOT NULL DEFAULT 0"
+        )
