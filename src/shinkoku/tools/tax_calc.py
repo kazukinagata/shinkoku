@@ -718,7 +718,7 @@ def calc_deductions(
     working_student: bool = False,
     dividend_income_comprehensive: int = 0,
     taxable_income_for_dividend_credit: int = 0,
-    donations: list[DonationRecordRecord] | None = None,
+    donations: list[DonationRecordRecord] | list[DonationRecordInput] | None = None,
 ) -> DeductionsResult:
     """Calculate all applicable deductions and return structured result."""
     income_deductions: list[DeductionItem] = []

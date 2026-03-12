@@ -97,7 +97,7 @@ def _handle_calc_deductions(args: argparse.Namespace) -> None:
         housing_loan_detail=housing_loan_detail,
         housing_loan_details=housing_loan_details,
         dependents=dependents,
-        donations=donations,
+        donations=donations,# type: ignore[arg-type]
     )
     _output_json(result.model_dump())
 
