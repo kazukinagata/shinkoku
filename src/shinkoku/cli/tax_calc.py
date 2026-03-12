@@ -12,6 +12,7 @@ from typing import NoReturn
 from shinkoku.models import (
     ConsumptionTaxInput,
     DependentInfo,
+    DonationRecordInput,
     DonationRecordRecord,
     HousingLoanDetail,
     IncomeTaxInput,
@@ -96,7 +97,7 @@ def _handle_calc_deductions(args: argparse.Namespace) -> None:
         housing_loan_detail=housing_loan_detail,
         housing_loan_details=housing_loan_details,
         dependents=dependents,
-        donations=donations,
+        donations=donations,# type: ignore[arg-type]
     )
     _output_json(result.model_dump())
 
@@ -136,6 +137,11 @@ def _handle_calc_income(args: argparse.Namespace) -> None:
         )
     else:
         params.pop("small_business_mutual_aid", None)
+
+    if "donations" in params and params["donations"]:
+        params["donations"] = [DonationRecordInput(**d) for d in params["donations"]]
+    else:
+        params.pop("donations", None)
 
     input_data = IncomeTaxInput(**params)
     result = calc_income_tax(input_data)

@@ -14,6 +14,7 @@ from shinkoku.models import (
     DeductionItem,
     DeductionsResult,
     DependentInfo,
+    DonationRecordInput,
     DonationRecordRecord,
     HousingLoanCreditEntry,
     HousingLoanDetail,
@@ -717,7 +718,7 @@ def calc_deductions(
     working_student: bool = False,
     dividend_income_comprehensive: int = 0,
     taxable_income_for_dividend_credit: int = 0,
-    donations: list[DonationRecordRecord] | None = None,
+    donations: list[DonationRecordRecord] | list[DonationRecordInput] | None = None,
 ) -> DeductionsResult:
     """Calculate all applicable deductions and return structured result."""
     income_deductions: list[DeductionItem] = []
@@ -1138,6 +1139,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         widow_status=input_data.widow_status,
         disability_status=input_data.disability_status,
         working_student=input_data.working_student,
+        donations=input_data.donations or None,
     )
 
     total_income_deductions = deductions.total_income_deductions

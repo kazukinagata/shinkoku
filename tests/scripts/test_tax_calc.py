@@ -57,6 +57,47 @@ def test_calc_deductions_with_furusato(tmp_path: Path) -> None:
     assert "furusato_nozei" in deduction_types
 
 
+def test_calc_deductions_with_other_donations(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "total_income": 5_000_000,
+            "social_insurance": 700_000,
+            "donations": [
+                {
+                    "id": 1,
+                    "fiscal_year": 2025,
+                    "donation_type": "political",
+                    "recipient_name": "政党A",
+                    "amount": 30_000,
+                    "date": "2025-05-01",
+                    "receipt_number": None,
+                    "source_file": None,
+                },
+                {
+                    "id": 2,
+                    "fiscal_year": 2025,
+                    "donation_type": "npo",
+                    "recipient_name": "NPO B",
+                    "amount": 20_000,
+                    "date": "2025-06-01",
+                    "receipt_number": None,
+                    "source_file": None,
+                },
+            ],
+        },
+    )
+    result = run_cli("tax", "calc-deductions", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    deduction_types = [d["type"] for d in output["income_deductions"]]
+    assert "donation" in deduction_types
+
+    credit_types = [d["type"] for d in output["tax_credits"]]
+    assert "political_donation" in credit_types
+    assert "npo_donation" in credit_types
+
+
 # ============================================================
 # calc-income
 # ============================================================
@@ -98,6 +139,41 @@ def test_calc_income_with_business(tmp_path: Path) -> None:
     output = json.loads(result.stdout)
     assert output["business_income"] == 3_000_000 - 1_000_000 - 650_000
     assert "tax_due" in output
+
+
+def test_calc_income_with_other_donations(tmp_path: Path) -> None:
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "salary_income": 5_000_000,
+            "social_insurance": 700_000,
+            "donations": [
+                {
+                    "donation_type": "political",
+                    "recipient_name": "政党A",
+                    "amount": 30_000,
+                    "date": "2025-05-01",
+                },
+                {
+                    "donation_type": "npo",
+                    "recipient_name": "NPO B",
+                    "amount": 20_000,
+                    "date": "2025-06-01",
+                },
+            ],
+        },
+    )
+    result = run_cli("tax", "calc-income", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert "deductions_detail" in output
+    deduction_types = [d["type"] for d in output["deductions_detail"]["income_deductions"]]
+    assert "donation" in deduction_types
+
+    credit_types = [d["type"] for d in output["deductions_detail"]["tax_credits"]]
+    assert "political_donation" in credit_types
+    assert "npo_donation" in credit_types
 
 
 # ============================================================
