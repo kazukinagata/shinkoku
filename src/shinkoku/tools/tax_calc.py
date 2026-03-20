@@ -1117,7 +1117,6 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     # political と npo+public_interest で独立に選択
     _SELECTABLE_TYPES_P = {"political"}
     _SELECTABLE_TYPES_N = {"npo", "public_interest"}
-    _SELECTABLE_TYPES = _SELECTABLE_TYPES_P | _SELECTABLE_TYPES_N
     _DONATION_CREDIT_CAPS = {
         "political_donation": POLITICAL_DONATION_CREDIT_CAP_RATIO,
         "npo_donation": NPO_DONATION_CREDIT_CAP_RATIO,
