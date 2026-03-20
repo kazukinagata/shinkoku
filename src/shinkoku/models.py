@@ -450,12 +450,13 @@ class IncomeTaxInput(BaseModel):
     business_withheld_tax: int = 0  # 事業所得の源泉徴収税額（取引先別合計）
     loss_carryforward_amount: int = 0  # 繰越損失額
     estimated_tax_payment: int = 0  # 予定納税額（第1期+第2期）
-    donations: list[DonationRecordInput] = Field(default_factory=list)  # ふるさと納税以外の寄附金
     # Phase 10: その他所得（総合課税）
     misc_income: int = 0  # 雑所得
     dividend_income_comprehensive: int = 0  # 配当所得（総合課税）
     one_time_income: int = 0  # 一時所得（1/2適用前の金額）
     other_income_withheld_tax: int = 0  # その他所得の源泉徴収税額
+    # 寄附金（ふるさと納税以外）
+    donations: list[DonationRecordRecord] = Field(default_factory=list)
 
 
 class IncomeTaxResult(BaseModel):

@@ -54,7 +54,111 @@ def test_calc_deductions_with_furusato(tmp_path: Path) -> None:
     output = json.loads(result.stdout)
     # ふるさと納税控除が含まれている
     deduction_types = [d["type"] for d in output["income_deductions"]]
-    assert "furusato_nozei" in deduction_types
+    assert "donation" in deduction_types
+
+
+def _donation_record(amount: int, donation_type: str) -> dict:
+    """DonationRecordRecord に必要な全フィールドを含むヘルパー."""
+    return {
+        "id": 1,
+        "fiscal_year": 2025,
+        "donation_type": donation_type,
+        "recipient_name": "テスト寄附先",
+        "amount": amount,
+        "date": "2025-06-01",
+        "receipt_number": "R-001",
+        "source_file": "test.pdf",
+    }
+
+
+def test_calc_deductions_donation_combined(tmp_path: Path) -> None:
+    """T4: ふるさと納税+その他寄附金を合算して40%上限・2,000円足切りを1回だけ適用."""
+    input_file = _write_input(
+        tmp_path,
+        {
+            "total_income": 5_000_000,
+            "social_insurance": 700_000,
+            "furusato_nozei": 30_000,
+            "donations": [_donation_record(20_000, "political")],
+        },
+    )
+    result = run_cli("tax", "calc-deductions", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    # 合算=50,000, 40%上限=2,000,000, deduction = 50,000 - 2,000 = 48,000
+    donation_items = [d for d in output["income_deductions"] if d["type"] == "donation"]
+    assert len(donation_items) == 1
+    assert donation_items[0]["amount"] == 48_000
+
+
+def test_calc_deductions_donation_income_limit(tmp_path: Path) -> None:
+    """T4: 40%上限に到達するケース."""
+    input_file = _write_input(
+        tmp_path,
+        {
+            "total_income": 100_000,
+            "social_insurance": 0,
+            "furusato_nozei": 30_000,
+            "donations": [_donation_record(20_000, "npo")],
+        },
+    )
+    result = run_cli("tax", "calc-deductions", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    # 合算=50,000, 40%上限=40,000, deduction = 40,000 - 2,000 = 38,000
+    donation_items = [d for d in output["income_deductions"] if d["type"] == "donation"]
+    assert len(donation_items) == 1
+    assert donation_items[0]["amount"] == 38_000
+
+
+def _get_tax_credit(output: dict, credit_type: str) -> int:
+    """deductions_detail.tax_credits から指定タイプの控除額を取得."""
+    detail = output.get("deductions_detail") or {}
+    for tc in detail.get("tax_credits", []):
+        if tc["type"] == credit_type:
+            return tc["amount"]
+    return 0
+
+
+def test_calc_income_donation_credit_cap(tmp_path: Path) -> None:
+    """T3: 政治献金の税額控除に所得税額の25%キャップが適用される."""
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "salary_income": 2_000_000,
+            "social_insurance": 300_000,
+            "donations": [_donation_record(500_000, "political")],
+        },
+    )
+    result = run_cli("tax", "calc-income", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    # 税額控除が25%キャップで制限されていることを確認
+    income_tax_base = output["income_tax_base"]
+    cap = income_tax_base * 25 // 100
+    political_credit = _get_tax_credit(output, "political_donation")
+    assert political_credit <= cap
+    assert political_credit == cap  # キャップに到達しているはず
+
+
+def test_calc_income_donation_credit_no_cap(tmp_path: Path) -> None:
+    """T3: 十分な所得がある場合、キャップが適用されない."""
+    input_file = _write_input(
+        tmp_path,
+        {
+            "fiscal_year": 2025,
+            "salary_income": 10_000_000,
+            "social_insurance": 1_000_000,
+            "donations": [_donation_record(10_000, "political")],
+        },
+    )
+    result = run_cli("tax", "calc-income", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    # (10,000 - 2,000) * 30% = 2,400 — キャップに到達しない
+    political_credit = _get_tax_credit(output, "political_donation")
+    assert political_credit == 2_400
 
 
 def test_calc_deductions_with_other_donations(tmp_path: Path) -> None:
@@ -150,16 +254,24 @@ def test_calc_income_with_other_donations(tmp_path: Path) -> None:
             "social_insurance": 700_000,
             "donations": [
                 {
+                    "id": 1,
+                    "fiscal_year": 2025,
                     "donation_type": "political",
                     "recipient_name": "政党A",
                     "amount": 30_000,
                     "date": "2025-05-01",
+                    "receipt_number": None,
+                    "source_file": None,
                 },
                 {
+                    "id": 2,
+                    "fiscal_year": 2025,
                     "donation_type": "npo",
                     "recipient_name": "NPO B",
                     "amount": 20_000,
                     "date": "2025-06-01",
+                    "receipt_number": None,
+                    "source_file": None,
                 },
             ],
         },
