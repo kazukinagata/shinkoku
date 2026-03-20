@@ -10,6 +10,8 @@ Rounding rules:
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from shinkoku.models import (
     DeductionItem,
     DeductionsResult,
@@ -1051,6 +1053,32 @@ def _calc_income_tax_from_table(taxable_income: int) -> int:
     return taxable_income * INCOME_TAX_TOP_RATE // 100 - INCOME_TAX_TOP_DEDUCTION
 
 
+class _CalcDeductionsCommonArgs(TypedDict):
+    """calc_deductions() の共通引数（donations を除く）."""
+
+    total_income: int
+    social_insurance: int
+    life_insurance_premium: int
+    life_insurance_detail: LifeInsurancePremiumInput | None
+    earthquake_insurance_premium: int
+    old_long_term_insurance_premium: int
+    medical_expenses: int
+    self_medication_expenses: int
+    self_medication_eligible: bool
+    furusato_nozei: int
+    housing_loan_balance: int
+    spouse_income: int | None
+    ideco_contribution: int
+    small_business_mutual_aid: int
+    dependents: list[DependentInfo] | None
+    fiscal_year: int
+    housing_loan_detail: HousingLoanDetail | None
+    housing_loan_details: list[HousingLoanDetail] | None
+    widow_status: str
+    disability_status: str
+    working_student: bool
+
+
 def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     """Full income tax calculation flow (Reiwa 7).
 
@@ -1126,7 +1154,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     has_selectable_p = any(d.donation_type in _SELECTABLE_TYPES_P for d in donations)
     has_selectable_n = any(d.donation_type in _SELECTABLE_TYPES_N for d in donations)
 
-    common_args = {
+    common_args: _CalcDeductionsCommonArgs = {
         "total_income": total_income,
         "social_insurance": input_data.social_insurance,
         "life_insurance_premium": input_data.life_insurance_premium,
@@ -1156,8 +1184,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
 
     if not has_selectable_p and not has_selectable_n:
         # 選択適用対象の寄付なし — 従来通り
-        deductions = calc_deductions(**common_args, donations=donations or None)  # type: ignore[arg-type]
-
+        deductions = calc_deductions(**common_args, donations=donations or None)
         total_income_deductions = deductions.total_income_deductions
         taxable_income_raw = max(0, total_income - total_income_deductions)
         taxable_income = (taxable_income_raw // TAXABLE_INCOME_ROUNDING) * TAXABLE_INCOME_ROUNDING
@@ -1185,8 +1212,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         for p_choice in p_choices:
             for n_choice in n_choices:
                 # 全寄付を渡して所得控除・税額控除の両方を計算
-                d = calc_deductions(**common_args, donations=donations or None)  # type: ignore[arg-type]
-
+                d = calc_deductions(**common_args, donations=donations or None)
                 # 税額控除を選んだグループは所得控除の寄附金控除から除外
                 credit_excluded_types: set[str] = set()
                 if p_choice == "credit":
