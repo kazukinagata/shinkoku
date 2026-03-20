@@ -280,6 +280,7 @@ class DeductionsResult(BaseModel):
     tax_credits: list[DeductionItem] = Field(default_factory=list, description="税額控除")
     total_income_deductions: int = 0
     total_tax_credits: int = 0
+    notes: list[str] = Field(default_factory=list, description="注意事項")
 
 
 class DepreciationAsset(BaseModel):

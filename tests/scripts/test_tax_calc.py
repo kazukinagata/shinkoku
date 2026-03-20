@@ -317,7 +317,7 @@ def test_calc_income_political_credit_income_cap(tmp_path: Path) -> None:
     assert political_credits[0]["amount"] == 23_400
 
 
-def test_calc_deductions_with_other_donations(tmp_path: Path) -> None:
+def test_calc_deductions_with_political_and_npo_donations(tmp_path: Path) -> None:
     input_file = _write_input(
         tmp_path,
         {
@@ -401,7 +401,7 @@ def test_calc_income_with_business(tmp_path: Path) -> None:
     assert "tax_due" in output
 
 
-def test_calc_income_with_other_donations(tmp_path: Path) -> None:
+def test_calc_income_with_political_and_npo_donation_optimization(tmp_path: Path) -> None:
     input_file = _write_input(
         tmp_path,
         {
