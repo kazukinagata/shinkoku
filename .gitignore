@@ -1,9 +1,3 @@
-# shinkoku 確定申告データ（個人情報を含む — 削除しないこと）
-shinkoku.config.yaml
-shinkoku.db
-shinkoku.db-wal
-shinkoku.db-shm
-.shinkoku/
 output/
 __pycache__/
 *.pyc
@@ -20,7 +14,7 @@ playground/
 templates/
 specs/
 .playwright-cli/
-docs/*
+
 # Research screenshots
 skills/e-tax/research/*.png
 
