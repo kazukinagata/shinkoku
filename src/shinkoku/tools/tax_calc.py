@@ -864,11 +864,14 @@ def calc_deductions(
     # 7b. 寄附金税額控除（政治活動/認定NPO/公益法人等）
     if donations:
         # 税額控除対象: 政治活動寄附金（租税特別措置法第41条の18）
-        # politicalには40%所得上限の規定なし（2,000円足切り + 25%キャップのみ）
+        # 40%所得上限あり（租特法41条の18第1項）
         political_total = sum(d.amount for d in donations if d.donation_type == "political")
-        if political_total > DONATION_SELF_BURDEN:
+        political_capped = min(
+            political_total, total_income * DONATION_INCOME_DEDUCTION_RATIO // 100
+        )
+        if political_capped > DONATION_SELF_BURDEN:
             political_credit = (
-                (political_total - DONATION_SELF_BURDEN)
+                (political_capped - DONATION_SELF_BURDEN)
                 * POLITICAL_DONATION_CREDIT_RATE
                 // POLITICAL_DONATION_CREDIT_RATE_DENOM
             )

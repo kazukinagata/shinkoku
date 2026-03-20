@@ -296,6 +296,27 @@ def test_calc_income_npo_credit_income_cap(tmp_path: Path) -> None:
     assert npo_credits[0]["amount"] == 31_200
 
 
+def test_calc_income_political_credit_income_cap(tmp_path: Path) -> None:
+    """政治献金税額控除の40%所得上限が適用される（租特法41条の18第1項）."""
+    input_file = _write_input(
+        tmp_path,
+        {
+            "total_income": 200_000,
+            "social_insurance": 0,
+            "donations": [_donation_record(500_000, "political")],
+        },
+    )
+    result = run_cli("tax", "calc-deductions", "--input", str(input_file))
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    # total_income = 200,000, 40% = 80,000
+    # political_total = 500,000 > 80,000 → capped to 80,000
+    # credit = (80,000 - 2,000) * 30% = 23,400
+    political_credits = [c for c in output["tax_credits"] if c["type"] == "political_donation"]
+    assert len(political_credits) == 1
+    assert political_credits[0]["amount"] == 23_400
+
+
 def test_calc_deductions_with_other_donations(tmp_path: Path) -> None:
     input_file = _write_input(
         tmp_path,
