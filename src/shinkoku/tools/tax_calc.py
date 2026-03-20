@@ -838,36 +838,31 @@ def calc_deductions(
                 DeductionItem(type="medical", name="医療費控除", amount=med_deduction)
             )
 
-    # 7. Furusato nozei（所得税法第78条: 総所得金額×40%上限）
-    if furusato_nozei > 0:
-        furusato = calc_furusato_deduction(furusato_nozei, total_income=total_income)
-        if furusato > 0:
+    # 7. 寄附金控除（所得税法第78条）
+    # ふるさと納税とその他寄附金を合算して40%上限・2,000円足切りを1回適用
+    donation_total_from_others = sum(d.amount for d in donations) if donations else 0
+    all_donation_total = furusato_nozei + donation_total_from_others
+    if all_donation_total > DONATION_SELF_BURDEN:
+        income_limit = total_income * DONATION_INCOME_DEDUCTION_RATIO // 100
+        donation_deduction = max(0, min(all_donation_total, income_limit) - DONATION_SELF_BURDEN)
+        if donation_deduction > 0:
+            # 内訳を details に記載
+            parts = []
+            if furusato_nozei > 0:
+                parts.append(f"ふるさと納税: {furusato_nozei}")
+            if donation_total_from_others > 0:
+                parts.append(f"その他寄附金: {donation_total_from_others}")
             income_deductions.append(
                 DeductionItem(
-                    type="furusato_nozei",
+                    type="donation",
                     name="寄附金控除",
-                    amount=furusato,
-                    details="ふるさと納税",
+                    amount=donation_deduction,
+                    details=", ".join(parts),
                 )
             )
 
-    # 7b. その他の寄附金控除（政治活動/認定NPO/公益法人等）
+    # 7b. 寄附金税額控除（政治活動/認定NPO/公益法人等）
     if donations:
-        # 所得控除対象（所得税法第78条）: 全寄附金 - 2,000円（総所得金額×40%上限）
-        donation_total = sum(d.amount for d in donations)
-        if donation_total > DONATION_SELF_BURDEN:
-            income_limit = total_income * DONATION_INCOME_DEDUCTION_RATIO // 100
-            donation_deduction = max(0, min(donation_total, income_limit) - DONATION_SELF_BURDEN)
-            if donation_deduction > 0:
-                income_deductions.append(
-                    DeductionItem(
-                        type="donation",
-                        name="寄附金控除（その他）",
-                        amount=donation_deduction,
-                        details=f"寄附金合計: {donation_total}",
-                    )
-                )
-
         # 税額控除対象: 政治活動寄附金（租税特別措置法第41条の18）
         political_total = sum(d.amount for d in donations if d.donation_type == "political")
         if political_total > DONATION_SELF_BURDEN:
@@ -1138,6 +1133,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
         widow_status=input_data.widow_status,
         disability_status=input_data.disability_status,
         working_student=input_data.working_student,
+        donations=input_data.donations or None,
     )
 
     total_income_deductions = deductions.total_income_deductions
@@ -1148,6 +1144,20 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
 
     # Step 6: Tax from table
     income_tax_base = _calc_income_tax_from_table(taxable_income)
+
+    # Step 6.1: 寄附金税額控除の25%キャップ（租特法41条の18/18の2）
+    _DONATION_CREDIT_CAPS = {
+        "political_donation": POLITICAL_DONATION_CREDIT_CAP_RATIO,
+        "npo_donation": NPO_DONATION_CREDIT_CAP_RATIO,
+    }
+    for credit in deductions.tax_credits:
+        cap_ratio = _DONATION_CREDIT_CAPS.get(credit.type)
+        if cap_ratio is not None:
+            cap = income_tax_base * cap_ratio // 100
+            if credit.amount > cap:
+                credit.amount = cap
+                credit.details = f"所得税額の{cap_ratio}%上限適用済"
+    deductions.total_tax_credits = sum(c.amount for c in deductions.tax_credits)
 
     # Step 6.5: 配当控除の計算（Phase 10）
     if dividend_comprehensive > 0:

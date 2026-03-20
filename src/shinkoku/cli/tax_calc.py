@@ -137,6 +137,11 @@ def _handle_calc_income(args: argparse.Namespace) -> None:
     else:
         params.pop("small_business_mutual_aid", None)
 
+    if "donations" in params and params["donations"]:
+        params["donations"] = [DonationRecordRecord(**d) for d in params["donations"]]
+    else:
+        params.pop("donations", None)
+
     input_data = IncomeTaxInput(**params)
     result = calc_income_tax(input_data)
     _output_json(result.model_dump())

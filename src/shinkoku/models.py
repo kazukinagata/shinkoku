@@ -455,6 +455,8 @@ class IncomeTaxInput(BaseModel):
     dividend_income_comprehensive: int = 0  # 配当所得（総合課税）
     one_time_income: int = 0  # 一時所得（1/2適用前の金額）
     other_income_withheld_tax: int = 0  # その他所得の源泉徴収税額
+    # 寄附金（ふるさと納税以外）
+    donations: list[DonationRecordRecord] = Field(default_factory=list)
 
 
 class IncomeTaxResult(BaseModel):
