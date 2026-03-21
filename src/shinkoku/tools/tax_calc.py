@@ -1237,21 +1237,34 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
                         if don.donation_type not in credit_excluded_types
                     )
                     new_amount = _calc_donation_income_deduction(remaining_total, total_income)
-                    d.income_deductions = [
+                    new_income_deductions = [
                         item.model_copy(update={"amount": new_amount})
                         if item.type == "donation"
                         else item
                         for item in d.income_deductions
                         if not (item.type == "donation" and new_amount == 0)
                     ]
-                    d.total_income_deductions = sum(item.amount for item in d.income_deductions)
+                    d = d.model_copy(
+                        update={
+                            "income_deductions": new_income_deductions,
+                            "total_income_deductions": sum(
+                                item.amount for item in new_income_deductions
+                            ),
+                        }
+                    )
 
                 # 所得控除を選択したグループの税額控除を除去
+                new_tax_credits = d.tax_credits
                 if p_choice == "income":
-                    d.tax_credits = [c for c in d.tax_credits if c.type != "political_donation"]
+                    new_tax_credits = [c for c in new_tax_credits if c.type != "political_donation"]
                 if n_choice == "income":
-                    d.tax_credits = [c for c in d.tax_credits if c.type != "npo_donation"]
-                d.total_tax_credits = sum(c.amount for c in d.tax_credits)
+                    new_tax_credits = [c for c in new_tax_credits if c.type != "npo_donation"]
+                d = d.model_copy(
+                    update={
+                        "tax_credits": new_tax_credits,
+                        "total_tax_credits": sum(c.amount for c in new_tax_credits),
+                    }
+                )
 
                 # taxable_income → income_tax_base
                 t_raw = max(0, total_income - d.total_income_deductions)
@@ -1272,8 +1285,12 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
                                 }
                             )
                     capped_credits.append(credit)
-                d.tax_credits = capped_credits
-                d.total_tax_credits = sum(c.amount for c in d.tax_credits)
+                d = d.model_copy(
+                    update={
+                        "tax_credits": capped_credits,
+                        "total_tax_credits": sum(c.amount for c in capped_credits),
+                    }
+                )
 
                 net_tax = max(0, t_base - d.total_tax_credits)
 
@@ -1284,7 +1301,18 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
                     best_income_tax_base = t_base
 
         assert best_deductions is not None
-        deductions = best_deductions
+        # 選択結果を notes に反映（未来形→過去形）
+        deductions = best_deductions.model_copy(
+            update={
+                "notes": [
+                    n.replace(
+                        "calc-income では自動的に有利な方を選択します。",
+                        "calc-income で自動的に有利な方を選択しました。",
+                    )
+                    for n in best_deductions.notes
+                ]
+            }
+        )
         taxable_income = best_taxable_income
         income_tax_base = best_income_tax_base
         total_income_deductions = deductions.total_income_deductions
