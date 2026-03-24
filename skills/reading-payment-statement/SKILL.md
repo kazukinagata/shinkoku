@@ -1,8 +1,6 @@
 ---
 name: reading-payment-statement
-description: >
-  支払調書の画像を読み取り構造化データを返す。
-  他のスキルから呼び出されるほか、直接ユーザーが呼び出すことも可能。
+description: "Reads payment statement (支払調書) images and extracts structured data including payer information, payment amounts, and withholding tax details. Performs dual-context OCR verification with user confirmation fallback. Use when the user uploads a 支払調書 image, mentions '支払調書を読み取る', '支払調書', '報酬の支払調書', or needs to extract data from payment record documents. Also callable by other skills such as /gather and /income-tax."
 ---
 
 # 支払調書 画像読み取り

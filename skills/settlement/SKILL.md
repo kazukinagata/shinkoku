@@ -1,12 +1,6 @@
 ---
 name: settlement
-description: >
-  This skill should be used when the user needs to perform year-end closing
-  adjustments (決算整理), review financial statements (決算書), compute
-  depreciation, or review their trial balance. Trigger phrases include:
-  "決算", "決算整理", "決算書を作る", "減価償却", "試算表", "残高試算表",
-  "損益計算書", "貸借対照表", "BS", "PL", "期末処理",
-  "棚卸し", "未払計上", "前払処理".
+description: "Generates closing journal entries (決算整理仕訳), calculates depreciation schedules, produces income statement (損益計算書) and balance sheet (貸借対照表), and validates trial balance totals. Use when the user needs to perform year-end closing, create financial statements, or review their trial balance. Trigger phrases: '決算', '決算整理', '決算書を作る', '減価償却', '試算表', '残高試算表', '損益計算書', '貸借対照表', 'BS', 'PL', '期末処理', '棚卸し', '未払計上', '前払処理'."
 ---
 
 # 決算整理・決算書作成（Year-End Settlement）

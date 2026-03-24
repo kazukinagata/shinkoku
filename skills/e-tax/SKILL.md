@@ -1,12 +1,6 @@
 ---
 name: e-tax
-description: >
-  This skill should be used when the user wants to file their tax return
-  electronically via the 確定申告書等作成コーナー (NTA Tax Return Preparation
-  Corner) using Claude in Chrome, Antigravity Browser Sub-Agent, or Playwright CLI (fallback). It guides the
-  browser-based input of calculated tax data. Trigger phrases include:
-  "e-Tax提出", "電子申告", "e-Taxで申告", "作成コーナーに入力",
-  "確定申告書等作成コーナー", "作成コーナー", "申告書を提出".
+description: "Guides browser-based electronic tax filing via the 確定申告書等作成コーナー (NTA Tax Return Preparation Corner), navigating form pages, inputting calculated tax data into specific fields, and managing the submission workflow using Claude in Chrome, Antigravity Browser Sub-Agent, or Playwright CLI. Use when the user wants to file their tax return electronically or input data into the NTA portal. Trigger phrases: 'e-Tax提出', '電子申告', 'e-Taxで申告', '作成コーナーに入力', '確定申告書等作成コーナー', '作成コーナー', '申告書を提出'."
 ---
 
 # e-Tax 電子申告 — ブラウザ自動化による確定申告書等作成コーナー入力

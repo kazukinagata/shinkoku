@@ -1,10 +1,6 @@
 ---
 name: incorporation
-description: >
-  法人成り（個人事業主から法人への移行）に関する相談。税額比較シミュレーション、
-  法人形態の選択、設立手続き、役員報酬戦略、社会保険の比較を支援する。
-  Trigger: "法人成り", "会社設立", "法人化", "株式会社にしたい", "合同会社",
-  "法人税と所得税の比較", "役員報酬", "法人成りのタイミング", "マイクロ法人", "1人法人"
+description: "Provides consultation on transitioning from sole proprietor to corporation (法人成り), runs tax comparison simulations between individual and corporate tax burden, guides corporate form selection (株式会社/合同会社), advises on executive compensation strategy (役員報酬), and compares social insurance costs. Use when the user asks about incorporation, corporate form selection, or tax burden comparison. Trigger phrases: '法人成り', '会社設立', '法人化', '株式会社にしたい', '合同会社', '法人税と所得税の比較', '役員報酬', '法人成りのタイミング', 'マイクロ法人', '1人法人'."
 ---
 
 # 法人成り（Incorporation）

@@ -1,11 +1,6 @@
 ---
 name: setup
-description: >
-  This skill should be used when the user wants to set up shinkoku for the first
-  time, initialize their configuration, or update their existing settings.
-  Trigger phrases include: "セットアップ", "初期設定", "設定ファイルを作る",
-  "shinkokuの設定", "config", "setup", "始め方", "使い方", "設定を更新",
-  "configを作り直す".
+description: "Creates the shinkoku.config.yaml configuration file through an interactive wizard, initializes the SQLite database with account master data, and configures taxpayer profile settings including income sources, business details, and deduction preferences. Use when the user wants to set up shinkoku for the first time, update their configuration, or reinitialize settings. Trigger phrases: 'セットアップ', '初期設定', '設定ファイルを作る', 'shinkokuの設定', 'config', 'setup', '始め方', '使い方', '設定を更新', 'configを作り直す'."
 ---
 
 # セットアップウィザード（Setup Wizard）

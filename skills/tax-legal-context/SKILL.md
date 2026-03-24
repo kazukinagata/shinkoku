@@ -1,11 +1,6 @@
 ---
 name: tax-legal-context
-description: >
-  Background legal and regulatory context for the shinkoku tax filing plugin.
-  Contains the standard disclaimer about the scope of tax information provided,
-  the relationship to the Tax Accountant Act (税理士法), and tool limitations.
-  This skill is not user-invocable — Claude loads it automatically when
-  generating tax-related responses that require a disclaimer.
+description: "Provides the standard legal disclaimer text, cites Tax Accountant Act (税理士法) scope limitations, and clarifies the boundary between tax information and regulated tax advisory. Adds enhanced warnings for gray-zone scenarios such as specific tax optimization schemes or inheritance tax calculations. Use when generating tax-related responses that require a disclaimer or legal context. This skill is not user-invocable — Claude loads it automatically."
 user-invocable: false
 ---
 

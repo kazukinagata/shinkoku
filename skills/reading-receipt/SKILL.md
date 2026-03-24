@@ -1,8 +1,6 @@
 ---
 name: reading-receipt
-description: >
-  レシート・領収書・ふるさと納税受領証明書の画像を読み取り構造化データを返す。
-  他のスキルから呼び出されるほか、直接ユーザーが呼び出すことも可能。
+description: "Reads receipt (レシート), formal receipt (領収書), and furusato nozei donation certificate (ふるさと納税受領証明書) images to extract structured data including store name, date, amounts, tax breakdown, and line items. Performs dual-context OCR verification with mismatch resolution. Use when the user uploads a receipt image, mentions 'レシートを読み取る', '領収書をスキャン', '経費のレシート', 'ふるさと納税の証明書', or needs OCR extraction from purchase documents."
 ---
 
 # レシート・領収書・ふるさと納税受領証明書 画像読み取り

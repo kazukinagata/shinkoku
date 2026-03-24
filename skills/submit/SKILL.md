@@ -1,12 +1,6 @@
 ---
 name: submit
-description: >
-  This skill should be used when the user is ready to submit their tax return,
-  needs a final review checklist, wants to know how to submit (e-Tax, mail, or
-  in-person), or asks about common mistakes before submission. Trigger phrases
-  include: "提出準備", "提出方法", "e-Taxで提出", "チェックリスト",
-  "申告書の確認", "提出前の確認", "郵送で提出", "税務署に持っていく",
-  "提出期限".
+description: "Validates completed tax returns against a final checklist, compares submission methods (e-Tax, mail, in-person) with pros and cons, identifies common filing mistakes, and guides the user through the submission process with deadline tracking. Use when the user is ready to submit their tax return, needs a pre-submission review, or asks about submission methods. Trigger phrases: '提出準備', '提出方法', 'e-Taxで提出', 'チェックリスト', '申告書の確認', '提出前の確認', '郵送で提出', '税務署に持っていく', '提出期限'."
 ---
 
 # 提出準備・チェックリスト（Submission Preparation）

@@ -1,10 +1,6 @@
 ---
 name: e-bookkeeping-compliance
-description: >
-  優良な電子帳簿の要件チェック・コンプライアンス診断を実行する。
-  「優良な電子帳簿」「電帳法対応」「電子帳簿の要件確認」
-  「税務調査の準備」「75万円控除の条件」「帳簿の要件を満たしているか」
-  「e-bookkeeping compliance」で起動。
+description: "Runs compliance diagnostics against excellent electronic bookkeeping (優良な電子帳簿) requirements, checks each qualification criterion with pass/fail results, verifies eligibility for the 75万円 special deduction, and provides tax audit preparation guidance. Use when the user asks about 優良な電子帳簿, 電帳法対応, 電子帳簿の要件確認, 税務調査の準備, 75万円控除の条件, 帳簿の要件を満たしているか, or e-bookkeeping compliance."
 ---
 
 # 優良な電子帳簿コンプライアンス診断

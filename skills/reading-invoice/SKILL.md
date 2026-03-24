@@ -1,8 +1,6 @@
 ---
 name: reading-invoice
-description: >
-  請求書の画像を読み取り構造化データを返す。
-  他のスキルから呼び出されるほか、直接ユーザーが呼び出すことも可能。
+description: "Reads invoice (請求書) images and extracts structured data including vendor name, invoice date, line items, amounts, tax breakdown, and registration number (T番号). Performs dual-context OCR verification with user confirmation fallback. Use when the user uploads an invoice image, mentions '請求書を読み取る', '請求書のOCR', '請求書をスキャン', or needs to extract data from billing documents for bookkeeping."
 ---
 
 # 請求書 画像読み取り

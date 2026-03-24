@@ -1,8 +1,6 @@
 ---
 name: reading-deduction-cert
-description: >
-  控除証明書（生命保険料・地震保険料等）の画像を読み取り構造化データを返す。
-  他のスキルから呼び出されるほか、直接ユーザーが呼び出すことも可能。
+description: "Reads deduction certificate (控除証明書) images for life insurance (生命保険料) and earthquake insurance (地震保険料) and extracts structured data including insurance company, policy number, premium amounts, and certificate details. Performs dual-context OCR verification with user confirmation fallback. Use when the user uploads a 控除証明書 image, mentions '控除証明書を読み取る', '保険料控除', '生命保険の証明書', '地震保険の証明書', or needs to import deduction data for year-end adjustment or tax filing."
 ---
 
 # 控除証明書 画像読み取り

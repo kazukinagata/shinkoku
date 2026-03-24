@@ -1,11 +1,6 @@
 ---
 name: income-tax
-description: >
-  This skill should be used when the user needs to calculate their income tax
-  (所得税), compute deductions, or import withholding slips. Trigger phrases
-  include: "所得税を計算", "確定申告書を作成", "控除を計算",
-  "源泉徴収票を取り込む", "所得税額", "納付額を計算", "還付額を計算",
-  "第一表", "第二表", "申告書B", "所得控除", "税額控除".
+description: "Calculates income tax (所得税) liability, computes all applicable deductions (所得控除・税額控除), imports withholding slip data, and generates 確定申告書 form data including refund or payment amounts. Use when the user needs to calculate income tax, prepare tax return forms, or import 源泉徴収票 data. Trigger phrases: '所得税を計算', '確定申告書を作成', '控除を計算', '源泉徴収票を取り込む', '所得税額', '納付額を計算', '還付額を計算', '第一表', '第二表', '申告書B', '所得控除', '税額控除'."
 ---
 
 # 所得税計算（Income Tax Calculation）

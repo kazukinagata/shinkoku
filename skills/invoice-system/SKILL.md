@@ -1,16 +1,6 @@
 ---
 name: invoice-system
-description: >
-  This skill should be used when the user asks about the invoice system
-  (インボイス制度), qualified invoices (適格請求書), registration numbers
-  (登録番号), input tax credits (仕入税額控除), the 20% special measure
-  (2割特例), the 30% special measure (3割特例), tax-exempt businesses
-  (免税事業者), transitional measures (経過措置), small-amount exceptions
-  (少額特例), corrected invoices (修正インボイス), or any related topics.
-  Trigger phrases include: "インボイス", "適格請求書", "登録番号",
-  "仕入税額控除", "2割特例", "3割特例", "免税事業者", "経過措置",
-  "少額特例", "修正インボイス", "返還インボイス", "簡易インボイス",
-  "インボイス登録", "T番号", "適格請求書発行事業者".
+description: "Explains invoice system (インボイス制度) requirements, determines registration eligibility, calculates tax credits under qualified invoice rules, and guides compliance with transitional measures. Provides guidance on registration numbers, required invoice fields, and special measures (2割特例, 3割特例). Use when the user asks about インボイス制度, qualified invoices (適格請求書), input tax credits (仕入税額控除), or tax-exempt business (免税事業者) obligations. Trigger phrases: 'インボイス', '適格請求書', '登録番号', '仕入税額控除', '2割特例', '3割特例', '免税事業者', '経過措置', '少額特例', '修正インボイス', 'T番号'."
 ---
 
 # インボイス制度（Invoice System）

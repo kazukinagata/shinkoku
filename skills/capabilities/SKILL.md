@@ -1,9 +1,6 @@
 ---
 name: capabilities
-description: >
-  Display shinkoku's current capabilities, supported personas, and known
-  limitations. Use when the user asks "what can you do?", "what's supported?",
-  or similar questions.
+description: "Lists available commands, shows supported taxpayer personas with coverage levels, displays known limitations and unsupported filing types, and explains the shinkoku plugin's scope. Use when the user asks 'what can you do?', 'what's supported?', 'できること', '対応状況', or similar capability questions."
 ---
 
 # shinkoku 対応状況

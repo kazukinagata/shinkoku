@@ -1,8 +1,6 @@
 ---
 name: reading-withholding
-description: >
-  源泉徴収票の画像を読み取り構造化データを返す。
-  他のスキルから呼び出されるほか、直接ユーザーが呼び出すことも可能。
+description: "Reads withholding tax certificate (源泉徴収票) images and extracts structured data including salary income, withheld tax amount, social insurance premiums, and dependent/deduction details. Performs dual-context OCR verification with user confirmation fallback. Use when the user uploads a 源泉徴収票 image, mentions '源泉徴収票を読み取る', '源泉徴収票をスキャン', '給与所得の源泉徴収票', or needs to import withholding data for tax filing."
 ---
 
 # 源泉徴収票 画像読み取り

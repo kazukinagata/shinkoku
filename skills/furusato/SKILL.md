@@ -1,11 +1,6 @@
 ---
 name: furusato
-description: >
-  This skill manages furusato nozei (hometown tax) donations. Use when the user
-  wants to register donation data, read donation receipts, check deduction limits,
-  or manage their furusato nozei records. Trigger phrases: "ふるさと納税",
-  "furusato", "寄附金", "寄付金", "ふるさと納税の控除", "寄附金受領証明書",
-  "ワンストップ特例".
+description: "Manages furusato nozei (ふるさと納税) donations with CRUD operations, reads donation receipt images via OCR, calculates deduction limits and estimates optimal donation amounts, and tracks ワンストップ特例 eligibility. Use when the user wants to register donation data, read donation receipts, check deduction limits, or manage their furusato nozei records. Trigger phrases: 'ふるさと納税', 'furusato', '寄附金', '寄付金', 'ふるさと納税の控除', '寄附金受領証明書', 'ワンストップ特例'."
 ---
 
 # ふるさと納税管理（Furusato Nozei Management）

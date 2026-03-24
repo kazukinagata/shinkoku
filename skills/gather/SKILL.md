@@ -1,11 +1,6 @@
 ---
 name: gather
-description: >
-  This skill should be used when the user needs to know what documents to collect
-  for their tax filing, wants a checklist of required documents, or asks where to
-  obtain specific tax documents. Trigger phrases include: "必要書類", "書類を集める",
-  "何を準備すればいい", "源泉徴収票はどこで", "書類チェックリスト",
-  "確定申告に必要なもの", "書類収集", "準備するもの".
+description: "Generates personalized document collection checklists based on income sources and filing types, provides step-by-step acquisition instructions for each document, and tracks collection progress with timeline guidance. Use when the user needs to know what documents to collect for tax filing, asks where to obtain specific tax documents, or wants a preparation checklist. Trigger phrases: '必要書類', '書類を集める', '何を準備すればいい', '源泉徴収票はどこで', '書類チェックリスト', '確定申告に必要なもの', '書類収集', '準備するもの'."
 ---
 
 # 書類収集ナビゲーション（Document Gathering Guide）

@@ -1,12 +1,6 @@
 ---
 name: tax-invoice-credit-context
-description: >
-  Background context for invoice-system input tax credit rules (仕入税額控除)
-  in the shinkoku tax filing plugin. Contains eligibility requirements,
-  the 6 permanent exceptions (帳簿のみ保存の恒久特例), transitional measures
-  for purchases from tax-exempt businesses, and storage requirements.
-  This skill is not user-invocable — Claude loads it automatically when
-  responding to input tax credit questions under the invoice system.
+description: "Provides input tax credit (仕入税額控除) eligibility rules under the invoice system, details the 6 permanent exceptions (帳簿のみ保存の恒久特例) including public transport and vending machine exceptions, explains transitional credit rates for purchases from tax-exempt businesses, and covers storage requirements. Use when responding to questions about 仕入税額控除, invoice-system tax credits, or 経過措置 rates. This skill is not user-invocable — Claude loads it automatically."
 user-invocable: false
 ---
 

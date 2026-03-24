@@ -1,15 +1,6 @@
 ---
 name: tax-advisor
-description: >
-  This skill should be used when the user asks tax-related questions, wants advice
-  on deductions or tax savings, or needs expert guidance equivalent to a tax
-  accountant (税理士) or life planner. Trigger phrases include: "税金について教えて",
-  "控除は使える？", "確定申告の相談", "節税", "ふるさと納税の上限", "iDeCoの効果",
-  "住宅ローン控除", "青色申告のメリット", "消費税はかかる？", "扶養に入れる？",
-  "配偶者控除", "医療費控除", "法人成り", "経費になる？", "税率を教えて",
-  "所得税の計算", "住民税", "社会保険料", "103万の壁", "130万の壁",
-  "インボイス", "簡易課税", "税制改正", "開業届", "副業バレ", "白色申告",
-  "税務調査", "特定支出控除", "予定納税", "中間納付".
+description: "Answers tax-related questions, calculates tax liability estimates, identifies applicable deductions, and provides tax-saving strategy recommendations equivalent to a tax accountant (税理士) consultation. Routes queries to specialized reference files and sub-skills for detailed guidance. Use when the user asks about deductions, tax savings, filing requirements, or general tax questions. Trigger phrases: '税金について教えて', '控除は使える？', '確定申告の相談', '節税', 'ふるさと納税の上限', 'iDeCoの効果', '住宅ローン控除', '青色申告のメリット', '消費税はかかる？', '扶養に入れる？', '配偶者控除', '医療費控除', '経費になる？', '税率を教えて', '103万の壁', '130万の壁', 'インボイス', '税制改正', '開業届', '副業バレ', '税務調査', '予定納税'."
 ---
 
 # 税務アドバイザー（Tax Advisor）

@@ -1,11 +1,6 @@
 ---
 name: consumption-tax
-description: >
-  This skill should be used when the user needs to calculate consumption tax
-  (消費税) or determine their tax method (2割特例, 簡易課税, or 本則課税).
-  Trigger phrases include: "消費税を計算", "消費税の申告", "消費税申告書",
-  "2割特例", "簡易課税", "本則課税", "課税売上", "消費税額", "インボイス",
-  "みなし仕入率", "課税仕入".
+description: "Calculates consumption tax (消費税) amounts, determines the optimal tax method (2割特例, 簡易課税, or 本則課税), computes みなし仕入率 deductions, and generates 消費税申告書 form data. Use when the user needs to calculate consumption tax, compare tax methods, or prepare a consumption tax return. Trigger phrases: '消費税を計算', '消費税の申告', '消費税申告書', '2割特例', '簡易課税', '本則課税', '課税売上', '消費税額', 'みなし仕入率', '課税仕入'."
 ---
 
 # 消費税計算（Consumption Tax Calculation）

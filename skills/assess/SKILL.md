@@ -1,12 +1,6 @@
 ---
 name: assess
-description: >
-  This skill should be used when the user asks to determine what tax filings
-  they need, wants to know if they must file a tax return (確定申告), asks about
-  consumption tax obligations (消費税), or needs help understanding their filing
-  requirements. Trigger phrases include: "確定申告が必要か", "申告の種類",
-  "消費税の届出", "課税事業者かどうか", "何を申告すればいい", "申告要否",
-  "税金の申告", "住民税の申告".
+description: "Analyzes user income sources, business status, and family composition to determine required tax filings, identifies consumption tax obligations and filing deadlines, and generates a structured filing requirements summary. Use when the user asks whether they need to file a tax return (確定申告), wants to determine filing types, or asks about consumption tax registration. Trigger phrases: '確定申告が必要か', '申告の種類', '消費税の届出', '課税事業者かどうか', '何を申告すればいい', '申告要否', '税金の申告', '住民税の申告'."
 ---
 
 # 申告要否・種類の判定（Tax Filing Assessment）

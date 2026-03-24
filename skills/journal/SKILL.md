@@ -1,12 +1,6 @@
 ---
 name: journal
-description: >
-  This skill should be used when the user wants to record bookkeeping entries
-  (仕訳), import transaction data from CSV files, receipts, or invoices, or
-  manage their general ledger. Trigger phrases include: "仕訳を入力",
-  "仕訳登録", "CSVを取り込む", "レシートを読み込む", "請求書を取り込む",
-  "帳簿を付ける", "経費を記録", "売上を記録", "仕訳を修正", "仕訳を検索",
-  "仕訳を削除", "取引を登録", "帳簿の初期化".
+description: "Creates double-entry journal entries (仕訳), imports transaction data from CSV files, receipts, and invoices, manages the general ledger with CRUD operations, and validates entries with duplicate detection. Use when the user wants to record bookkeeping entries, import transactions, or manage their ledger. Trigger phrases: '仕訳を入力', '仕訳登録', 'CSVを取り込む', 'レシートを読み込む', '請求書を取り込む', '帳簿を付ける', '経費を記録', '売上を記録', '仕訳を修正', '仕訳を検索', '仕訳を削除', '取引を登録', '帳簿の初期化'."
 ---
 
 # 仕訳入力・帳簿管理（Journal Entry & Ledger Management）
