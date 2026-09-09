@@ -37,8 +37,11 @@ jobs:
           # --comment を付けないと code-review プラグインは結果をログに出力するだけで PR にコメントしない
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
           # PR へのコメント投稿・差分取得に必要なツールを明示的に許可する
+          # gh 以外の読み取り系ツールとサブエージェント（Task）も許可する（プラグインが内部で使用）
           claude_args: |
-            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
+            --allowedTools "Task,TodoWrite,Read,Glob,Grep,Bash(gh:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),mcp__github_inline_comment__create_inline_comment"
+          # 実行内容をログに出す（コメントが投稿されない原因の調査用）
+          show_full_output: true
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
