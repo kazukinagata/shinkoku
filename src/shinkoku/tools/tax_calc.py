@@ -113,7 +113,9 @@ from shinkoku.tax_constants import (
     SALARY_DEDUCTION_MIN_R8_R9,
     SALARY_DEDUCTION_MIN_R10,
     SALARY_INCOME_FIXED_STEPS_R8_R9,
+    SPECIAL_20PCT_LAST_YEAR,
     SPECIAL_30PCT_RATE,
+    SPECIAL_30PCT_YEARS,
     WORKING_STUDENT_INCOME_LIMIT_R7,
     WORKING_STUDENT_INCOME_LIMIT_R8,
     DEPENDENT_ELDERLY,
@@ -264,14 +266,29 @@ def calc_salary_deduction(salary_income: int, fiscal_year: int = 2025) -> int:
         if salary_income <= SALARY_DEDUCTION_FLAT_UPPER_R7:
             return SALARY_DEDUCTION_MIN_R10
         if salary_income <= SALARY_DEDUCTION_FLAT_UPPER_R8_R9:
-            return max(SALARY_DEDUCTION_MIN_R10, int(salary_income * 30 // 100) + 80_000)
-    if salary_income <= 3_600_000:
-        return int(salary_income * 30 // 100) + 80_000
+            # 190万超〜220万: 収入×30%+8万（69万未満なら69万）。給与所得は別表第五（A方式）で計算
+            return max(
+                SALARY_DEDUCTION_MIN_R10, salary_income - _salary_income_by_table(salary_income)
+            )
     if salary_income <= 6_600_000:
-        return int(salary_income * 20 // 100) + 440_000
+        # 所得税法別表第五: 収入÷4（千円未満切捨て）= A として給与所得を求め、控除額は収入との差額
+        return salary_income - _salary_income_by_table(salary_income)
     if salary_income <= 8_500_000:
         return int(salary_income * 10 // 100) + 1_100_000
     return SALARY_DEDUCTION_MAX
+
+
+def _salary_income_by_table(salary_income: int) -> int:
+    """給与収入 660万未満の給与所得の金額（所得税法別表第五の速算式）。
+
+    A = 収入÷4（千円未満切捨て）
+    〜360万: A×2.8 − 8万 / 360万〜660万: A×3.2 − 44万
+    ※ 180万以下の区分（A×2.4+10万）は最低保障額の一律適用で使われないため省略。
+    """
+    a = (salary_income // 4 // 1000) * 1000
+    if salary_income < 3_600_000:
+        return a * 28 // 10 - 80_000
+    return a * 32 // 10 - 440_000
 
 
 # ============================================================
@@ -1613,6 +1630,18 @@ def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResul
     - simplified: 簡易課税 = 消費税額(国税) × (1 - みなし仕入率)
     - standard: 本則課税 = 消費税額(国税) - 実際の仕入税額(国税部分)
     """
+    # 経過措置の適用期間チェック（個人事業者は暦年課税期間）
+    if input_data.method == "special_20pct" and input_data.fiscal_year > SPECIAL_20PCT_LAST_YEAR:
+        raise ValueError(
+            f"2割特例は令和8年（2026年）分までです（指定: {input_data.fiscal_year}年分）。"
+            "令和9・10年分は special_30pct（3割特例）を検討してください"
+        )
+    if input_data.method == "special_30pct" and input_data.fiscal_year not in SPECIAL_30PCT_YEARS:
+        raise ValueError(
+            f"3割特例は個人事業者の令和9年・令和10年（2027・2028年）分のみ適用できます"
+            f"（指定: {input_data.fiscal_year}年分）"
+        )
+
     taxable_sales_total = input_data.taxable_sales_10 + input_data.taxable_sales_8
 
     # Step 1: 課税標準額 = 税込金額から税抜を逆算し、1,000円未満切捨（国税通則法118条）
@@ -1801,18 +1830,25 @@ def calc_furusato_deduction_limit(
 
     住民税所得割額 = (総所得 - 住民税の所得控除) × 10% - 調整控除
     所得税率 = (住民税課税所得 - 税率判定用調整額) に対応する累進税率（地方税法37条の2第2項）
-      税率判定用調整額 = 人的控除差 + (所得税の基礎控除額 - 48万)。rate_adjustment で指定し、
-      省略時は人的控除差のみを用いる。
+      税率判定用調整額 = 人的控除差 + (所得税の基礎控除額 - 48万)。rate_adjustment で明示指定できる。
+      省略時は personal_deduction_difference と fiscal_year の基礎控除から自動計算する。
 
     resident_tax_income_deductions を省略した場合は所得税の所得控除合計で代用する（簡易推定）。
     所得税の基礎控除（58万〜104万）は住民税（43万）より大きいため、簡易推定は所得割を過少に見積もる。
     正確な推定には calc_furusato_limit_detailed を使う。
     """
     if resident_tax_income_deductions is None:
+        # 簡易推定: 所得税の課税所得をそのまま使うため税率判定の調整は不要
         resident_tax_income_deductions = total_income_deductions
         personal_deduction_difference = 0
+        if rate_adjustment is None:
+            rate_adjustment = 0
     if rate_adjustment is None:
-        rate_adjustment = personal_deduction_difference
+        rate_adjustment = (
+            personal_deduction_difference
+            + calc_basic_deduction(total_income, fiscal_year)
+            - RESIDENT_RATE_ADJ_BASIC_BASE
+        )
 
     taxable_income_raw = max(0, total_income - resident_tax_income_deductions)
     # 課税所得を1,000円未満切捨て
@@ -2128,7 +2164,7 @@ def calc_furusato_limit_detailed(input_data: FurusatoLimitInput) -> FurusatoLimi
     # 5. 特例控除の所得税率: 課税総所得金額 − 人的控除差 − (所得税の基礎控除 − 48万) で判定
     #    （地方税法37条の2第2項。所得税の基礎控除引上げに伴う措置で、所得税の課税所得と一致する）
     income_tax_basic = calc_basic_deduction(total_income, fy)
-    rate_adjustment = personal_diff + max(0, income_tax_basic - RESIDENT_RATE_ADJ_BASIC_BASE)
+    rate_adjustment = personal_diff + income_tax_basic - RESIDENT_RATE_ADJ_BASIC_BASE
     if input_data.income_tax_rate_percent is not None:
         rate = input_data.income_tax_rate_percent
     else:
@@ -2147,12 +2183,10 @@ def calc_furusato_limit_detailed(input_data: FurusatoLimitInput) -> FurusatoLimi
         "住宅ローン控除の住民税からの控除分、ふるさと納税以外の寄附金税額控除、"
         "分離課税所得は考慮していません。"
     )
-    if income_tax_basic > RESIDENT_RATE_ADJ_BASIC_BASE:
-        notes.append(
-            f"特例控除の所得税率は、住民税課税所得から人的控除差{personal_diff:,}円と"
-            f"所得税の基礎控除引上げ分{income_tax_basic - RESIDENT_RATE_ADJ_BASIC_BASE:,}円を"
-            f"差し引いた金額で判定しました（{rate}%）。"
-        )
+    notes.append(
+        f"特例控除の所得税率は、住民税課税所得から人的控除差{personal_diff:,}円と"
+        f"（所得税の基礎控除{income_tax_basic:,}円 − 48万円）を差し引いた金額で判定しました（{rate}%）。"
+    )
 
     return FurusatoLimitResult(
         fiscal_year=fy,

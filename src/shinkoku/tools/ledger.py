@@ -1468,10 +1468,11 @@ def ledger_add_housing_loan_detail(
             "INSERT INTO housing_loan_details "
             "(fiscal_year, housing_type, housing_category, move_in_date, "
             "year_end_balance, is_new_construction, is_childcare_household, "
-            "has_pre_r6_building_permit, purchase_date, purchase_price, "
+            "has_pre_r6_building_permit, has_pre_r10_building_permit, "
+            "purchase_date, purchase_price, "
             "total_floor_area, residential_floor_area, property_number, "
             "application_submitted, dual_application_group, cost_for_proration) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 fiscal_year,
                 detail.housing_type,
@@ -1481,6 +1482,7 @@ def ledger_add_housing_loan_detail(
                 1 if detail.is_new_construction else 0,
                 1 if detail.is_childcare_household else 0,
                 1 if detail.has_pre_r6_building_permit else 0,
+                1 if detail.has_pre_r10_building_permit else 0,
                 detail.purchase_date,
                 detail.purchase_price,
                 detail.total_floor_area,
@@ -1511,7 +1513,7 @@ def ledger_list_housing_loan_details(*, db_path: str, fiscal_year: int) -> dict:
             "is_childcare_household, has_pre_r6_building_permit, "
             "purchase_date, purchase_price, total_floor_area, "
             "residential_floor_area, property_number, application_submitted, "
-            "dual_application_group, cost_for_proration "
+            "dual_application_group, cost_for_proration, has_pre_r10_building_permit "
             "FROM housing_loan_details WHERE fiscal_year = ? ORDER BY id",
             (fiscal_year,),
         ).fetchall()
@@ -1534,6 +1536,7 @@ def ledger_list_housing_loan_details(*, db_path: str, fiscal_year: int) -> dict:
                 "application_submitted": bool(r[14]),
                 "dual_application_group": r[15],
                 "cost_for_proration": r[16],
+                "has_pre_r10_building_permit": bool(r[17]),
             }
             for r in rows
         ]

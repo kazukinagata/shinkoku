@@ -569,6 +569,7 @@ SIMPLIFIED_DEFAULT_RATIO = 50  # デフォルト（サービス業）
 
 # 2割特例の乗率（インボイス経過措置、令和8年9月30日を含む課税期間まで。個人は令和8年分が最後）
 SPECIAL_20PCT_RATE = 20  # 20%
+SPECIAL_20PCT_LAST_YEAR = 2026  # 個人事業者が2割特例を適用できる最後の年分
 # 3割特例の乗率（令和8年度改正で新設、個人事業者のみ、令和9年分・令和10年分）
 SPECIAL_30PCT_RATE = 30  # 30%
 SPECIAL_30PCT_YEARS: frozenset[int] = frozenset({2027, 2028})

@@ -1772,3 +1772,24 @@ class TestCsvOutput:
         )
         assert out["status"] == "ok"
         assert "accounts" in out
+
+
+def test_housing_loan_detail_round_trips_pre_r10_permit(db_path, tmp_path):
+    """has_pre_r10_building_permit（令和8年度改正）が DB に保存・復元される。"""
+    f = write_json(
+        tmp_path,
+        {
+            "housing_type": "new_custom",
+            "housing_category": "energy_efficient",
+            "move_in_date": "2028-03-01",
+            "year_end_balance": 30000000,
+            "is_new_construction": True,
+            "has_pre_r10_building_permit": True,
+        },
+    )
+    out = run_ledger("hl-add", "--db-path", db_path, "--fiscal-year", "2025", "--input", f)
+    assert out["status"] == "ok"
+    out = run_ledger("hl-list", "--db-path", db_path, "--fiscal-year", "2025")
+    assert out["status"] == "ok"
+    assert out["details"][0]["has_pre_r10_building_permit"] is True
+    assert out["details"][0]["has_pre_r6_building_permit"] is False

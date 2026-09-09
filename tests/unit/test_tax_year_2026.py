@@ -377,3 +377,83 @@ def test_furusato_special_credit_cap_from_2027() -> None:
     assert r27.special_credit_cap_applied
     assert r27.special_credit_max == 1_930_000
     assert r27.estimated_limit < r26.estimated_limit
+
+
+# ============================================================
+# codex レビュー2回目の指摘に対するテスト
+# ============================================================
+
+
+def test_salary_deduction_uses_statutory_table_for_non_round_income() -> None:
+    """所得税法別表第五: 収入÷4（千円未満切捨て）×2.8−8万 等で給与所得を求める。"""
+    # 2,201,000: A=550,000 → 給与所得 1,460,000 → 控除 741,000（直接30%+8万だと740,300）
+    assert calc_salary_deduction(2_201_000, 2026) == 741_000
+    assert calc_salary_deduction(2_201_000, 2025) == 741_000
+    # 3,999,999: A=999,000 → 3,196,800−440,000 = 2,756,800 → 控除 1,243,199
+    assert calc_salary_deduction(3_999_999, 2026) == 3_999_999 - 2_756_800
+    # 4,000,000: A=1,000,000 → 2,760,000 → 控除 1,240,000（20%+44万と一致）
+    assert calc_salary_deduction(4_000_000, 2026) == 1_240_000
+    # 660万以上は従来どおり
+    assert calc_salary_deduction(7_000_000, 2026) == 1_800_000
+    # 2028: 190万超〜220万は 69万 floor
+    assert calc_salary_deduction(2_001_000, 2028) == 690_000
+    assert calc_salary_deduction(2_150_000, 2028) == 2_150_000 - (537_000 * 28 // 10 - 80_000)
+
+
+def test_consumption_tax_special_methods_enforce_years() -> None:
+    with pytest.raises(ValueError, match="2割特例"):
+        calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2027, method="special_20pct", taxable_sales_10=1_100_000
+            )
+        )
+    for fy in (2026, 2029):
+        with pytest.raises(ValueError, match="3割特例"):
+            calc_consumption_tax(
+                ConsumptionTaxInput(
+                    fiscal_year=fy, method="special_30pct", taxable_sales_10=1_100_000
+                )
+            )
+    assert (
+        calc_consumption_tax(
+            ConsumptionTaxInput(
+                fiscal_year=2026, method="special_20pct", taxable_sales_10=1_100_000
+            )
+        ).net_tax
+        == 15_600
+    )
+
+
+def test_furusato_rate_adjustment_is_signed_for_high_income() -> None:
+    """基礎控除が48万未満（合計所得2,400万超）では (基礎控除−48万) が負となり判定基準が増える。"""
+    r = calc_furusato_limit_detailed(FurusatoLimitInput(fiscal_year=2026, total_income=24_600_000))
+    # 基礎控除16万: 判定基準 = 住民税課税所得(2,460万−15万) − 1万 − (16万−48万) = 2,476万 → 40%
+    assert r.resident_tax_taxable_income == 24_450_000
+    assert r.special_credit_rate_percent == 40
+    assert "160,000円 − 48万円" in r.notes[-1]
+
+
+def test_furusato_legacy_auto_rate_adjustment() -> None:
+    """簡易関数に住民税側の控除を渡した場合、税率判定に基礎控除の調整を自動で含める。"""
+    # 総所得356万・社保75万・2026: 住民税課税所得238万、判定 238万−5万−(104万−48万)=177万 → 5%
+    auto = calc_furusato_deduction_limit(
+        3_560_000,
+        1_790_000,
+        resident_tax_income_deductions=1_180_000,
+        personal_deduction_difference=50_000,
+        fiscal_year=2026,
+    )
+    explicit_10pct = calc_furusato_deduction_limit(
+        3_560_000,
+        1_790_000,
+        resident_tax_income_deductions=1_180_000,
+        personal_deduction_difference=50_000,
+        fiscal_year=2026,
+        rate_adjustment=50_000,
+    )
+    assert auto == 235_500 * 20 // 100 * 1000 // 849 + 2_000
+    assert explicit_10pct > auto
+    detailed = calc_furusato_limit_detailed(
+        FurusatoLimitInput(fiscal_year=2026, total_income=3_560_000, social_insurance=750_000)
+    )
+    assert detailed.estimated_limit == auto

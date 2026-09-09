@@ -354,6 +354,9 @@ class HousingLoanDetailInput(BaseModel):
     is_new_construction: bool = True
     is_childcare_household: bool = False
     has_pre_r6_building_permit: bool = False
+    has_pre_r10_building_permit: bool = (
+        False  # R9.12.31以前の建築確認済み（R10以後入居の新築省エネ基準適合住宅）
+    )
     purchase_date: str | None = None  # 住宅購入日
     purchase_price: int = 0  # 住宅の価格（円）
     total_floor_area: int = 0  # 総床面積（平方メートル×100: 10063=100.63㎡）
@@ -376,6 +379,7 @@ class HousingLoanDetailRecord(BaseModel):
     is_new_construction: bool
     is_childcare_household: bool = False
     has_pre_r6_building_permit: bool = False
+    has_pre_r10_building_permit: bool = False
     purchase_date: str | None = None
     purchase_price: int = 0
     total_floor_area: int = 0
