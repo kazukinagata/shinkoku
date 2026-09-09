@@ -13,6 +13,7 @@ from shinkoku.models import (
     ConsumptionTaxInput,
     DependentInfo,
     DonationRecordRecord,
+    FurusatoLimitInput,
     HousingLoanDetail,
     IncomeTaxInput,
     IncomeTaxResult,
@@ -27,6 +28,7 @@ from shinkoku.tools.tax_calc import (
     calc_depreciation_declining_balance,
     calc_depreciation_straight_line,
     calc_furusato_deduction_limit,
+    calc_furusato_limit_detailed,
     calc_income_tax,
     calc_pension_deduction,
     calc_retirement_income,
@@ -192,10 +194,24 @@ def _handle_calc_consumption(args: argparse.Namespace) -> None:
 
 
 def _handle_calc_furusato_limit(args: argparse.Namespace) -> None:
-    """calc-furusato-limit: ふるさと納税控除上限推定。"""
+    """calc-furusato-limit: ふるさと納税控除上限推定。
+
+    入力 JSON に total_income_deductions がある場合は簡易推定（所得控除合計から逆算）。
+    ない場合は FurusatoLimitInput として解釈し、住民税側の控除・調整控除を考慮した詳細推定を行う。
+    """
     params = _load_json(args.input)
-    limit = calc_furusato_deduction_limit(**params)
-    _output_json({"estimated_limit": limit})
+    if "total_income_deductions" in params:
+        limit = calc_furusato_deduction_limit(**params)
+        _output_json({"estimated_limit": limit})
+        return
+    if "dependents" in params:
+        params["dependents"] = [DependentInfo(**d) for d in params["dependents"]]
+    if params.get("life_insurance_detail") is not None:
+        params["life_insurance_detail"] = LifeInsurancePremiumInput(
+            **params["life_insurance_detail"]
+        )
+    result = calc_furusato_limit_detailed(FurusatoLimitInput(**params))
+    _output_json(result.model_dump())
 
 
 def _handle_calc_pension(args: argparse.Namespace) -> None:

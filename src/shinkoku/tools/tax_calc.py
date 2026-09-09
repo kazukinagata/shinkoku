@@ -24,6 +24,8 @@ from shinkoku.models import (
     LifeInsurancePremiumInput,
     ConsumptionTaxInput,
     ConsumptionTaxResult,
+    FurusatoLimitInput,
+    FurusatoLimitResult,
     PensionDeductionInput,
     PensionDeductionResult,
     RetirementIncomeInput,
@@ -32,13 +34,95 @@ from shinkoku.models import (
     TaxSanityCheckResult,
 )
 from shinkoku.tax_constants import (
-    BASIC_DEDUCTION_TABLE,
+    BASIC_DEDUCTION_TABLE_R7,
+    BASIC_DEDUCTION_TABLE_R8_R9,
+    BASIC_DEDUCTION_TABLE_R10,
+    DEPENDENT_INCOME_LIMIT_R7,
+    DEPENDENT_INCOME_LIMIT_R8,
+    FURUSATO_SPECIAL_CREDIT_CAP,
+    FURUSATO_SPECIAL_CREDIT_CAP_FROM_YEAR,
+    HOUSING_LOAN_ENERGY_EFFICIENT_NEW_LAST_YEAR,
+    HOUSING_LOAN_LAST_YEAR,
+    HOUSING_LOAN_LIMITS_R8_R12,
+    HOUSING_LOAN_LIMITS_R8_R12_CHILDCARE,
+    HOUSING_LOAN_R8_START_YEAR,
+    LIFE_INSURANCE_CHILD_SPECIAL_AGE_MAX,
+    LIFE_INSURANCE_CHILD_SPECIAL_BRACKET_1,
+    LIFE_INSURANCE_CHILD_SPECIAL_BRACKET_2,
+    LIFE_INSURANCE_CHILD_SPECIAL_BRACKET_3,
+    LIFE_INSURANCE_CHILD_SPECIAL_MAX,
+    LIFE_INSURANCE_CHILD_SPECIAL_YEARS,
+    RESIDENT_ADJ_DIFF_BASIC_TABLE,
+    RESIDENT_ADJ_DIFF_DEPENDENT_ELDERLY,
+    RESIDENT_ADJ_DIFF_DEPENDENT_ELDERLY_COHABITING,
+    RESIDENT_ADJ_DIFF_DEPENDENT_GENERAL,
+    RESIDENT_ADJ_DIFF_DEPENDENT_SPECIFIC,
+    RESIDENT_ADJ_DIFF_DISABILITY_GENERAL,
+    RESIDENT_ADJ_DIFF_DISABILITY_SPECIAL,
+    RESIDENT_ADJ_DIFF_DISABILITY_SPECIAL_COHABITING,
+    RESIDENT_ADJ_DIFF_SINGLE_PARENT,
+    RESIDENT_ADJ_DIFF_SPOUSE,
+    RESIDENT_ADJ_DIFF_SPOUSE_9M,
+    RESIDENT_ADJ_DIFF_SPOUSE_10M,
+    RESIDENT_ADJ_DIFF_SPOUSE_SPECIAL,
+    RESIDENT_ADJ_DIFF_SPOUSE_SPECIAL_9M,
+    RESIDENT_ADJ_DIFF_SPOUSE_SPECIAL_10M,
+    RESIDENT_ADJ_DIFF_WIDOW,
+    RESIDENT_ADJ_DIFF_WORKING_STUDENT,
+    RESIDENT_ADJUSTMENT_CREDIT_INCOME_LIMIT,
+    RESIDENT_ADJUSTMENT_CREDIT_MIN_BASE,
+    RESIDENT_ADJUSTMENT_CREDIT_RATE,
+    RESIDENT_ADJUSTMENT_CREDIT_THRESHOLD,
+    RESIDENT_BASIC_DEDUCTION_TABLE,
+    RESIDENT_DEPENDENT_ELDERLY,
+    RESIDENT_DEPENDENT_ELDERLY_COHABITING,
+    RESIDENT_DEPENDENT_GENERAL,
+    RESIDENT_DEPENDENT_SPECIFIC,
+    RESIDENT_DISABILITY_GENERAL,
+    RESIDENT_DISABILITY_SPECIAL,
+    RESIDENT_DISABILITY_SPECIAL_COHABITING,
+    RESIDENT_EARTHQUAKE_INSURANCE_MAX,
+    RESIDENT_LIFE_INSURANCE_COMBINED_MAX,
+    RESIDENT_LIFE_INSURANCE_NEW_BRACKET_1,
+    RESIDENT_LIFE_INSURANCE_NEW_BRACKET_2,
+    RESIDENT_LIFE_INSURANCE_NEW_BRACKET_3,
+    RESIDENT_LIFE_INSURANCE_NEW_MAX,
+    RESIDENT_LIFE_INSURANCE_OLD_BRACKET_1,
+    RESIDENT_LIFE_INSURANCE_OLD_BRACKET_2,
+    RESIDENT_LIFE_INSURANCE_OLD_BRACKET_3,
+    RESIDENT_LIFE_INSURANCE_OLD_MAX,
+    RESIDENT_LIFE_INSURANCE_TOTAL_MAX,
+    RESIDENT_OLD_LONG_TERM_BRACKET_1,
+    RESIDENT_OLD_LONG_TERM_BRACKET_2,
+    RESIDENT_OLD_LONG_TERM_MAX,
+    RESIDENT_RATE_ADJ_BASIC_BASE,
+    RESIDENT_SINGLE_PARENT_DEDUCTION,
+    RESIDENT_SPECIFIC_RELATIVE_SPECIAL_TABLE,
+    RESIDENT_SPOUSE_DEDUCTION,
+    RESIDENT_SPOUSE_DEDUCTION_9M,
+    RESIDENT_SPOUSE_DEDUCTION_10M,
+    RESIDENT_SPOUSE_SPECIAL_TABLE,
+    RESIDENT_SPOUSE_SPECIAL_TABLE_9M,
+    RESIDENT_SPOUSE_SPECIAL_TABLE_10M,
+    RESIDENT_TAX_RATE,
+    RESIDENT_WIDOW_DEDUCTION,
+    RESIDENT_WORKING_STUDENT_DEDUCTION,
+    SALARY_DEDUCTION_FLAT_UPPER_R7,
+    SALARY_DEDUCTION_FLAT_UPPER_R8_R9,
+    SALARY_DEDUCTION_MIN_R7,
+    SALARY_DEDUCTION_MIN_R8_R9,
+    SALARY_DEDUCTION_MIN_R10,
+    SALARY_INCOME_FIXED_STEPS_R8_R9,
+    SPECIAL_20PCT_LAST_YEAR,
+    SPECIAL_30PCT_RATE,
+    SPECIAL_30PCT_YEARS,
+    WORKING_STUDENT_INCOME_LIMIT_R7,
+    WORKING_STUDENT_INCOME_LIMIT_R8,
     DEPENDENT_ELDERLY,
     DEPENDENT_ELDERLY_COHABITING,
     DEPENDENT_GENERAL,
     DEPENDENT_AGE_SPECIFIC_MAX,
     DEPENDENT_AGE_SPECIFIC_MIN,
-    DEPENDENT_INCOME_LIMIT,
     DONATION_INCOME_DEDUCTION_RATIO,
     DONATION_SELF_BURDEN,
     NPO_DONATION_CREDIT_CAP_RATIO,
@@ -103,7 +187,6 @@ from shinkoku.tax_constants import (
     RETIREMENT_OFFICER_SHORT_SERVICE_YEARS,
     RETIREMENT_SHORT_SERVICE_HALF_LIMIT,
     SALARY_DEDUCTION_MAX,
-    SALARY_DEDUCTION_MIN,
     SELF_MEDICATION_MAX,
     SELF_MEDICATION_THRESHOLD,
     SIMPLIFIED_DEEMED_RATIOS,
@@ -122,16 +205,34 @@ from shinkoku.tax_constants import (
     TAXABLE_INCOME_ROUNDING,
     WIDOW_DEDUCTION,
     WORKING_STUDENT_DEDUCTION,
-    WORKING_STUDENT_INCOME_LIMIT,
 )
 
 
-def calc_basic_deduction(total_income: int) -> int:
-    """Calculate basic deduction based on total income (Reiwa 7)."""
-    for upper, deduction in BASIC_DEDUCTION_TABLE:
+def _basic_deduction_table(fiscal_year: int) -> list[tuple[int, int]]:
+    """年分に応じた基礎控除テーブルを返す。"""
+    if fiscal_year <= 2025:
+        return BASIC_DEDUCTION_TABLE_R7
+    if fiscal_year <= 2027:
+        return BASIC_DEDUCTION_TABLE_R8_R9
+    return BASIC_DEDUCTION_TABLE_R10
+
+
+def calc_basic_deduction(total_income: int, fiscal_year: int = 2025) -> int:
+    """基礎控除額を計算する（所得税法86条 + 措法41条の16の2 の加算特例）。
+
+    令和7年分: 58万 + 加算（最大95万）
+    令和8・9年分: 62万 + 加算（最大104万）
+    令和10年分以後: 62万 + 加算（132万以下のみ99万）
+    """
+    for upper, deduction in _basic_deduction_table(fiscal_year):
         if total_income <= upper:
             return deduction
     return 0
+
+
+def dependent_income_limit(fiscal_year: int = 2025) -> int:
+    """扶養親族・同一生計配偶者の所得要件（令和7年分 58万、令和8年分以後 62万）。"""
+    return DEPENDENT_INCOME_LIMIT_R7 if fiscal_year <= 2025 else DEPENDENT_INCOME_LIMIT_R8
 
 
 # ============================================================
@@ -139,24 +240,55 @@ def calc_basic_deduction(total_income: int) -> int:
 # ============================================================
 
 
-def calc_salary_deduction(salary_income: int) -> int:
-    """Calculate salary income deduction (Reiwa 7 revision).
+def calc_salary_deduction(salary_income: int, fiscal_year: int = 2025) -> int:
+    """給与所得控除額を計算する（所得税法28条3項、措法29条の4）。
 
-    令和7年改正: 最低保障額65万、≤190万で一律65万に変更。
+    令和7年分: 最低保障額65万（≤190万で一律65万）
+    令和8・9年分: 最低保障額74万（≤220万で一律74万。219.1万〜220万は給与所得の金額を固定）
+    令和10年分以後: 最低保障額69万（190万超〜220万は 収入×30%+8万、69万未満なら69万）
     Returns the deduction amount (not the net salary income).
     """
     if salary_income <= 0:
         return 0
-    # 令和7年改正: ≤190万は一律65万（旧: ≤162.5万で55万、162.5万超〜180万は40%-10万）
-    if salary_income <= 1_900_000:
-        return SALARY_DEDUCTION_MIN
-    if salary_income <= 3_600_000:
-        return int(salary_income * 30 // 100) + 80_000
+    if fiscal_year <= 2025:
+        # 令和7年改正: ≤190万は一律65万（旧: ≤162.5万で55万、162.5万超〜180万は40%-10万）
+        if salary_income <= SALARY_DEDUCTION_FLAT_UPPER_R7:
+            return SALARY_DEDUCTION_MIN_R7
+    elif fiscal_year <= 2027:
+        # 令和8・9年分: 219.1万〜220万未満は給与所得の金額が段階的に固定される特例
+        for lower, upper, fixed_income in SALARY_INCOME_FIXED_STEPS_R8_R9:
+            if lower <= salary_income < upper:
+                return salary_income - fixed_income
+        if salary_income <= SALARY_DEDUCTION_FLAT_UPPER_R8_R9:
+            return SALARY_DEDUCTION_MIN_R8_R9
+    else:
+        # 令和10年分以後: 本則69万（物価連動で見直しあり）
+        if salary_income <= SALARY_DEDUCTION_FLAT_UPPER_R7:
+            return SALARY_DEDUCTION_MIN_R10
+        if salary_income <= SALARY_DEDUCTION_FLAT_UPPER_R8_R9:
+            # 190万超〜220万: 収入×30%+8万（69万未満なら69万）。給与所得は別表第五（A方式）で計算
+            return max(
+                SALARY_DEDUCTION_MIN_R10, salary_income - _salary_income_by_table(salary_income)
+            )
     if salary_income <= 6_600_000:
-        return int(salary_income * 20 // 100) + 440_000
+        # 所得税法別表第五: 収入÷4（千円未満切捨て）= A として給与所得を求め、控除額は収入との差額
+        return salary_income - _salary_income_by_table(salary_income)
     if salary_income <= 8_500_000:
         return int(salary_income * 10 // 100) + 1_100_000
     return SALARY_DEDUCTION_MAX
+
+
+def _salary_income_by_table(salary_income: int) -> int:
+    """給与収入 660万未満の給与所得の金額（所得税法別表第五の速算式）。
+
+    A = 収入÷4（千円未満切捨て）
+    〜360万: A×2.8 − 8万 / 360万〜660万: A×3.2 − 44万
+    ※ 180万以下の区分（A×2.4+10万）は最低保障額の一律適用で使われないため省略。
+    """
+    a = (salary_income // 4 // 1000) * 1000
+    if salary_income < 3_600_000:
+        return a * 28 // 10 - 80_000
+    return a * 32 // 10 - 440_000
 
 
 # ============================================================
@@ -203,16 +335,40 @@ def calc_life_insurance_deduction_old(premium: int) -> int:
     return LIFE_INSURANCE_OLD_MAX
 
 
-def calc_life_insurance_category(new_premium: int, old_premium: int) -> int:
-    """新旧合算で1区分の控除額を計算（上限40,000円）。
+def calc_life_insurance_deduction_child_special(premium: int) -> int:
+    """子育て世帯の一般生命保険料控除の特例（新契約、上限60,000円）。
 
-    max(新のみ, 旧のみ, min(新+旧合算, 40,000))
+    租税特別措置法第41条の15の5（令和8・9年分限定、23歳未満の扶養親族を有する場合）。
+    ≤3万: 全額 / 3万超〜6万: 1/2+15,000 / 6万超〜12万: 1/4+30,000 / 12万超: 60,000
     """
-    new_only = calc_life_insurance_deduction(new_premium) if new_premium > 0 else 0
+    if premium <= 0:
+        return 0
+    if premium <= LIFE_INSURANCE_CHILD_SPECIAL_BRACKET_1:
+        return premium
+    if premium <= LIFE_INSURANCE_CHILD_SPECIAL_BRACKET_2:
+        return -(-premium // 2) + 15_000  # 1円未満切り上げ
+    if premium <= LIFE_INSURANCE_CHILD_SPECIAL_BRACKET_3:
+        return -(-premium // 4) + 30_000  # 1円未満切り上げ
+    return LIFE_INSURANCE_CHILD_SPECIAL_MAX
+
+
+def calc_life_insurance_category(
+    new_premium: int, old_premium: int, child_special: bool = False
+) -> int:
+    """新旧合算で1区分の控除額を計算（上限40,000円、子育て特例適用時は一般区分60,000円）。
+
+    max(新のみ, 旧のみ, min(新+旧合算, 上限))
+    """
+    if child_special:
+        new_only = calc_life_insurance_deduction_child_special(new_premium)
+        combined_max = LIFE_INSURANCE_CHILD_SPECIAL_MAX
+    else:
+        new_only = calc_life_insurance_deduction(new_premium) if new_premium > 0 else 0
+        combined_max = LIFE_INSURANCE_COMBINED_MAX
     old_only = calc_life_insurance_deduction_old(old_premium) if old_premium > 0 else 0
 
     if new_premium > 0 and old_premium > 0:
-        combined = min(new_only + old_only, LIFE_INSURANCE_COMBINED_MAX)
+        combined = min(new_only + old_only, combined_max)
         return max(new_only, old_only, combined)
     if new_premium > 0:
         return new_only
@@ -225,15 +381,16 @@ def calc_life_insurance_total(
     medical_care: int = 0,
     annuity_new: int = 0,
     annuity_old: int = 0,
+    child_special: bool = False,
 ) -> int:
     """生命保険料控除の3区分合計（上限120,000円）。
 
-    一般: 新旧合算
+    一般: 新旧合算（child_special=True の場合は上限60,000円の子育て特例を適用）
     介護医療: 新制度のみ（上限40,000）
     個人年金: 新旧合算
     合計: min(各区分合計, 120,000)
     """
-    general = calc_life_insurance_category(general_new, general_old)
+    general = calc_life_insurance_category(general_new, general_old, child_special=child_special)
     medical = calc_life_insurance_deduction(medical_care)  # 新制度のみ
     annuity = calc_life_insurance_category(annuity_new, annuity_old)
     return min(general + medical + annuity, LIFE_INSURANCE_TOTAL_MAX)
@@ -302,9 +459,12 @@ def calc_disability_deduction_self(status: str) -> int:
     return 0
 
 
-def calc_working_student_deduction(flag: bool, total_income: int) -> int:
-    """勤労学生控除: 270,000（合計所得75万以下）。"""
-    if flag and total_income <= WORKING_STUDENT_INCOME_LIMIT:
+def calc_working_student_deduction(flag: bool, total_income: int, fiscal_year: int = 2025) -> int:
+    """勤労学生控除: 270,000（合計所得 令和7年分85万以下、令和8年分以後89万以下）。"""
+    limit = (
+        WORKING_STUDENT_INCOME_LIMIT_R7 if fiscal_year <= 2025 else WORKING_STUDENT_INCOME_LIMIT_R8
+    )
+    if flag and total_income <= limit:
         return WORKING_STUDENT_DEDUCTION
     return 0
 
@@ -353,8 +513,13 @@ def calc_dividend_tax_credit(dividend_income: int, taxable_income: int) -> int:
 # ============================================================
 
 
-def calc_spouse_deduction(taxpayer_income: int, spouse_income: int | None) -> int:
-    """Calculate spouse deduction / special spouse deduction."""
+def calc_spouse_deduction(
+    taxpayer_income: int, spouse_income: int | None, fiscal_year: int = 2025
+) -> int:
+    """配偶者控除 / 配偶者特別控除を計算する（所得税法83条・83条の2）。
+
+    配偶者控除の所得要件は令和7年分 58万、令和8年分以後 62万（テーブル先頭行の上限を年分で置換）。
+    """
     if spouse_income is None:
         return 0
     if taxpayer_income > SPOUSE_TAXPAYER_INCOME_LIMIT:
@@ -368,7 +533,10 @@ def calc_spouse_deduction(taxpayer_income: int, spouse_income: int | None) -> in
     else:  # <= 10_000_000
         table = SPOUSE_DEDUCTION_TABLE_10M
 
-    for upper, deduction in table:
+    limit = dependent_income_limit(fiscal_year)
+    for i, (upper, deduction) in enumerate(table):
+        if i == 0:
+            upper = limit  # 配偶者控除の所得要件（年分依存）
         if spouse_income <= upper:
             return deduction
     return 0
@@ -396,14 +564,14 @@ def calc_dependents_deduction(
 ) -> list[DeductionItem]:
     """Calculate deductions for dependents (扶養控除 + 特定親族特別控除 + 障害者控除).
 
-    扶養控除（配偶者以外の親族で所得58万以下）:
+    扶養控除（配偶者以外の親族で所得58万以下、令和8年分以後は62万以下）:
     - 一般扶養: 38万円（16歳以上）
     - 特定扶養: 63万円（19歳以上23歳未満）
     - 老人扶養（同居）: 58万円（70歳以上、同居）
     - 老人扶養（別居）: 48万円（70歳以上、別居）
     - 16歳未満: 扶養控除なし（児童手当対象）
 
-    特定親族特別控除（令和7年新設、19〜22歳で所得58万超〜123万以下）:
+    特定親族特別控除（令和7年新設、19〜22歳で所得58万超〜123万以下。R8以後は62万超）:
     - 所得金額に応じて63万〜3万の段階的控除
 
     障害者控除:
@@ -413,6 +581,7 @@ def calc_dependents_deduction(
     """
     items: list[DeductionItem] = []
     fiscal_year_end = f"{fiscal_year}-12-31"
+    income_limit = dependent_income_limit(fiscal_year)
 
     for dep in dependents:
         # 他の納税者の扶養親族 → 二重控除防止のため除外
@@ -426,12 +595,12 @@ def calc_dependents_deduction(
         age = _calc_age(dep.birth_date, fiscal_year_end)
         is_specific_age = DEPENDENT_AGE_SPECIFIC_MIN <= age < DEPENDENT_AGE_SPECIFIC_MAX
 
-        # 所得要件: 19〜22歳は123万まで許容（特定親族特別控除）、それ以外は58万
+        # 所得要件: 19〜22歳は123万まで許容（特定親族特別控除）、それ以外は58万（R8以後62万）
         if is_specific_age:
             if dep.income > SPECIFIC_RELATIVE_SPECIAL_INCOME_MAX:
                 continue
         else:
-            if dep.income > DEPENDENT_INCOME_LIMIT:
+            if dep.income > income_limit:
                 continue
 
         # 扶養控除（16歳以上のみ）
@@ -452,8 +621,8 @@ def calc_dependents_deduction(
                 )
             )
         elif is_specific_age:
-            if dep.income <= DEPENDENT_INCOME_LIMIT:
-                # 所得58万以下: 通常の特定扶養控除
+            if dep.income <= income_limit:
+                # 所得58万（R8以後62万）以下: 通常の特定扶養控除
                 items.append(
                     DeductionItem(
                         type="dependent",
@@ -522,6 +691,27 @@ def calc_dependents_deduction(
     return items
 
 
+def has_child_for_life_insurance_special(
+    dependents: list[DependentInfo] | None, fiscal_year: int
+) -> bool:
+    """生命保険料控除の子育て特例（措法41条の15の5）の対象となる扶養親族がいるか。
+
+    令和8・9年分限定。年末時点で23歳未満、所得要件を満たす配偶者以外の親族が対象。
+    夫婦の一方の扶養に入れている子でも他方も特例を受けられるため、
+    other_taxpayer_dependent は判定から除外しない。
+    """
+    if fiscal_year not in LIFE_INSURANCE_CHILD_SPECIAL_YEARS or not dependents:
+        return False
+    fiscal_year_end = f"{fiscal_year}-12-31"
+    income_limit = dependent_income_limit(fiscal_year)
+    for dep in dependents:
+        if dep.relationship == "配偶者" or dep.income > income_limit:
+            continue
+        if _calc_age(dep.birth_date, fiscal_year_end) < LIFE_INSURANCE_CHILD_SPECIAL_AGE_MAX:
+            return True
+    return False
+
+
 # ============================================================
 # Furusato Nozei (Hometown Tax Donation) Deduction
 # ============================================================
@@ -556,15 +746,37 @@ def _get_balance_limit(detail: HousingLoanDetail) -> int:
     move_in_year = int(detail.move_in_date[:4])
     key = (detail.housing_category, detail.is_new_construction)
 
+    # 適用期限: 令和12年（2030年）12月31日までの入居
+    if move_in_year > HOUSING_LOAN_LAST_YEAR:
+        return 0
+
     # 入居年に応じたテーブル選択
     if move_in_year <= 2023:
         limits = HOUSING_LOAN_LIMITS_R4_R5
-    elif detail.is_childcare_household:
-        limits = HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE
+    elif move_in_year < HOUSING_LOAN_R8_START_YEAR:
+        limits = (
+            HOUSING_LOAN_LIMITS_R6_R7_CHILDCARE
+            if detail.is_childcare_household
+            else HOUSING_LOAN_LIMITS_R6_R7
+        )
     else:
-        limits = HOUSING_LOAN_LIMITS_R6_R7
+        # 令和8年度改正: R8〜R12入居（5年延長、中古の拡充、子育て世帯の中古上乗せ新設）
+        limits = (
+            HOUSING_LOAN_LIMITS_R8_R12_CHILDCARE
+            if detail.is_childcare_household
+            else HOUSING_LOAN_LIMITS_R8_R12
+        )
 
     limit = limits.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
+
+    # R10〜R12入居の新築省エネ基準適合住宅: 建築確認がR9.12.31以前（または建築日R10.6.30以前）の
+    # 場合のみ「その他の住宅」扱いで2,000万/10年。それ以外は対象外
+    if (
+        move_in_year > HOUSING_LOAN_ENERGY_EFFICIENT_NEW_LAST_YEAR
+        and detail.housing_category == "energy_efficient"
+        and detail.is_new_construction
+    ):
+        limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED if detail.has_pre_r10_building_permit else 0
 
     # 一般住宅新築 R6-R7: R5確認済みなら特例上限（2,000万/控除期間10年）
     if (
@@ -739,7 +951,7 @@ def calc_deductions(
     tax_credits: list[DeductionItem] = []
 
     # 1. Basic deduction (always applied if > 0)
-    basic = calc_basic_deduction(total_income)
+    basic = calc_basic_deduction(total_income, fiscal_year)
     if basic > 0:
         income_deductions.append(DeductionItem(type="basic", name="基礎控除", amount=basic))
 
@@ -754,6 +966,8 @@ def calc_deductions(
         )
 
     # 3. Life insurance（3区分対応: Phase 3）
+    # 令和8・9年分: 23歳未満の扶養親族がいる場合、新契約の一般生命保険料控除の上限が6万に拡充
+    child_special = has_child_for_life_insurance_special(dependents, fiscal_year)
     if life_insurance_detail is not None:
         li_deduction = calc_life_insurance_total(
             general_new=life_insurance_detail.general_new,
@@ -761,6 +975,7 @@ def calc_deductions(
             medical_care=life_insurance_detail.medical_care,
             annuity_new=life_insurance_detail.annuity_new,
             annuity_old=life_insurance_detail.annuity_old,
+            child_special=child_special,
         )
         if li_deduction > 0:
             income_deductions.append(
@@ -768,17 +983,22 @@ def calc_deductions(
                     type="life_insurance",
                     name="生命保険料控除",
                     amount=li_deduction,
-                    details="3区分詳細",
+                    details="3区分詳細" + ("（子育て特例適用）" if child_special else ""),
                 )
             )
     elif life_insurance_premium > 0:
-        li_deduction = calc_life_insurance_deduction(life_insurance_premium)
+        # 単一金額入力は新契約の一般生命保険料として扱う
+        if child_special:
+            li_deduction = calc_life_insurance_deduction_child_special(life_insurance_premium)
+        else:
+            li_deduction = calc_life_insurance_deduction(life_insurance_premium)
         if li_deduction > 0:
             income_deductions.append(
                 DeductionItem(
                     type="life_insurance",
                     name="生命保険料控除",
                     amount=li_deduction,
+                    details="子育て特例適用" if child_special else None,
                 )
             )
 
@@ -921,7 +1141,7 @@ def calc_deductions(
 
     # 8. Spouse deduction
     if spouse_income is not None:
-        spouse = calc_spouse_deduction(total_income, spouse_income)
+        spouse = calc_spouse_deduction(total_income, spouse_income, fiscal_year)
         if spouse > 0:
             income_deductions.append(DeductionItem(type="spouse", name="配偶者控除", amount=spouse))
 
@@ -951,7 +1171,7 @@ def calc_deductions(
 
     # 12. 勤労学生控除（Phase 5）
     if working_student:
-        ws = calc_working_student_deduction(True, total_income)
+        ws = calc_working_student_deduction(True, total_income, fiscal_year)
         if ws > 0:
             income_deductions.append(
                 DeductionItem(type="working_student", name="勤労学生控除", amount=ws)
@@ -1090,7 +1310,7 @@ def calc_income_tax(input_data: IncomeTaxInput) -> IncomeTaxResult:
     10. Difference = filing amount - withheld tax
     """
     # Step 1: Salary income after deduction
-    salary_deduction = calc_salary_deduction(input_data.salary_income)
+    salary_deduction = calc_salary_deduction(input_data.salary_income, input_data.fiscal_year)
     salary_income_after = max(0, input_data.salary_income - salary_deduction)
 
     # Step 2: Business income（赤字の場合は負値 → 給与所得と損益通算）
@@ -1405,10 +1625,23 @@ def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResul
     5. 地方消費税 = 差引税額 × 22/78、100円未満切捨
 
     Methods:
-    - special_20pct: 2割特例 = 消費税額(国税) × 20%
+    - special_20pct: 2割特例 = 消費税額(国税) × 20%（R8.9.30を含む課税期間まで。個人はR8年分が最後）
+    - special_30pct: 3割特例 = 消費税額(国税) × 30%（令和8年度改正で新設、個人事業者のR9・R10年分）
     - simplified: 簡易課税 = 消費税額(国税) × (1 - みなし仕入率)
     - standard: 本則課税 = 消費税額(国税) - 実際の仕入税額(国税部分)
     """
+    # 経過措置の適用期間チェック（個人事業者は暦年課税期間）
+    if input_data.method == "special_20pct" and input_data.fiscal_year > SPECIAL_20PCT_LAST_YEAR:
+        raise ValueError(
+            f"2割特例は令和8年（2026年）分までです（指定: {input_data.fiscal_year}年分）。"
+            "令和9・10年分は special_30pct（3割特例）を検討してください"
+        )
+    if input_data.method == "special_30pct" and input_data.fiscal_year not in SPECIAL_30PCT_YEARS:
+        raise ValueError(
+            f"3割特例は個人事業者の令和9年・令和10年（2027・2028年）分のみ適用できます"
+            f"（指定: {input_data.fiscal_year}年分）"
+        )
+
     taxable_sales_total = input_data.taxable_sales_10 + input_data.taxable_sales_8
 
     # Step 1: 課税標準額 = 税込金額から税抜を逆算し、1,000円未満切捨（国税通則法118条）
@@ -1434,6 +1667,11 @@ def calc_consumption_tax(input_data: ConsumptionTaxInput) -> ConsumptionTaxResul
     if input_data.method == "special_20pct":
         # 2割特例: 仕入控除税額 = 消費税額(国税) × 80%
         tax_on_purchases = national_tax_on_sales * (100 - SPECIAL_20PCT_RATE) // 100
+        tax_due_raw = national_tax_on_sales - tax_on_purchases
+
+    elif input_data.method == "special_30pct":
+        # 3割特例: 仕入控除税額 = 消費税額(国税) × 70%（令和9・10年分、個人事業者のみ）
+        tax_on_purchases = national_tax_on_sales * (100 - SPECIAL_30PCT_RATE) // 100
         tax_due_raw = national_tax_on_sales - tax_on_purchases
 
     elif input_data.method == "simplified":
@@ -1521,49 +1759,451 @@ def _get_marginal_tax_rate(taxable_income: int) -> int:
     return INCOME_TAX_TOP_RATE  # Over 40,000,000
 
 
+def _resident_adjustment_credit(
+    resident_taxable_income: int, personal_diff: int, total_income: int
+) -> int:
+    """住民税の調整控除額（地方税法第37条・第314条の6）。
+
+    合計所得金額2,500万超は対象外。
+    課税所得200万以下: min(人的控除差合計, 課税所得) × 5%
+    課税所得200万超: max(人的控除差合計 − (課税所得 − 200万), 5万) × 5%
+    """
+    if personal_diff <= 0 or resident_taxable_income <= 0:
+        return 0
+    if total_income > RESIDENT_ADJUSTMENT_CREDIT_INCOME_LIMIT:
+        return 0
+    if resident_taxable_income <= RESIDENT_ADJUSTMENT_CREDIT_THRESHOLD:
+        base = min(personal_diff, resident_taxable_income)
+    else:
+        base = max(
+            personal_diff - (resident_taxable_income - RESIDENT_ADJUSTMENT_CREDIT_THRESHOLD),
+            RESIDENT_ADJUSTMENT_CREDIT_MIN_BASE,
+        )
+    return base * RESIDENT_ADJUSTMENT_CREDIT_RATE // 100
+
+
+def _furusato_limit_from_levy(
+    resident_tax_income_levy: int,
+    income_tax_rate_percent: int,
+    fiscal_year: int,
+) -> tuple[int, int, bool]:
+    """住民税所得割額と所得税率から上限額を求める。
+
+    Returns (上限額, 特例控除の上限額, 193万キャップ適用有無)。
+    特例控除上限 = 所得割額 × 20%（令和9年中以後の寄附は193万円との低い方、令和8年度改正）
+    上限額 = 特例控除上限 ÷ (100% − 10% − 所得税率 × 1.021) + 2,000
+    """
+    special_max = resident_tax_income_levy * FURUSATO_RESIDENTIAL_TAX_RATIO // 100
+    cap_applied = False
+    if (
+        fiscal_year >= FURUSATO_SPECIAL_CREDIT_CAP_FROM_YEAR
+        and special_max > FURUSATO_SPECIAL_CREDIT_CAP
+    ):
+        special_max = FURUSATO_SPECIAL_CREDIT_CAP
+        cap_applied = True
+    if special_max <= 0:
+        return 0, 0, cap_applied
+
+    # 分母: 100% - (所得税率 × 1.021) - 10%(住民税基本分)。パーセント整数演算のため1000倍
+    denominator_permille = 1000 - income_tax_rate_percent * 1021 // 100 - 100
+    if denominator_permille <= 0:
+        # 所得税率が非常に高い場合の安全策
+        return special_max + FURUSATO_SELF_BURDEN, special_max, cap_applied
+
+    limit = special_max * 1000 // denominator_permille + FURUSATO_SELF_BURDEN
+    return limit, special_max, cap_applied
+
+
 def calc_furusato_deduction_limit(
     total_income: int,
     total_income_deductions: int,
     income_tax_rate_percent: int | None = None,
+    resident_tax_income_deductions: int | None = None,
+    personal_deduction_difference: int = 0,
+    fiscal_year: int = 2025,
+    rate_adjustment: int | None = None,
 ) -> int:
     """Estimate furusato nozei deduction limit.
 
     推定上限額の計算式（住民税所得割額の20%ベース）:
     上限 ≈ 住民税所得割額 × 20% ÷ (100% - 所得税率 × 1.021 - 10%) + 2,000
 
-    住民税所得割額 = (総所得 - 所得控除) × 10%
+    住民税所得割額 = (総所得 - 住民税の所得控除) × 10% - 調整控除
+    所得税率 = (住民税課税所得 - 税率判定用調整額) に対応する累進税率（地方税法37条の2第2項）
+      税率判定用調整額 = 人的控除差 + (所得税の基礎控除額 - 48万)。rate_adjustment で明示指定できる。
+      省略時は personal_deduction_difference と fiscal_year の基礎控除から自動計算する。
 
-    Note: この計算は推定値。調整控除等は考慮していない。
+    resident_tax_income_deductions を省略した場合は所得税の所得控除合計で代用する（簡易推定）。
+    所得税の基礎控除（58万〜104万）は住民税（43万）より大きいため、簡易推定は所得割を過少に見積もる。
+    正確な推定には calc_furusato_limit_detailed を使う。
     """
-    taxable_income_raw = max(0, total_income - total_income_deductions)
+    if resident_tax_income_deductions is None:
+        # 簡易推定: 所得税の課税所得をそのまま使うため税率判定の調整は不要
+        resident_tax_income_deductions = total_income_deductions
+        personal_deduction_difference = 0
+        if rate_adjustment is None:
+            rate_adjustment = 0
+    if rate_adjustment is None:
+        rate_adjustment = (
+            personal_deduction_difference
+            + calc_basic_deduction(total_income, fiscal_year)
+            - RESIDENT_RATE_ADJ_BASIC_BASE
+        )
+
+    taxable_income_raw = max(0, total_income - resident_tax_income_deductions)
     # 課税所得を1,000円未満切捨て
     taxable_income = (taxable_income_raw // TAXABLE_INCOME_ROUNDING) * TAXABLE_INCOME_ROUNDING
 
     if taxable_income <= 0:
         return 0
 
-    # 所得税率を自動計算（指定がなければ）
+    # 所得税率を自動計算（指定がなければ）。特例控除の税率判定は調整額を差し引いた課税所得で行う
     if income_tax_rate_percent is None:
-        income_tax_rate_percent = _get_marginal_tax_rate(taxable_income)
+        income_tax_rate_percent = _get_marginal_tax_rate(max(0, taxable_income - rate_adjustment))
 
-    # 住民税所得割額 = 課税所得 × 10%
-    juuminzei_shotokuwari = taxable_income * 10 // 100
+    # 住民税所得割額 = 課税所得 × 10% - 調整控除
+    adjustment = _resident_adjustment_credit(
+        taxable_income, personal_deduction_difference, total_income
+    )
+    juuminzei_shotokuwari = max(0, taxable_income * RESIDENT_TAX_RATE // 100 - adjustment)
 
     if juuminzei_shotokuwari <= 0:
         return 0
 
-    # 分母: 100% - (所得税率 × 1.021) - 10%(住民税基本分)
-    # パーセント整数演算のため1000倍して計算
-    denominator_permille = 1000 - income_tax_rate_percent * 1021 // 100 - 100
-
-    if denominator_permille <= 0:
-        # 所得税率が非常に高い場合の安全策
-        return juuminzei_shotokuwari * FURUSATO_RESIDENTIAL_TAX_RATIO // 100 + FURUSATO_SELF_BURDEN
-
-    # 上限 = 住民税所得割額 × 20% ÷ (分母/100%) + 2,000
-    limit = juuminzei_shotokuwari * 200 // denominator_permille + FURUSATO_SELF_BURDEN
-
+    limit, _special_max, _cap = _furusato_limit_from_levy(
+        juuminzei_shotokuwari, income_tax_rate_percent, fiscal_year
+    )
     return limit
+
+
+# ============================================================
+# 住民税の所得控除（ふるさと納税上限の推定用）
+# ============================================================
+
+
+def _resident_life_insurance_new(premium: int) -> int:
+    """住民税 生命保険料控除（新契約、1区分上限28,000円）。"""
+    if premium <= 0:
+        return 0
+    if premium <= RESIDENT_LIFE_INSURANCE_NEW_BRACKET_1:
+        return premium
+    if premium <= RESIDENT_LIFE_INSURANCE_NEW_BRACKET_2:
+        return -(-premium // 2) + 6_000
+    if premium <= RESIDENT_LIFE_INSURANCE_NEW_BRACKET_3:
+        return -(-premium // 4) + 14_000
+    return RESIDENT_LIFE_INSURANCE_NEW_MAX
+
+
+def _resident_life_insurance_old(premium: int) -> int:
+    """住民税 生命保険料控除（旧契約、1区分上限35,000円）。"""
+    if premium <= 0:
+        return 0
+    if premium <= RESIDENT_LIFE_INSURANCE_OLD_BRACKET_1:
+        return premium
+    if premium <= RESIDENT_LIFE_INSURANCE_OLD_BRACKET_2:
+        return -(-premium // 2) + 7_500
+    if premium <= RESIDENT_LIFE_INSURANCE_OLD_BRACKET_3:
+        return -(-premium // 4) + 17_500
+    return RESIDENT_LIFE_INSURANCE_OLD_MAX
+
+
+def _resident_life_insurance_category(new_premium: int, old_premium: int) -> int:
+    """住民税 生命保険料控除 1区分（新旧合算上限28,000円）。"""
+    new_only = _resident_life_insurance_new(new_premium)
+    old_only = _resident_life_insurance_old(old_premium)
+    if new_premium > 0 and old_premium > 0:
+        return max(
+            new_only, old_only, min(new_only + old_only, RESIDENT_LIFE_INSURANCE_COMBINED_MAX)
+        )
+    return new_only if new_premium > 0 else old_only
+
+
+def calc_resident_life_insurance_deduction(
+    life_insurance_premium: int = 0,
+    life_insurance_detail: LifeInsurancePremiumInput | None = None,
+) -> int:
+    """住民税の生命保険料控除（3区分合計上限70,000円）。子育て特例は住民税にはない。"""
+    if life_insurance_detail is not None:
+        general = _resident_life_insurance_category(
+            life_insurance_detail.general_new, life_insurance_detail.general_old
+        )
+        medical = _resident_life_insurance_new(life_insurance_detail.medical_care)
+        annuity = _resident_life_insurance_category(
+            life_insurance_detail.annuity_new, life_insurance_detail.annuity_old
+        )
+        return min(general + medical + annuity, RESIDENT_LIFE_INSURANCE_TOTAL_MAX)
+    return _resident_life_insurance_new(life_insurance_premium)
+
+
+def calc_resident_earthquake_insurance_deduction(
+    earthquake_premium: int = 0, old_long_term_premium: int = 0
+) -> int:
+    """住民税の地震保険料控除（支払額の1/2、上限25,000円。旧長期は上限10,000円）。"""
+    eq = (
+        min(-(-earthquake_premium // 2), RESIDENT_EARTHQUAKE_INSURANCE_MAX)
+        if earthquake_premium > 0
+        else 0
+    )
+    old = 0
+    if old_long_term_premium > 0:
+        if old_long_term_premium <= RESIDENT_OLD_LONG_TERM_BRACKET_1:
+            old = old_long_term_premium
+        elif old_long_term_premium <= RESIDENT_OLD_LONG_TERM_BRACKET_2:
+            old = -(-old_long_term_premium // 2) + 2_500
+        else:
+            old = RESIDENT_OLD_LONG_TERM_MAX
+    return min(eq + old, RESIDENT_EARTHQUAKE_INSURANCE_MAX)
+
+
+def _resident_basic_deduction(total_income: int) -> tuple[int, int]:
+    """住民税 基礎控除と人的控除差（調整控除用、一律5万）。"""
+    for (upper, deduction), (_, diff) in zip(
+        RESIDENT_BASIC_DEDUCTION_TABLE, RESIDENT_ADJ_DIFF_BASIC_TABLE, strict=True
+    ):
+        if total_income <= upper:
+            return deduction, diff
+    return 0, 0
+
+
+def _resident_spouse_deduction(
+    taxpayer_income: int, spouse_income: int | None, fiscal_year: int
+) -> tuple[int, int]:
+    """住民税 配偶者控除・配偶者特別控除と人的控除差。"""
+    if spouse_income is None or taxpayer_income > SPOUSE_TAXPAYER_INCOME_LIMIT:
+        return 0, 0
+    if taxpayer_income <= SPOUSE_TAXPAYER_BRACKET_1:
+        base, base_diff = RESIDENT_SPOUSE_DEDUCTION, RESIDENT_ADJ_DIFF_SPOUSE
+        table, special_diff = RESIDENT_SPOUSE_SPECIAL_TABLE, RESIDENT_ADJ_DIFF_SPOUSE_SPECIAL
+    elif taxpayer_income <= SPOUSE_TAXPAYER_BRACKET_2:
+        base, base_diff = RESIDENT_SPOUSE_DEDUCTION_9M, RESIDENT_ADJ_DIFF_SPOUSE_9M
+        table, special_diff = RESIDENT_SPOUSE_SPECIAL_TABLE_9M, RESIDENT_ADJ_DIFF_SPOUSE_SPECIAL_9M
+    else:
+        base, base_diff = RESIDENT_SPOUSE_DEDUCTION_10M, RESIDENT_ADJ_DIFF_SPOUSE_10M
+        table, special_diff = (
+            RESIDENT_SPOUSE_SPECIAL_TABLE_10M,
+            RESIDENT_ADJ_DIFF_SPOUSE_SPECIAL_10M,
+        )
+
+    if spouse_income <= dependent_income_limit(fiscal_year):
+        return base, base_diff  # 配偶者控除
+    # 配偶者特別控除: 所得95万以下は満額（配偶者控除と同額）、調整控除の対象外
+    if spouse_income <= 950_000:
+        return base, 0
+    for upper, deduction in table:
+        if spouse_income <= upper:
+            # 人的控除差は配偶者所得95万超〜100万の区分のみ
+            return deduction, special_diff if upper == 1_000_000 else 0
+    return 0, 0
+
+
+def _resident_dependents_deduction(
+    dependents: list[DependentInfo], fiscal_year: int
+) -> tuple[int, int]:
+    """住民税 扶養控除・特定親族特別控除・障害者控除（扶養親族分）と人的控除差の合計。"""
+    total = 0
+    diff = 0
+    fiscal_year_end = f"{fiscal_year}-12-31"
+    income_limit = dependent_income_limit(fiscal_year)
+    for dep in dependents:
+        if dep.other_taxpayer_dependent or dep.relationship == "配偶者":
+            continue
+        age = _calc_age(dep.birth_date, fiscal_year_end)
+        is_specific_age = DEPENDENT_AGE_SPECIFIC_MIN <= age < DEPENDENT_AGE_SPECIFIC_MAX
+        if is_specific_age:
+            if dep.income > SPECIFIC_RELATIVE_SPECIAL_INCOME_MAX:
+                continue
+        elif dep.income > income_limit:
+            continue
+
+        if age >= 70:
+            if dep.cohabiting:
+                total += RESIDENT_DEPENDENT_ELDERLY_COHABITING
+                diff += RESIDENT_ADJ_DIFF_DEPENDENT_ELDERLY_COHABITING
+            else:
+                total += RESIDENT_DEPENDENT_ELDERLY
+                diff += RESIDENT_ADJ_DIFF_DEPENDENT_ELDERLY
+        elif is_specific_age:
+            if dep.income <= income_limit:
+                total += RESIDENT_DEPENDENT_SPECIFIC
+                diff += RESIDENT_ADJ_DIFF_DEPENDENT_SPECIFIC
+            else:
+                # 特定親族特別控除: 所得税額との差が人的控除差
+                income_tax_amount = 0
+                for threshold, amount in SPECIFIC_RELATIVE_SPECIAL_DEDUCTION_TABLE:
+                    if dep.income <= threshold:
+                        income_tax_amount = amount
+                        break
+                resident_amount = 0
+                for threshold, amount in RESIDENT_SPECIFIC_RELATIVE_SPECIAL_TABLE:
+                    if dep.income <= threshold:
+                        resident_amount = amount
+                        break
+                total += resident_amount
+                diff += max(0, income_tax_amount - resident_amount)
+        elif age >= 16:
+            total += RESIDENT_DEPENDENT_GENERAL
+            diff += RESIDENT_ADJ_DIFF_DEPENDENT_GENERAL
+
+        if dep.disability == "special_cohabiting":
+            total += RESIDENT_DISABILITY_SPECIAL_COHABITING
+            diff += RESIDENT_ADJ_DIFF_DISABILITY_SPECIAL_COHABITING
+        elif dep.disability == "special":
+            total += RESIDENT_DISABILITY_SPECIAL
+            diff += RESIDENT_ADJ_DIFF_DISABILITY_SPECIAL
+        elif dep.disability == "general":
+            total += RESIDENT_DISABILITY_GENERAL
+            diff += RESIDENT_ADJ_DIFF_DISABILITY_GENERAL
+    return total, diff
+
+
+def calc_furusato_limit_detailed(input_data: FurusatoLimitInput) -> FurusatoLimitResult:
+    """住民税側の所得控除・調整控除を考慮したふるさと納税上限額の推定。
+
+    手順:
+    1. 所得税の所得控除合計を calc_deductions で計算（参考値）
+    2. 住民税の所得控除合計と人的控除差を住民税の控除額テーブルで計算
+       （寄附金控除は住民税では税額控除のため含めない）
+    3. 住民税課税所得 = 総所得 − 住民税所得控除（1,000円未満切捨て）
+    4. 所得割額 = 課税所得 × 10% − 調整控除
+    5. 特例控除の所得税率 = (住民税課税所得 − 人的控除差) に対応する累進税率（地方税法37条の2第2項）
+    6. 上限 = 所得割額 × 20% ÷ (90% − 所得税率 × 1.021) + 2,000
+
+    住宅ローン控除の住民税控除分や他の寄附金税額控除は考慮していない（notes に記載）。
+    """
+    fy = input_data.fiscal_year
+    total_income = input_data.total_income
+    notes: list[str] = []
+
+    # 1. 所得税の所得控除（参考）
+    income_tax_deductions = calc_deductions(
+        total_income=total_income,
+        social_insurance=input_data.social_insurance,
+        life_insurance_premium=input_data.life_insurance_premium,
+        life_insurance_detail=input_data.life_insurance_detail,
+        earthquake_insurance_premium=input_data.earthquake_insurance_premium,
+        old_long_term_insurance_premium=input_data.old_long_term_insurance_premium,
+        medical_expenses=input_data.medical_expenses,
+        self_medication_expenses=input_data.self_medication_expenses,
+        self_medication_eligible=input_data.self_medication_eligible,
+        spouse_income=input_data.spouse_income,
+        ideco_contribution=input_data.ideco_contribution,
+        small_business_mutual_aid=input_data.small_business_mutual_aid,
+        dependents=input_data.dependents,
+        fiscal_year=fy,
+        widow_status=input_data.widow_status,
+        disability_status=input_data.disability_status,
+        working_student=input_data.working_student,
+    )
+    income_tax_total = income_tax_deductions.total_income_deductions
+    income_tax_taxable = (
+        max(0, total_income - income_tax_total) // TAXABLE_INCOME_ROUNDING
+    ) * TAXABLE_INCOME_ROUNDING
+
+    # 2. 住民税の所得控除
+    resident_total = 0
+    personal_diff = 0
+
+    basic, basic_diff = _resident_basic_deduction(total_income)
+    resident_total += basic
+    personal_diff += basic_diff
+
+    # 社会保険料・小規模企業共済等掛金・医療費（セルフメディケーション含む）は所得税と同額
+    for item in income_tax_deductions.income_deductions:
+        if item.type in (
+            "social_insurance",
+            "small_business_mutual_aid",
+            "medical",
+            "self_medication",
+        ):
+            resident_total += item.amount
+
+    resident_total += calc_resident_life_insurance_deduction(
+        input_data.life_insurance_premium, input_data.life_insurance_detail
+    )
+    resident_total += calc_resident_earthquake_insurance_deduction(
+        input_data.earthquake_insurance_premium, input_data.old_long_term_insurance_premium
+    )
+
+    spouse, spouse_diff = _resident_spouse_deduction(total_income, input_data.spouse_income, fy)
+    resident_total += spouse
+    personal_diff += spouse_diff
+
+    dep_total, dep_diff = _resident_dependents_deduction(input_data.dependents, fy)
+    resident_total += dep_total
+    personal_diff += dep_diff
+
+    if input_data.widow_status != "none" and total_income <= PERSONAL_DEDUCTION_INCOME_LIMIT:
+        if input_data.widow_status == "single_parent":
+            resident_total += RESIDENT_SINGLE_PARENT_DEDUCTION
+            personal_diff += RESIDENT_ADJ_DIFF_SINGLE_PARENT
+            notes.append("ひとり親控除の人的控除差は5万（母）で計算しています。父の場合は1万です。")
+        else:
+            resident_total += RESIDENT_WIDOW_DEDUCTION
+            personal_diff += RESIDENT_ADJ_DIFF_WIDOW
+
+    if input_data.disability_status == "special":
+        resident_total += RESIDENT_DISABILITY_SPECIAL
+        personal_diff += RESIDENT_ADJ_DIFF_DISABILITY_SPECIAL
+    elif input_data.disability_status == "general":
+        resident_total += RESIDENT_DISABILITY_GENERAL
+        personal_diff += RESIDENT_ADJ_DIFF_DISABILITY_GENERAL
+
+    if calc_working_student_deduction(input_data.working_student, total_income, fy) > 0:
+        resident_total += RESIDENT_WORKING_STUDENT_DEDUCTION
+        personal_diff += RESIDENT_ADJ_DIFF_WORKING_STUDENT
+
+    # 3. 住民税課税所得
+    resident_taxable = (
+        max(0, total_income - resident_total) // TAXABLE_INCOME_ROUNDING
+    ) * TAXABLE_INCOME_ROUNDING
+
+    # 4. 所得割額（調整控除後）
+    adjustment = _resident_adjustment_credit(resident_taxable, personal_diff, total_income)
+    levy = max(0, resident_taxable * RESIDENT_TAX_RATE // 100 - adjustment)
+
+    # 5. 特例控除の所得税率: 課税総所得金額 − 人的控除差 − (所得税の基礎控除 − 48万) で判定
+    #    （地方税法37条の2第2項。所得税の基礎控除引上げに伴う措置で、所得税の課税所得と一致する）
+    income_tax_basic = calc_basic_deduction(total_income, fy)
+    rate_adjustment = personal_diff + income_tax_basic - RESIDENT_RATE_ADJ_BASIC_BASE
+    if input_data.income_tax_rate_percent is not None:
+        rate = input_data.income_tax_rate_percent
+    else:
+        rate = _get_marginal_tax_rate(max(0, resident_taxable - rate_adjustment))
+
+    # 6. 上限額
+    limit, special_max, cap_applied = _furusato_limit_from_levy(levy, rate, fy)
+    if levy <= 0:
+        limit = 0
+
+    if cap_applied:
+        notes.append(
+            "特例控除額が上限193万円（令和8年度改正、令和9年中以後の寄附）に達しています。"
+        )
+    notes.append(
+        "住宅ローン控除の住民税からの控除分、ふるさと納税以外の寄附金税額控除、"
+        "分離課税所得は考慮していません。"
+    )
+    notes.append(
+        f"特例控除の所得税率は、住民税課税所得から人的控除差{personal_diff:,}円と"
+        f"（所得税の基礎控除{income_tax_basic:,}円 − 48万円）を差し引いた金額で判定しました（{rate}%）。"
+    )
+
+    return FurusatoLimitResult(
+        fiscal_year=fy,
+        estimated_limit=limit,
+        total_income=total_income,
+        income_tax_deductions_total=income_tax_total,
+        income_tax_taxable_income=income_tax_taxable,
+        resident_tax_deductions_total=resident_total,
+        resident_tax_taxable_income=resident_taxable,
+        personal_deduction_difference=personal_diff,
+        adjustment_credit=adjustment,
+        resident_tax_income_levy=levy,
+        special_credit_rate_percent=rate,
+        special_credit_max=special_max,
+        special_credit_cap_applied=cap_applied,
+        notes=notes,
+    )
 
 
 # ============================================================

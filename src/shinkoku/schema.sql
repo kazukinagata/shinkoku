@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS housing_loan_details (
     is_new_construction INTEGER NOT NULL DEFAULT 1,
     is_childcare_household INTEGER NOT NULL DEFAULT 0,
     has_pre_r6_building_permit INTEGER NOT NULL DEFAULT 0,
+    has_pre_r10_building_permit INTEGER NOT NULL DEFAULT 0,
     purchase_date TEXT,
     purchase_price INTEGER NOT NULL DEFAULT 0,
     total_floor_area INTEGER NOT NULL DEFAULT 0,

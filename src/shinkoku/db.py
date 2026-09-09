@@ -44,3 +44,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE housing_loan_details "
             "ADD COLUMN cost_for_proration INTEGER NOT NULL DEFAULT 0"
         )
+    # housing_loan_details: R10以後入居の新築省エネ基準適合住宅の建築確認要件（令和8年度改正）
+    if "has_pre_r10_building_permit" not in hl_cols:
+        conn.execute(
+            "ALTER TABLE housing_loan_details "
+            "ADD COLUMN has_pre_r10_building_permit INTEGER NOT NULL DEFAULT 0"
+        )

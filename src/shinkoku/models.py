@@ -334,6 +334,8 @@ class HousingLoanDetail(BaseModel):
     is_new_construction: bool = True  # 新築=True, 中古=False
     is_childcare_household: bool = False  # 子育て世帯・若者夫婦世帯
     has_pre_r6_building_permit: bool = False  # R5以前の建築確認済み（一般住宅のみ関連）
+    # R9.12.31以前の建築確認済み or 建築日R10.6.30以前（R10以後入居の新築省エネ基準適合住宅のみ関連）
+    has_pre_r10_building_permit: bool = False
     dual_application_group: str | None = None  # 重複適用グループID
     cost_for_proration: int = 0  # 按分用コスト（円）: 購入価格 or リフォーム費用
 
@@ -352,6 +354,9 @@ class HousingLoanDetailInput(BaseModel):
     is_new_construction: bool = True
     is_childcare_household: bool = False
     has_pre_r6_building_permit: bool = False
+    has_pre_r10_building_permit: bool = (
+        False  # R9.12.31以前の建築確認済み（R10以後入居の新築省エネ基準適合住宅）
+    )
     purchase_date: str | None = None  # 住宅購入日
     purchase_price: int = 0  # 住宅の価格（円）
     total_floor_area: int = 0  # 総床面積（平方メートル×100: 10063=100.63㎡）
@@ -374,6 +379,7 @@ class HousingLoanDetailRecord(BaseModel):
     is_new_construction: bool
     is_childcare_household: bool = False
     has_pre_r6_building_permit: bool = False
+    has_pre_r10_building_permit: bool = False
     purchase_date: str | None = None
     purchase_price: int = 0
     total_floor_area: int = 0
@@ -503,8 +509,9 @@ class ConsumptionTaxInput(BaseModel):
 
     fiscal_year: int
     method: str = Field(
-        pattern=r"^(standard|simplified|special_20pct)$",
-        description="standard=本則, simplified=簡易, special_20pct=2割特例",
+        pattern=r"^(standard|simplified|special_20pct|special_30pct)$",
+        description="standard=本則, simplified=簡易, special_20pct=2割特例（〜令和8年分）, "
+        "special_30pct=3割特例（令和9・10年分、個人事業者のみ）",
     )
     taxable_sales_10: int = 0  # 課税売上高(税込, 標準税率10%)
     taxable_sales_8: int = 0  # 課税売上高(税込, 軽減税率8%)
@@ -574,6 +581,58 @@ class FurusatoDonationRecord(BaseModel):
     receipt_number: str | None
     one_stop_applied: bool
     source_file: str | None
+
+
+class FurusatoLimitInput(BaseModel):
+    """ふるさと納税 控除上限額推定の入力（住民税側の控除を考慮した詳細版）。
+
+    所得税の所得控除と住民税の所得控除は金額が異なる（基礎控除 所得税58〜104万 vs 住民税43万 等）ため、
+    上限額の推定には住民税側の課税所得・所得割額・調整控除を別途計算する必要がある。
+    このモデルは calc_deductions と同じ粒度で控除の元データを受け取る。
+    """
+
+    fiscal_year: int = 2025
+    total_income: int = Field(ge=0, description="総所得金額等（給与所得・事業所得等の合計、円）")
+    social_insurance: int = 0
+    life_insurance_premium: int = 0
+    life_insurance_detail: LifeInsurancePremiumInput | None = None
+    earthquake_insurance_premium: int = 0
+    old_long_term_insurance_premium: int = 0
+    medical_expenses: int = 0
+    self_medication_expenses: int = 0
+    self_medication_eligible: bool = False
+    ideco_contribution: int = 0
+    small_business_mutual_aid: int = 0
+    spouse_income: int | None = None
+    dependents: list[DependentInfo] = Field(default_factory=list)
+    widow_status: str = Field(default="none", pattern=r"^(none|widow|single_parent)$")
+    disability_status: str = Field(default="none", pattern=r"^(none|general|special)$")
+    working_student: bool = False
+    income_tax_rate_percent: int | None = Field(
+        default=None,
+        description="特例控除の計算に用いる所得税率を明示指定する場合（通常は自動判定）",
+    )
+
+
+class FurusatoLimitResult(BaseModel):
+    """ふるさと納税 控除上限額推定の結果。"""
+
+    fiscal_year: int
+    estimated_limit: int = Field(description="実質負担2,000円で寄附できる上限額（推定）")
+    total_income: int
+    income_tax_deductions_total: int = Field(description="所得税の所得控除合計")
+    income_tax_taxable_income: int = Field(description="所得税の課税所得（1,000円未満切捨て）")
+    resident_tax_deductions_total: int = Field(description="住民税の所得控除合計")
+    resident_tax_taxable_income: int = Field(description="住民税の課税所得（1,000円未満切捨て）")
+    personal_deduction_difference: int = Field(description="人的控除差調整額の合計")
+    adjustment_credit: int = Field(description="住民税の調整控除額")
+    resident_tax_income_levy: int = Field(description="住民税所得割額（調整控除後）")
+    special_credit_rate_percent: int = Field(description="特例控除の計算に用いた所得税率（%）")
+    special_credit_max: int = Field(
+        description="特例控除の上限額（所得割額の20%、R9以後の寄附は193万上限）"
+    )
+    special_credit_cap_applied: bool = False
+    notes: list[str] = Field(default_factory=list)
 
 
 class FurusatoDonationSummary(BaseModel):

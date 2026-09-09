@@ -268,4 +268,4 @@ uv run shinkoku profile --config shinkoku.config.yaml
 
 - `output/` は `.gitignore` 対象 — 実行時に自動生成される
 - `shinkoku.config.yaml` はコミットしない（テンプレートは `shinkoku.config.example.yaml`、`/setup` スキルで対話生成可能）
-- 税法計算は令和7年分（2025年課税年度）の改正を反映済み
+- 税法計算は令和7年分（2025年）および令和8年分（2026年、令和8年度税制改正）を反映済み。`fiscal_year` で年分を切り替える

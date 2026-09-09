@@ -116,6 +116,12 @@ shinkoku tax calc-consumption --input consumption_input.json
   "interim_payment": 0
 }
 ```
+`method` の選択肢:
+- `special_20pct`: 2割特例（令和8年9月30日を含む課税期間まで。個人事業者は令和8年分が最後）
+- `special_30pct`: 3割特例（令和8年度改正で新設。個人事業者の令和9年分・令和10年分のみ、免税事業者からインボイス登録した者）
+- `simplified`: 簡易課税（`simplified_business_type` 必須）
+- `standard`: 本則課税
+
 出力 (ConsumptionTaxResult):
 - `method`: 適用した申告方法
 - `taxable_sales_total`: 課税売上高合計（税込、表示用）
