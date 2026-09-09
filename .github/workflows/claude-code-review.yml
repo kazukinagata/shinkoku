@@ -3,12 +3,6 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
 
 jobs:
   claude-review:
@@ -27,21 +21,38 @@ jobs:
         with:
           fetch-depth: 1
 
+      # code-review プラグイン（/code-review:code-review）は headless 実行で Skill ツールが拒否され、
+      # サブエージェントをバックグラウンド起動したまま終了してコメントを投稿しないため、
+      # 公式 examples/pr-review-comprehensive.yml と同じ直接プロンプト方式に切り替えた。
+      # track_progress: true でトラッキングコメントが作成され、レビュー結果はそこに書き込まれる。
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          # --comment を付けないと code-review プラグインは結果をログに出力するだけで PR にコメントしない
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
-          # PR へのコメント投稿・差分取得に必要なツールを明示的に許可する
-          # gh 以外の読み取り系ツールとサブエージェント（Task）も許可する（プラグインが内部で使用）
-          claude_args: |
-            --allowedTools "Task,TodoWrite,Read,Glob,Grep,Bash(gh:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),mcp__github_inline_comment__create_inline_comment"
-          # 実行内容をログに出す（コメントが投稿されない原因の調査用）
-          show_full_output: true
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
 
+            この PR をレビューしてください。手順:
+
+            1. `gh pr view` と `gh pr diff` で PR の説明と差分を取得する（差分は `gh pr diff <n> --repo <repo>` を
+               そのまま実行し、パイプやリダイレクトは使わない。長い場合は Read/Grep でチェックアウト済みの
+               ファイルを直接読む）。
+            2. ルートの CLAUDE.md を読み、規約（金額は int、端数処理ルール、型ヒント、Pydantic 命名、CLI 規約、
+               バージョン同期）への違反を確認する。
+            3. 変更されたコードのバグ・論理誤り・税法のエンコード誤り（税率・控除額・適用年分・法的根拠）を確認する。
+               税制の数値は根拠を示して指摘する。
+            4. テストとドキュメントが変更内容と整合しているか確認する。
+
+            指摘は確度が高いものだけに絞る（スタイルの好み・既存コードの問題・推測は除く）。
+            具体的な問題は `mcp__github_inline_comment__create_inline_comment` でインラインコメントとして残す。
+
+            最後に、レビューの要約をトラッキングコメントに書く。要約の末尾には必ず次のいずれか 1 行を置く:
+            - 問題なし: `Verdict: LGTM`
+            - 修正が必要: `Verdict: Changes requested`（続けて箇条書きで file:line と修正案）
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
+          show_full_output: true
