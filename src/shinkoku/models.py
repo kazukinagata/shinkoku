@@ -334,6 +334,8 @@ class HousingLoanDetail(BaseModel):
     is_new_construction: bool = True  # 新築=True, 中古=False
     is_childcare_household: bool = False  # 子育て世帯・若者夫婦世帯
     has_pre_r6_building_permit: bool = False  # R5以前の建築確認済み（一般住宅のみ関連）
+    # R9.12.31以前の建築確認済み or 建築日R10.6.30以前（R10以後入居の新築省エネ基準適合住宅のみ関連）
+    has_pre_r10_building_permit: bool = False
     dual_application_group: str | None = None  # 重複適用グループID
     cost_for_proration: int = 0  # 按分用コスト（円）: 購入価格 or リフォーム費用
 

@@ -42,6 +42,7 @@ from shinkoku.tax_constants import (
     FURUSATO_SPECIAL_CREDIT_CAP,
     FURUSATO_SPECIAL_CREDIT_CAP_FROM_YEAR,
     HOUSING_LOAN_ENERGY_EFFICIENT_NEW_LAST_YEAR,
+    HOUSING_LOAN_LAST_YEAR,
     HOUSING_LOAN_LIMITS_R8_R12,
     HOUSING_LOAN_LIMITS_R8_R12_CHILDCARE,
     HOUSING_LOAN_R8_START_YEAR,
@@ -68,6 +69,7 @@ from shinkoku.tax_constants import (
     RESIDENT_ADJ_DIFF_SPOUSE_SPECIAL_10M,
     RESIDENT_ADJ_DIFF_WIDOW,
     RESIDENT_ADJ_DIFF_WORKING_STUDENT,
+    RESIDENT_ADJUSTMENT_CREDIT_INCOME_LIMIT,
     RESIDENT_ADJUSTMENT_CREDIT_MIN_BASE,
     RESIDENT_ADJUSTMENT_CREDIT_RATE,
     RESIDENT_ADJUSTMENT_CREDIT_THRESHOLD,
@@ -93,6 +95,7 @@ from shinkoku.tax_constants import (
     RESIDENT_OLD_LONG_TERM_BRACKET_1,
     RESIDENT_OLD_LONG_TERM_BRACKET_2,
     RESIDENT_OLD_LONG_TERM_MAX,
+    RESIDENT_RATE_ADJ_BASIC_BASE,
     RESIDENT_SINGLE_PARENT_DEDUCTION,
     RESIDENT_SPECIFIC_RELATIVE_SPECIAL_TABLE,
     RESIDENT_SPOUSE_DEDUCTION,
@@ -726,6 +729,10 @@ def _get_balance_limit(detail: HousingLoanDetail) -> int:
     move_in_year = int(detail.move_in_date[:4])
     key = (detail.housing_category, detail.is_new_construction)
 
+    # 適用期限: 令和12年（2030年）12月31日までの入居
+    if move_in_year > HOUSING_LOAN_LAST_YEAR:
+        return 0
+
     # 入居年に応じたテーブル選択
     if move_in_year <= 2023:
         limits = HOUSING_LOAN_LIMITS_R4_R5
@@ -745,13 +752,14 @@ def _get_balance_limit(detail: HousingLoanDetail) -> int:
 
     limit = limits.get(key, HOUSING_LOAN_DEFAULT_LIMIT)
 
-    # R10〜R12入居の新築省エネ基準適合住宅: 借入限度額の設定なし（建築確認R9以前等なら「その他」扱い2,000万/10年）
+    # R10〜R12入居の新築省エネ基準適合住宅: 建築確認がR9.12.31以前（または建築日R10.6.30以前）の
+    # 場合のみ「その他の住宅」扱いで2,000万/10年。それ以外は対象外
     if (
         move_in_year > HOUSING_LOAN_ENERGY_EFFICIENT_NEW_LAST_YEAR
         and detail.housing_category == "energy_efficient"
         and detail.is_new_construction
     ):
-        limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED
+        limit = HOUSING_LOAN_GENERAL_R5_CONFIRMED if detail.has_pre_r10_building_permit else 0
 
     # 一般住宅新築 R6-R7: R5確認済みなら特例上限（2,000万/控除期間10年）
     if (
@@ -1722,13 +1730,18 @@ def _get_marginal_tax_rate(taxable_income: int) -> int:
     return INCOME_TAX_TOP_RATE  # Over 40,000,000
 
 
-def _resident_adjustment_credit(resident_taxable_income: int, personal_diff: int) -> int:
+def _resident_adjustment_credit(
+    resident_taxable_income: int, personal_diff: int, total_income: int
+) -> int:
     """住民税の調整控除額（地方税法第37条・第314条の6）。
 
+    合計所得金額2,500万超は対象外。
     課税所得200万以下: min(人的控除差合計, 課税所得) × 5%
     課税所得200万超: max(人的控除差合計 − (課税所得 − 200万), 5万) × 5%
     """
     if personal_diff <= 0 or resident_taxable_income <= 0:
+        return 0
+    if total_income > RESIDENT_ADJUSTMENT_CREDIT_INCOME_LIMIT:
         return 0
     if resident_taxable_income <= RESIDENT_ADJUSTMENT_CREDIT_THRESHOLD:
         base = min(personal_diff, resident_taxable_income)
@@ -1779,6 +1792,7 @@ def calc_furusato_deduction_limit(
     resident_tax_income_deductions: int | None = None,
     personal_deduction_difference: int = 0,
     fiscal_year: int = 2025,
+    rate_adjustment: int | None = None,
 ) -> int:
     """Estimate furusato nozei deduction limit.
 
@@ -1786,15 +1800,19 @@ def calc_furusato_deduction_limit(
     上限 ≈ 住民税所得割額 × 20% ÷ (100% - 所得税率 × 1.021 - 10%) + 2,000
 
     住民税所得割額 = (総所得 - 住民税の所得控除) × 10% - 調整控除
-    所得税率 = 住民税課税所得 - 人的控除差 に対応する累進税率（地方税法37条の2第2項）
+    所得税率 = (住民税課税所得 - 税率判定用調整額) に対応する累進税率（地方税法37条の2第2項）
+      税率判定用調整額 = 人的控除差 + (所得税の基礎控除額 - 48万)。rate_adjustment で指定し、
+      省略時は人的控除差のみを用いる。
 
     resident_tax_income_deductions を省略した場合は所得税の所得控除合計で代用する（簡易推定）。
-    所得税の基礎控除（58万〜104万）は住民税（43万）より大きいため、簡易推定は上限を過少に見積もる。
+    所得税の基礎控除（58万〜104万）は住民税（43万）より大きいため、簡易推定は所得割を過少に見積もる。
     正確な推定には calc_furusato_limit_detailed を使う。
     """
     if resident_tax_income_deductions is None:
         resident_tax_income_deductions = total_income_deductions
         personal_deduction_difference = 0
+    if rate_adjustment is None:
+        rate_adjustment = personal_deduction_difference
 
     taxable_income_raw = max(0, total_income - resident_tax_income_deductions)
     # 課税所得を1,000円未満切捨て
@@ -1803,14 +1821,14 @@ def calc_furusato_deduction_limit(
     if taxable_income <= 0:
         return 0
 
-    # 所得税率を自動計算（指定がなければ）。特例控除の税率判定は人的控除差を差し引いた課税所得で行う
+    # 所得税率を自動計算（指定がなければ）。特例控除の税率判定は調整額を差し引いた課税所得で行う
     if income_tax_rate_percent is None:
-        income_tax_rate_percent = _get_marginal_tax_rate(
-            max(0, taxable_income - personal_deduction_difference)
-        )
+        income_tax_rate_percent = _get_marginal_tax_rate(max(0, taxable_income - rate_adjustment))
 
     # 住民税所得割額 = 課税所得 × 10% - 調整控除
-    adjustment = _resident_adjustment_credit(taxable_income, personal_deduction_difference)
+    adjustment = _resident_adjustment_credit(
+        taxable_income, personal_deduction_difference, total_income
+    )
     juuminzei_shotokuwari = max(0, taxable_income * RESIDENT_TAX_RATE // 100 - adjustment)
 
     if juuminzei_shotokuwari <= 0:
@@ -2104,14 +2122,17 @@ def calc_furusato_limit_detailed(input_data: FurusatoLimitInput) -> FurusatoLimi
     ) * TAXABLE_INCOME_ROUNDING
 
     # 4. 所得割額（調整控除後）
-    adjustment = _resident_adjustment_credit(resident_taxable, personal_diff)
+    adjustment = _resident_adjustment_credit(resident_taxable, personal_diff, total_income)
     levy = max(0, resident_taxable * RESIDENT_TAX_RATE // 100 - adjustment)
 
-    # 5. 特例控除の所得税率（人的控除差調整後の課税所得で判定）
+    # 5. 特例控除の所得税率: 課税総所得金額 − 人的控除差 − (所得税の基礎控除 − 48万) で判定
+    #    （地方税法37条の2第2項。所得税の基礎控除引上げに伴う措置で、所得税の課税所得と一致する）
+    income_tax_basic = calc_basic_deduction(total_income, fy)
+    rate_adjustment = personal_diff + max(0, income_tax_basic - RESIDENT_RATE_ADJ_BASIC_BASE)
     if input_data.income_tax_rate_percent is not None:
         rate = input_data.income_tax_rate_percent
     else:
-        rate = _get_marginal_tax_rate(max(0, resident_taxable - personal_diff))
+        rate = _get_marginal_tax_rate(max(0, resident_taxable - rate_adjustment))
 
     # 6. 上限額
     limit, special_max, cap_applied = _furusato_limit_from_levy(levy, rate, fy)
@@ -2126,9 +2147,11 @@ def calc_furusato_limit_detailed(input_data: FurusatoLimitInput) -> FurusatoLimi
         "住宅ローン控除の住民税からの控除分、ふるさと納税以外の寄附金税額控除、"
         "分離課税所得は考慮していません。"
     )
-    if fy >= 2026:
+    if income_tax_basic > RESIDENT_RATE_ADJ_BASIC_BASE:
         notes.append(
-            "所得税の基礎控除（最大104万）と住民税の基礎控除（43万）の差を住民税側で調整済みです。"
+            f"特例控除の所得税率は、住民税課税所得から人的控除差{personal_diff:,}円と"
+            f"所得税の基礎控除引上げ分{income_tax_basic - RESIDENT_RATE_ADJ_BASIC_BASE:,}円を"
+            f"差し引いた金額で判定しました（{rate}%）。"
         )
 
     return FurusatoLimitResult(

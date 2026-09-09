@@ -293,6 +293,15 @@ RESIDENT_TAX_RATE = 10  # 所得割 10%（道府県民税4% + 市町村民税6%�
 RESIDENT_ADJUSTMENT_CREDIT_RATE = 5  # 調整控除の率 5%（道府県2% + 市町村3%）
 RESIDENT_ADJUSTMENT_CREDIT_THRESHOLD = 2_000_000  # 調整控除: 課税所得200万の境界
 RESIDENT_ADJUSTMENT_CREDIT_MIN_BASE = 50_000  # 課税所得200万超の場合の控除差の下限5万
+RESIDENT_ADJUSTMENT_CREDIT_INCOME_LIMIT = (
+    25_000_000  # 調整控除は合計所得2,500万以下のみ（地方税法37条）
+)
+
+# ふるさと納税 特例控除の所得税率判定（地方税法第37条の2第2項）
+# 判定基準 = 住民税課税総所得金額 − 人的控除差調整額 − (所得税の基礎控除額 − 48万円)
+# 所得税の基礎控除が令和7年分から48万超に引き上げられたことに伴う所要の措置（令和8年度分住民税以後）。
+# これにより判定基準が所得税の課税所得と一致し、所得税の限界税率と整合する。
+RESIDENT_RATE_ADJ_BASIC_BASE = 480_000
 
 # 住民税 基礎控除（地方税法第34条第2項）: (合計所得上限, 控除額)
 RESIDENT_BASIC_DEDUCTION_TABLE: list[tuple[int, int]] = [
@@ -493,12 +502,12 @@ HOUSING_LOAN_LIMITS_R8_R12_CHILDCARE: dict[tuple[str, bool], int] = {
 }
 
 # R10-R12 入居の新築省エネ基準適合住宅: 建築確認がR9.12.31以前（または建築日R10.6.30以前）の場合のみ
-# 「その他の住宅」として 2,000万/10年。それ以外は対象外。本ツールでは 2,000万 を適用し警告する。
+# 「その他の住宅」として 2,000万/10年。それ以外は対象外（HousingLoanDetail.has_pre_r10_building_permit で指定）。
 HOUSING_LOAN_ENERGY_EFFICIENT_NEW_LAST_YEAR = (
     2027  # 新築省エネ基準適合住宅の借入限度額が設定される最終入居年
 )
 HOUSING_LOAN_R8_START_YEAR = 2026
-HOUSING_LOAN_LAST_YEAR = 2030  # 適用期限（令和12年12月31日入居まで）
+HOUSING_LOAN_LAST_YEAR = 2030  # 適用期限（令和12年12月31日入居まで）。R13以後入居は対象外
 
 HOUSING_LOAN_DEFAULT_LIMIT = 30_000_000  # デフォルト上限
 

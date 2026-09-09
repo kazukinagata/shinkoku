@@ -236,8 +236,16 @@ def test_housing_loan_limits_r8(
 
 
 def test_housing_loan_energy_efficient_new_after_2027() -> None:
+    # R10以後入居の新築省エネ基準適合住宅: 建築確認R9以前なら「その他」扱い2,000万、それ以外は対象外
     detail = _hl("energy_efficient", True, move_in="2028-03-01")
+    assert calc_housing_loan_credit(detail.year_end_balance, detail) == 0
+    detail = detail.model_copy(update={"has_pre_r10_building_permit": True})
     assert calc_housing_loan_credit(detail.year_end_balance, detail) == 20_000_000 * 7 // 1000
+
+
+def test_housing_loan_expires_after_2030() -> None:
+    assert calc_housing_loan_credit(60_000_000, _hl("certified", True, move_in="2030-12-31")) > 0
+    assert calc_housing_loan_credit(60_000_000, _hl("certified", True, move_in="2031-01-01")) == 0
 
 
 def test_housing_loan_r7_unchanged() -> None:
@@ -267,18 +275,39 @@ def test_consumption_tax_special_30pct() -> None:
 # ============================================================
 
 
-def test_furusato_limit_detailed_matches_soumu_table() -> None:
-    """総務省の目安表（給与収入・独身・社会保険料15%）と一致することを確認する。"""
+def _salary_case(fy: int, salary: int) -> FurusatoLimitInput:
+    return FurusatoLimitInput(
+        fiscal_year=fy,
+        total_income=salary - calc_salary_deduction(salary, fy),
+        social_insurance=salary * 15 // 100,
+    )
+
+
+def test_furusato_limit_detailed_matches_soumu_table_2025() -> None:
+    """令和7年分: 総務省の目安表（給与収入・独身・社会保険料15%）と一致することを確認する。"""
     expectations = {3_000_000: 28_000, 5_000_000: 61_000, 7_000_000: 108_000, 10_000_000: 176_000}
-    for fy in (2025, 2026):
-        for salary, expected in expectations.items():
-            income = salary - calc_salary_deduction(salary, fy)
-            result = calc_furusato_limit_detailed(
-                FurusatoLimitInput(
-                    fiscal_year=fy, total_income=income, social_insurance=salary * 15 // 100
-                )
-            )
-            assert abs(result.estimated_limit - expected) < 2_000, (fy, salary, result)
+    for salary, expected in expectations.items():
+        result = calc_furusato_limit_detailed(_salary_case(2025, salary))
+        assert abs(result.estimated_limit - expected) < 2_000, (salary, result)
+
+
+def test_furusato_limit_detailed_2026_rate_follows_income_tax_bracket() -> None:
+    """令和8年分: 基礎控除104万で所得税の課税所得が195万以下に下がると特例控除の税率も5%になる。
+
+    給与500万: 住民税課税所得238万 − 人的控除差5万 − (104万−48万) = 177万 → 5%（所得税の課税所得と一致）
+    """
+    r = calc_furusato_limit_detailed(_salary_case(2026, 5_000_000))
+    assert r.income_tax_taxable_income == 1_770_000
+    assert r.special_credit_rate_percent == 5
+    assert r.resident_tax_income_levy == 235_500  # 住民税側は変わらない
+    # 84.895% で割るため 10% 判定（61,022円）より小さくなる
+    assert r.estimated_limit == 235_500 * 20 // 100 * 1000 // 849 + 2_000
+    # 所得税率が変わらない層は令和7年分と同額
+    for salary in (3_000_000, 7_000_000, 10_000_000):
+        assert (
+            calc_furusato_limit_detailed(_salary_case(2026, salary)).estimated_limit
+            == calc_furusato_limit_detailed(_salary_case(2025, salary)).estimated_limit
+        )
 
 
 def test_furusato_limit_detailed_spouse_and_child() -> None:
@@ -299,14 +328,28 @@ def test_furusato_limit_detailed_spouse_and_child() -> None:
     assert result.adjustment_credit == 7_500
 
 
-def test_furusato_limit_detailed_is_independent_of_income_tax_basic_deduction() -> None:
-    """所得税の基礎控除が58万→104万に増えても住民税所得割は変わらないので上限も変わらない。"""
+def test_furusato_limit_detailed_resident_side_independent_of_income_tax_basic_deduction() -> None:
+    """所得税の基礎控除が増えても住民税課税所得・所得割は変わらない（住民税の基礎控除は43万据え置き）。"""
     kwargs = {"total_income": 3_500_000, "social_insurance": 500_000}
     r25 = calc_furusato_limit_detailed(FurusatoLimitInput(fiscal_year=2025, **kwargs))
     r26 = calc_furusato_limit_detailed(FurusatoLimitInput(fiscal_year=2026, **kwargs))
     assert r25.income_tax_deductions_total < r26.income_tax_deductions_total
-    assert r25.resident_tax_taxable_income == r26.resident_tax_taxable_income
+    assert r25.resident_tax_taxable_income == r26.resident_tax_taxable_income == 2_570_000
+    assert r25.resident_tax_income_levy == r26.resident_tax_income_levy
+    # 課税所得257万 − 5万 − (68万−48万) = 232万 / 257万 − 5万 − (104万−48万) = 196万 → どちらも10%
+    assert r25.special_credit_rate_percent == r26.special_credit_rate_percent == 10
     assert r25.estimated_limit == r26.estimated_limit
+
+
+def test_furusato_adjustment_credit_not_applied_over_25m() -> None:
+    r = calc_furusato_limit_detailed(
+        FurusatoLimitInput(fiscal_year=2026, total_income=26_000_000, spouse_income=0)
+    )
+    assert r.adjustment_credit == 0
+    r_ok = calc_furusato_limit_detailed(
+        FurusatoLimitInput(fiscal_year=2026, total_income=24_000_000, spouse_income=0)
+    )
+    assert r_ok.adjustment_credit == 2_500  # 課税所得200万超 → max(差額, 5万) × 5%
 
 
 def test_furusato_limit_legacy_signature_still_works() -> None:
